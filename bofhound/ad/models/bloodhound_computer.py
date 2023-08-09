@@ -10,7 +10,7 @@ class BloodHoundComputer(BloodHoundObject):
     COMMON_PROPERTIES = [
         'samaccountname', 'useraccountcontrol', 'distinguishedname',
         'dnshostname', 'samaccounttype', 'objectsid', 'primarygroupid',
-        'isdeleted', 'serviceprincipalname', 'msds-allowedtodelegateto',
+        'serviceprincipalname', 'msds-allowedtodelegateto',
         'sidhistory', 'whencreated', 'lastlogon', 'lastlogontimestamp',
         'pwdlastset', 'operatingsystem', 'description', 'operatingsystemservicepack',
         'msds-allowedtoactonbehalfofotheridentity', 'ms-mcs-admpwdexpirationtime',
@@ -30,6 +30,7 @@ class BloodHoundComputer(BloodHoundObject):
         }
         self.uac = None
         self.IsACLProtected = False
+        self.IsDeleted = False
         self.hostname = object.get('dnshostname', None)
         self.PrimaryGroupSid = self.get_primary_membership(object) # Returns none if non-existent
         self.sessions = None #['not currently supported by bofhound']
@@ -113,10 +114,6 @@ class BloodHoundComputer(BloodHoundObject):
 
     def to_json(self, only_common_properties=True):
         data = super().to_json(only_common_properties)
-        data["LocalAdmins"] = self.not_collected
-        data["PSRemoteUsers"] = self.not_collected
-        data["RemoteDesktopUsers"] = self.not_collected
-        data["DcomUsers"] = self.not_collected
         data["Sessions"] = self.not_collected
         data["PrivilegedSessions"] = self.not_collected
         data["RegistrySessions"] = self.not_collected
@@ -124,6 +121,13 @@ class BloodHoundComputer(BloodHoundObject):
         data["PrimaryGroupSID"] = self.PrimaryGroupSid
         data["AllowedToDelegate"] = self.AllowedToDelegate
         data["AllowedToAct"] = []
+        data["HasSidHistory"] = self.Properties.get("sidhistory", [])
+        data["DumpSMSAPassword"] = []
+        data["LocalGroups"] = []
+        data["UserRights"] = []
+        data["Status"] = None
+        data["IsDeleted"] = self.IsDeleted
+        data["ContainedBy"] = None
         data["Aces"] = self.Aces
         data["IsACLProtected"] = self.IsACLProtected
 

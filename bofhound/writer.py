@@ -77,7 +77,7 @@ class BloodHoundWriter():
                 "type": "domains",
                 "count": 0,
                 "methods": 0,
-                "version":4
+                "version": 5
             }
         }
 
@@ -101,7 +101,7 @@ class BloodHoundWriter():
                 "type": "computers",
                 "count": 0,
                 "methods": 0,
-                "version":4
+                "version": 5
             }
         }
 
@@ -126,7 +126,7 @@ class BloodHoundWriter():
                 "type": "users",
                 "count": 0,
                 "methods": 0,
-                "version":4
+                "version": 5
             }
         }
 
@@ -151,7 +151,7 @@ class BloodHoundWriter():
                 "type": "groups",
                 "count": 0,
                 "methods": 0,
-                "version": 4
+                "version": 5
             }
         }
 
@@ -176,7 +176,7 @@ class BloodHoundWriter():
                 "type": "ous",
                 "count": 0,
                 "methods": 0,
-                "version": 4
+                "version": 5
             }
         }
 
@@ -201,7 +201,7 @@ class BloodHoundWriter():
                 "type": "gpos",
                 "count": 0,
                 "methods": 0,
-                "version": 4
+                "version": 5
             }
         }
 

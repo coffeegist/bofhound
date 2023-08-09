@@ -1,4 +1,8 @@
 # Changelog
+## [0.2.1] - 08/09/2023
+### Changed
+- Updated output JSON to v5 (BloodHound CE) specs
+
 ## [0.2.0] - 03/28/2023
 ### Added
 - New parser to support parsing LDAP Sentinel data from BRc4 logs

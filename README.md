@@ -69,6 +69,11 @@ Retrieve Only the ms-Mcs-AdmPwd schemaIDGUID
 ldapsearch (name=ms-mcs-admpwd) name,schemaidguid 1 "" CN=Schema,CN=Configuration,DC=windomain,DC=local
 ```
 
+# Versions
+Check the tagged releases to download a specific version
+- v0.2.1 and onward are compatible with BloodHound CE
+- v0.2.0 is the last release supporting BloodHound Legacy
+
 # Development
 bofhound uses Poetry to manage dependencies. Install from source and setup for development with:
 
