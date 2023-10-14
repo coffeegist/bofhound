@@ -35,7 +35,16 @@ class LdapSearchBofParser():
 
         in_result_region = False
 
-        data = re.sub(r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n', '', contents)
+        badPatterns = [
+            r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n',
+            r'^$',
+            r'^\d\d\/\d\d \d\d:\d\d:\d\d UTC \[.*$',    # CobaltStrike queued command output: MM/DD HH:MM:SS UTC [input|task|output]
+            r'^Running [\w-] ?.*$',                        # BOF Output
+            r'^received output:.*$'                              # Start of next response
+        ]
+        data = contents
+        for expression in badPatterns:
+            data = re.sub(expression, '', data)
 
         lines = data.splitlines()
         for line in lines:
@@ -76,12 +85,6 @@ class LdapSearchBofParser():
             #BACKHALFOFNTSECURITYDESCRIPTOR==
             #name: Domain Admins
 
-            badPatterns = [ "^$",                           # Empty Line
-            "^\\d\\d/\\d\\d \\d\\d:\\d\\d:\\d\\d UTC ?",    # CobaltStrike queued command output: MM/DD HH:MM:SS UTC [input|task]
-            "^Running ldapsearch ?",                        # BOF Output
-            "^received output"                              # Start of next response
-            ]
-
             if (is_boundary_line):
                 if not in_result_region:
                     in_result_region = True
@@ -97,9 +100,9 @@ class LdapSearchBofParser():
                 current_object = None
                 continue
             elif any (re.match(regex, line) for regex in badPatterns):
-                logging.debug('Skipping badPattern match in_result_region: %s', line)
+                logging.info('Skipping badPattern match in_result_region: %s', line)
                 continue
-            #   END FIX - bofhound crashes if it encounters an cobaltstrike task strings while parsing the ldapsearch data.
+                #   END FIX - bofhound crashes if it encounters an cobaltstrike task strings while parsing the ldapsearch data.
 
             data = line.split(': ')
 

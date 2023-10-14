@@ -38,8 +38,8 @@ def raw_trust():
         'trustpartner': 'child.windomain.local',
         'trustposixfffset': '-2147483648',
         'trusttype': '2'
-    }        
-    
+    }
+
 
 @pytest.fixture
 def raw_domain():
@@ -137,11 +137,9 @@ def test_import_objects_DuplicateObject(raw_user):
     assert dn_map_object.ObjectIdentifier == expected_sid
 
 
-def test_import_unique_trust(raw_trust, raw_domain):
+def test_import_objects_unique_trust(raw_trust, raw_domain):
     expected_domain_count = 1
     expected_trust_count = 1
-
-    adds = ADDS()
 
     adds = ADDS()
     adds.import_objects([raw_domain, raw_trust])
@@ -154,8 +152,6 @@ def test_import_unique_trust(raw_trust, raw_domain):
 def test_import_duplicate_trust(raw_trust, raw_domain):
     expected_domain_count = 1
     expected_trust_count = 1
-
-    adds = ADDS()
 
     adds = ADDS()
     adds.import_objects([raw_domain, raw_trust, raw_trust])

@@ -194,3 +194,40 @@ sAMAccountType: 805306369
     assert len(parsed_objects) == 1
     assert len(ad.computers) == 1
 
+
+def test_parse_midsearch_taskings():
+    data = """dSCorePropagationData: 16010101000000.0Z
+--------------------
+distinguishedName: CN=WIN10,OU=Workstations,DC=windomain,DC=local
+objectSid: S-1-5-21-3674311734-1768984491-1162443153-
+09/21 15:01:34 UTC [input] <user> ldapsearch "(&(objectClass=group)(name=Domain Users))" *,ntsecuritydescriptor 1 192.168.1.1 "DC=DOMAIN,DC=local"
+09/21 15:01:34 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+
+09/21 15:01:34 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:41 UTC [output]
+received output:
+1104
+sAMAccountType: 805306369
+nTSecurityDescriptor: B64ENCODEDBINARYDATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+09/21 15:01:34 UTC [input] <user> ldapsearch "(&(objectClass=group)(name=Domain Users))" *,ntsecuritydescriptor 1 192.168.1.1 "DC=DOMAIN,DC=local"
+09/21 15:01:34 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+
+09/21 15:01:34 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:41 UTC [output]
+received output:
+BACKHALFOFNTSECURITYDESCRIPTOR==
+name: Domain Admins
+--------------------
+    """
+    parsed_objects = LdapSearchBofParser.parse_data(data)
+    ad = ADDS()
+    ad.import_objects(parsed_objects)
+
+    assert len(parsed_objects) == 1
+    assert len(ad.computers) == 1
+    computer: BloodHoundComputer = ad.computers[0]
+    assert computer.get_distinguished_name() == 'CN=WIN10,OU=Workstations,DC=windomain,DC=local'.upper()
+    assert computer.ObjectIdentifier == 'S-1-5-21-3674311734-1768984491-1162443153-1104'
+    assert computer.get_property('ntsecuritydescriptor') == 'B64ENCODEDBINARYDATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABACKHALFOFNTSECURITYDESCRIPTOR=='

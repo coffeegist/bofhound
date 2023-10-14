@@ -197,9 +197,9 @@ class ADDS():
 
         num_parsed_relations = 0
         with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
-            for object in all_objects:
-                self.recalculate_sid(object)
-                num_parsed_relations += self.parse_acl(object)
+            for this_object in all_objects:
+                self.recalculate_sid(this_object)
+                num_parsed_relations += self.parse_acl(this_object)
                 status.update(f" [bold] Processing {num_parsed_relations} ACLs")
 
         logging.info(f"Parsed {num_parsed_relations} ACL relationships")
@@ -394,7 +394,7 @@ class ADDS():
                     group.add_group_member(subgroup, "Group")
                     logging.debug(f"Resolved {ColorScheme.group}{subgroup.Properties['name']}[/] as nested member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
-    
+
     def resolve_ou_members(self):
         for user in self.users:
             ou = self._resolve_object_ou(user)
@@ -435,7 +435,7 @@ class ADDS():
                        logging.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to domain {ColorScheme.domain}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
                     else:
                         logging.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to OU {ColorScheme.ou}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
-    
+
 
     def resolve_domain_trusts(self):
         for trust in self.trusts:
@@ -659,7 +659,7 @@ class ADDS():
         if ADDS.AT_DISTINGUISHEDNAME in member.Properties.keys():
             if member.Properties["distinguishedname"] in group.MemberDNs:
                 return True
-            
+
         # BRc4 does not use DN in groups' member attribute, so we have
         # to check membership from the other side of the relationship
         if ADDS.AT_DISTINGUISHEDNAME in group.Properties.keys():
@@ -677,12 +677,12 @@ class ADDS():
             if subgroup.Properties["distinguishedname"] in group.MemberDNs:
                 return True
 
-        if ADDS.AT_DISTINGUISHEDNAME in group.Properties.keys():    
+        if ADDS.AT_DISTINGUISHEDNAME in group.Properties.keys():
             # BRc4 does not use DN in groups' member attribute, so we have
             # to check membership from the other side of the relationship
             if group.Properties["distinguishedname"] in subgroup.MemberOfDNs:
                 return True
-            
+
         return False
 
 
@@ -694,7 +694,7 @@ class ADDS():
                     return ou
         return None
 
-    
+
     def _resolve_nested_ou(self, nested_ou):
         dn = nested_ou.Properties["distinguishedname"]
         # else is top-level OU
