@@ -3,6 +3,7 @@ name: Require Changelog Updates
 on:
   pull_request:
     types:
+      - opened
       - synchronize
     branches:
       - main
