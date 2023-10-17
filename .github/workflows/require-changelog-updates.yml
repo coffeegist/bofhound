@@ -20,6 +20,7 @@ jobs:
 
     - name: Check Changelog
       run: |
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
         changed_files=$(git diff --name-only HEAD $(git merge-base HEAD ${{ github.base_ref }}))
         if [[ $changed_files != *CHANGELOG.md* ]]; then
           echo "::error::No changes to CHANGELOG.md detected. Please update the changelog before merging."
