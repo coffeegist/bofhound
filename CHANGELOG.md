@@ -1,4 +1,8 @@
 # Changelog
+## [0.2.2] - 10/17/2023
+### Fixed
+- Bug in parsing logic where interlaced ldap logs would cause incorrect parsed object results
+
 ## [0.2.1] - 08/09/2023
 ### Changed
 - Updated output JSON to v5 (BloodHound CE) specs
