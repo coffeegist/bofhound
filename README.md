@@ -85,5 +85,6 @@ poetry run bofhound --help
 ```
 
 # References and Credits
+- Originally released by [Fortalice Solutions, LLC](https://github.com/fortalice)
 - [@_dirkjan](https://twitter.com/_dirkjan) (and other contributors) for [BloodHound.py](https://github.com/fox-it/BloodHound.py)
 - TrustedSec for [CS-Situational-Awareness-BOF](https://github.com/trustedsec/CS-Situational-Awareness-BOF)
