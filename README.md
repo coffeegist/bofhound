@@ -6,7 +6,7 @@
 |  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
 |______/   \______/  |__|     |__|  |___\_\________\_\________\|__| \___\|_________\
 
-                              by Fortalice ✪
+                            << @coffeegist | @Tw1sm >>
 ```
 
 # BOFHound
@@ -71,6 +71,7 @@ ldapsearch (name=ms-mcs-admpwd) name,schemaidguid 1 "" CN=Schema,CN=Configuratio
 
 # Versions
 Check the tagged releases to download a specific version
+- v0.3.0 and onward support session/local group data 
 - v0.2.1 and onward are compatible with BloodHound CE
 - v0.2.0 is the last release supporting BloodHound Legacy
 
