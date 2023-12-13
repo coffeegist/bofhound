@@ -1,6 +1,7 @@
 # Changelog
 ## [0.3.0] - [DATE]
 ### Added
+- New ADDS model for AD crossRef objects (referrals)
 - New parsers and processing logic to support session/local group data
 
 ## [0.2.1] - 08/09/2023

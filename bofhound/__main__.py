@@ -98,6 +98,7 @@ def main(
     logging.info(f"Parsed {len(ad.ous)} OUs")
     logging.info(f"Parsed {len(ad.gpos)} GPOs")
     logging.info(f"Parsed {len(ad.schemas)} Schemas")
+    logging.info(f"Parsed {len(ad.CROSSREF_MAP)} CrossRefs")
     logging.info(f"Parsed {len(ad.unknown_objects)} Unknown Objects")
     logging.info(f"Parsed {len(broker.sessions)} Sessions")
     logging.info(f"Parsed {len(broker.privileged_sessions)} Privileged Sessions")

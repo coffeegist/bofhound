@@ -69,6 +69,11 @@ Retrieve Only the ms-Mcs-AdmPwd schemaIDGUID
 ldapsearch (name=ms-mcs-admpwd) name,schemaidguid 1 "" CN=Schema,CN=Configuration,DC=windomain,DC=local
 ```
 
+Retrieve Domain NetBIOS Names (useful if collecting data via `bofhound-netloggedon/netsession` BOFs)
+```
+ldapsearch (netbiosname=*) * 0 "" "CN=Partitions,CN=Configuration,DC=windomain,DC=local"
+```
+
 # Versions
 Check the tagged releases to download a specific version
 - v0.3.0 and onward support session/local group data 

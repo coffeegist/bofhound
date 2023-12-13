@@ -3,7 +3,7 @@ import logging
 from io import BytesIO
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
-from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundDomainTrust
+from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
 
@@ -27,6 +27,7 @@ class ADDS():
         self.SID_MAP = {} # {sid: BofHoundModel}
         self.DN_MAP = {} # {dn: BofHoundModel}
         self.DOMAIN_MAP = {} # {dc: ObjectIdentifier}
+        self.CROSSREF_MAP = {} # { netBiosName: BofHoundModel }
         self.ObjectTypeGuidMap = {} # { Name : schemaIdGuid }
         self.domains = []
         self.users = []
@@ -48,6 +49,7 @@ class ADDS():
         """
 
         for object in objects:
+            # check if object is a schema - exception for normally required attributes
             schemaIdGuid = object.get(ADDS.AT_SCHEMAIDGUID, None)
             if schemaIdGuid:
                 new_schema = BloodHoundSchema(object)
@@ -55,6 +57,14 @@ class ADDS():
                     self.schemas.append(new_schema)
                     if new_schema.Name not in self.ObjectTypeGuidMap.keys():
                         self.ObjectTypeGuidMap[new_schema.Name] = new_schema.SchemaIdGuid
+                continue
+            
+            # check if object is a crossRef - exception for normally required attributes
+            if 'top, crossRef' in object.get(ADDS.AT_OBJECTCLASS, ''):
+                new_crossref = BloodHoundCrossRef(object)
+                if new_crossref.netBiosName is not None:
+                    if new_crossref.netBiosName not in self.CROSSREF_MAP.keys():
+                        self.CROSSREF_MAP[new_crossref.netBiosName] = new_crossref
                 continue
 
             accountType = int(object.get(ADDS.AT_SAMACCOUNTTYPE, 0))

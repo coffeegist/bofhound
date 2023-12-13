@@ -46,6 +46,7 @@ def testdata_pyldapsearch_redania_objects():
     yield LdapSearchBofParser.parse_file(log_file)
 
 
+
 # BRc4 LDAP Sentinel Fixtures
 @pytest.fixture
 def brc4ldapsentinel_standard_file_1030():
