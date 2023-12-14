@@ -29,7 +29,7 @@ class LocalBroker:
                     
             elif object["ObjectType"] == NetLocalGroupBofParser.OBJECT_TYPE:
                 local_group_membership = LocalGroupMembership(object)
-                if local_group_membership.should_import():
+                if local_group_membership.should_import(known_domain_sids):
                     self.local_group_memberships.add(local_group_membership)
 
             elif object["ObjectType"] == RegSessionBofParser.OBJECT_TYPE:

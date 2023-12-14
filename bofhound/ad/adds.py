@@ -946,11 +946,7 @@ class ADDS():
             if not computer_found:
                 continue
 
-            user_domain_sid = member.member_sid.rsplit('-', 1)[0]
             color = ColorScheme.user if member.member_sid_type == "User" else ColorScheme.group
-            if user_domain_sid not in self.DOMAIN_MAP.values():
-                logging.debug(f"Skipping local group membership for {color}{member.member}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/] due to unknown domain SID", extra=OBJ_EXTRA_FMT)
-                continue
                 
             computer_object.add_local_group_member(member.member_sid, member.member_sid_type, member.group)
             logging.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)

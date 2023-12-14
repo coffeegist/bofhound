@@ -48,7 +48,7 @@ def test_import_netlocalgroup_objects(netlocalgroup_redania_objects):
     local_broker = LocalBroker()
     local_broker.import_objects(netlocalgroup_redania_objects, KNOWN_DOMAIN_SIDS)
     
-    assert len(local_broker.local_group_memberships) == 5
+    assert len(local_broker.local_group_memberships) == 3
 
 
 def test_import_netlocalgroup_invalid_group():
