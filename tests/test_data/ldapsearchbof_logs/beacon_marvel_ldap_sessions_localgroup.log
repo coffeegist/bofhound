@@ -10196,4 +10196,136 @@ received output:
 Query for domain name failed
 DNS name does not exist.
 
+12/15 14:53:46 UTC [metadata] 192.168.48.138 <- 192.168.48.138; computer: ASGARD-WRKSTN; user: thor; process: beacon_x64.exe; pid: 9584; os: Windows; version: 6.2; build: 9200; beacon arch: x64 (x64)
+12/15 14:54:48 UTC [input] <neo> ldapsearch (objectclass=*) * 0 "" "CN=Partitions,CN=Configuration,DC=marvel,DC=local"
+12/15 14:54:48 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+
+12/15 14:54:48 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+12/15 14:54:48 UTC [checkin] host called home, sent: 10545 bytes
+12/15 14:54:48 UTC [output]
+received output:
+Binding to 192.168.48.137
+
+12/15 14:54:48 UTC [output]
+received output:
+[*] Distinguished name: CN=Partitions,CN=Configuration,DC=marvel,DC=local
+[*] targeting DC: \\Earth-DC.marvel.local
+[*] Filter: (objectclass=*)
+[*] Returning specific attribute(s): *
+
+--------------------
+objectClass: top, crossRefContainer
+cn: Partitions
+distinguishedName: CN=Partitions,CN=Configuration,DC=marvel,DC=local
+instanceType: 4
+whenCreated: 20220801153659.0Z
+whenChanged: 20220801153659.0Z
+uSNCreated: 4116
+uSNChanged: 4116
+showInAdvancedViewOnly: TRUE
+name: Partitions
+objectGUID: 2d551df5-7b91-4ab5-ba01-64829628a99a
+fSMORoleOwner: CN=NTDS Settings,CN=EARTH-DC,CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=marvel,DC=local
+systemFlags: -2147483648
+objectCategory: CN=Cross-Ref-Container,CN=Schema,CN=Configuration,DC=marvel,DC=local
+dSCorePropagationData: 16010101000000.0Z
+msDS-Behavior-Version: 7
+--------------------
+objectClass: top, crossRef
+cn: Enterprise Configuration
+distinguishedName: CN=Enterprise Configuration,CN=Partitions,CN=Configuration,DC=marvel,DC=local
+instanceType: 4
+whenCreated: 20220801153659.0Z
+whenChanged: 20220801153659.0Z
+nCName: CN=Configuration,DC=marvel,DC=local
+uSNCreated: 4117
+uSNChanged: 4117
+showInAdvancedViewOnly: TRUE
+name: Enterprise Configuration
+objectGUID: 351dcb74-2cc9-4959-94fa-d91e7a58535d
+dnsRoot: marvel.local
+systemFlags: 1
+objectCategory: CN=Cross-Ref,CN=Schema,CN=Configuration,DC=marvel,DC=local
+dSCorePropagationData: 16010101000000.0Z
+--------------------
+objectClass: top, crossRef
+cn: MARVEL
+distinguishedName: CN=MARVEL,CN=Partitions,CN=Configuration,DC=marvel,DC=local
+instanceType: 4
+whenCreated: 20220801153659.0Z
+whenChanged: 20220801153856.0Z
+nCName: DC=marvel,DC=local
+uSNCreated: 4118
+uSNChanged: 12708
+showInAdvancedViewOnly: TRUE
+name: MARVEL
+objectGUID: f6d46019-ff72-451e-92cc-5ff055d26b13
+dnsRoot: marvel.local
+nETBIOSName: MARVEL
+nTMixedDomain: 0
+systemFlags: 3
+objectCategory: CN=Cross-Ref,CN=Schema,CN=Configuration,DC=marvel,DC=local
+dSCorePropagationData: 16010101000000.0Z
+msDS-Behavior-Version: 7
+--------------------
+objectClass: top, crossRef
+cn: Enterprise Schema
+distinguishedName: CN=Enterprise Schema,CN=Partitions,CN=Configuration,DC=marvel,DC=local
+instanceType: 4
+whenCreated: 20220801153659.0Z
+whenChanged: 20220801153659.0Z
+nCName: CN=Schema,CN=Configuration,DC=marvel,DC=local
+uSNCreated: 4119
+uSNChanged: 4119
+showInAdvancedViewOnly: TRUE
+name: Enterprise Schema
+objectGUID: 2d7c8a36-7e3d-42b7-9b5d-1cf059e1c536
+dnsRoot: marvel.local
+systemFlags: 1
+objectCategory: CN=Cross-Ref,CN=Schema,CN=Configuration,DC=marvel,DC=local
+dSCorePropagationData: 16010101000000.0Z
+--------------------
+objectClass: top, crossRef
+cn: 246d363d-94c0-46ea-a30d-a815e0544866
+distinguishedName: CN=246d363d-94c0-46ea-a30d-a815e0544866,CN=Partitions,CN=Configuration,DC=marvel,DC=local
+instanceType: 4
+whenCreated: 20220801153829.0Z
+whenChanged: 20220801153829.0Z
+nCName: DC=DomainDnsZones,DC=marvel,DC=local
+uSNCreated: 12582
+objectVersion: 2
+uSNChanged: 12601
+showInAdvancedViewOnly: TRUE
+name: 246d363d-94c0-46ea-a30d-a815e0544866
+objectGUID: af857106-6a3e-46f3-8f2d-5bd222b12c01
+dnsRoot: DomainDnsZones.marvel.local
+systemFlags: 5
+objectCategory: CN=Cross-Ref,CN=Schema,CN=Configuration,DC=marvel,DC=local
+dSCorePropagationData: 20220801153829.0Z, 16010101000000.0Z
+msDS-NC-Replica-Locations: CN=NTDS Settings,CN=EARTH-DC,CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=marvel,DC=local
+msDS-SDReferenceDomain: DC=marvel,DC=local
+--------------------
+objectClass: top, crossRef
+cn: d14c7be7-7680-4676-b686-3fd959a2427a
+distinguishedName: CN=d14c7be7-7680-4676-b686-3fd959a2427a,CN=Partitions,CN=Configuration,DC=marvel,DC=local
+instanceType: 4
+whenCreated: 20220801153829.0Z
+whenChanged: 20220801153829.0Z
+nCName: DC=ForestDnsZones,DC=marvel,DC=local
+uSNCreated: 12605
+objectVersion: 2
+uSNChanged: 12623
+showInAdvancedViewOnly: TRUE
+name: d14c7be7-7680-4676-b686-3fd959a2427a
+objectGUID: 7173c5b9-ab8f-41c4-90b5-5cfec5ff2f25
+dnsRoot: ForestDnsZones.marvel.local
+systemFlags: 5
+objectCategory: CN=Cross-Ref,CN=Schema,CN=Configuration,DC=marvel,DC=local
+dSCorePropagationData: 20220801153829.0Z, 16010101000000.0Z
+msDS-NC-Replica-Locations: CN=NTDS Settings,CN=EARTH-DC,CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=marvel,DC=local
+msDS-SDReferenceDomain: DC=marvel,DC=local
+retreived 6 results total
+
+
 
