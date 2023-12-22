@@ -2,6 +2,8 @@ import os
 import pytest 
 from bofhound.parsers import LdapSearchBofParser
 from bofhound.parsers import GenericParser
+from bofhound.ad import ADDS
+from bofhound.local import LocalBroker
 
 TEST_DATA_DIR = os.path.abspath(
         os.path.join(
@@ -45,6 +47,17 @@ def testdata_pyldapsearch_redania_objects():
     log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/pyldapsearch_redania_objects.log")
     yield LdapSearchBofParser.parse_file(log_file)
 
+
+@pytest.fixture
+def testdata_marvel_ldap_objects():
+    log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_marvel_ldap_sessions_localgroup.log")
+    yield LdapSearchBofParser.parse_file(log_file)
+
+
+@pytest.fixture
+def testdata_marvel_local_objects():
+    log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_marvel_ldap_sessions_localgroup.log")
+    yield GenericParser.parse_file(log_file)
 
 
 # BRc4 LDAP Sentinel Fixtures
@@ -110,3 +123,18 @@ def regsession_redania_file():
 def regsession_redania_objects():
     log_file = os.path.join(TEST_DATA_DIR, "regsessionbof_logs/regsessionbof_redania.log")
     yield GenericParser.parse_file(log_file)
+
+
+# fixture for processing marvel LDAP and local objects into a complete ADDS object
+@pytest.fixture
+def marvel_adds(testdata_marvel_ldap_objects, testdata_marvel_local_objects):
+    ad = ADDS()
+    broker = LocalBroker()
+
+    ad.import_objects(testdata_marvel_ldap_objects)
+    broker.import_objects(testdata_marvel_local_objects, ad.DOMAIN_MAP.values())
+
+    ad.process()
+    ad.process_local_objects(broker)
+
+    yield ad
