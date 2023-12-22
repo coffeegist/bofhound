@@ -7,8 +7,8 @@ authors = [
 	"Matt Creel"
 ]
 readme = "README.md"
-homepage = "https://github.com/fortalice/bofhound"
-repository = "https://github.com/fortalice/bofhound"
+homepage = "https://github.com/coffeegist/bofhound"
+repository = "https://github.com/coffeegist/bofhound"
 include = ["CHANGELOG.md"]
 
 [tool.poetry.dependencies]
