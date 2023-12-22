@@ -30,5 +30,5 @@ def test_crossref_constructor(parsed_crossref):
     cross_ref = BloodHoundCrossRef(parsed_crossref)
     
     assert cross_ref.netBiosName == "REDANIA"
-    assert cross_ref.nCName == "DC=redania,DC=local"
-    assert cross_ref.distinguishedName == "CN=REDANIA,CN=Partitions,CN=Configuration,DC=redania,DC=local"
+    assert cross_ref.nCName == "DC=REDANIA,DC=LOCAL"
+    assert cross_ref.distinguishedName == "CN=REDANIA,CN=PARTITIONS,CN=CONFIGURATION,DC=REDANIA,DC=LOCAL"
