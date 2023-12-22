@@ -734,6 +734,14 @@ class ADDS():
             target_list = self.groups
         bhObject.Properties["name"] = ADUtils.WELLKNOWN_SIDS[sid][0].upper()
         return bhObject, target_list
+    
+
+    def _get_domain_sid_from_netbios_name(self, nbtns_domain):
+        if nbtns_domain in self.CROSSREF_MAP.keys():
+            dn = self.CROSSREF_MAP[nbtns_domain].distinguishedName
+            if dn in self.DOMAIN_MAP.keys():
+                return self.DOMAIN_MAP[dn]
+        return None
 
 
     # process local group memberships and sessions
@@ -885,11 +893,10 @@ class ADDS():
 
             # case 2: we have the NETBIOS host and domain name
             elif session.computer_netbios_domain is not None:
-                #TODO: incorporate check on NetBIOS domain name
-
-                # match computer NetBIOS hostname to samaccountname
-                if computer_object.matches_samaccountname(session.computer_name):
-                    computer_found = True
+                domain_sid = self._get_domain_sid_from_netbios_name(session.computer_netbios_domain) 
+                if domain_sid is not None:
+                    if computer_object.matches_samaccountname(session.computer_name) and computer_object.ObjectIdentifier.startswith(domain_sid):
+                        computer_found = True
             
             # if we've got the computer, then try to find the user's SID
             if not computer_found:
