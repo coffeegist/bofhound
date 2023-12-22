@@ -792,13 +792,6 @@ class ADDS():
 
                         computer_found = True
 
-            # if we don't have the host domain/FQDN from the session, we just try to match samaccountname
-            # this is probably only error prone if there multiple domains with the same hostname
-            if session.host_domain is None and \
-                computer_object.matches_samaccountname(session.host_name):
-
-                computer_found = True
-
             # if we've got the computer, then try to find the user's SID
             if not computer_found:
                 continue
@@ -884,13 +877,6 @@ class ADDS():
 
                             computer_found = True
 
-
-                # last, try to match samaccountname                    
-                if session.computer_domain is None and \
-                    computer_object.matches_samaccountname(session.computer_name):
-
-                    computer_found = True
-
             # case 2: we have the NETBIOS host and domain name
             elif session.computer_netbios_domain is not None:
                 domain_sid = self._get_domain_sid_from_netbios_name(session.computer_netbios_domain) 
@@ -941,13 +927,6 @@ class ADDS():
                         computer_object.ObjectIdentifier.startswith(domain_sid):
 
                         computer_found = True
-
-            # if we don't have the host domain/FQDN from the session, we just try to match samaccountname
-            if member.host_domain is None and \
-                computer_object.matches_samaccountname(member.host_name):
-
-                computer_found = True
-
 
             # if we've got the computer, then check the sid before submitting
             if not computer_found:
