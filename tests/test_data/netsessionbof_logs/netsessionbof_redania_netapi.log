@@ -1,0 +1,20 @@
+[*] Enumerating sessions for system: oxenfurt.redania.local
+[*] Resolving client IPs to hostnames using NetWkstaGetInfo
+
+---------------Session--------------
+Client: \\192.168.0.235
+ComputerName: TRETOGOR
+ComputerDomain: REDANIA
+User: Administrator
+Active: 0
+Idle: 0
+-------------End Session------------
+
+---------------Session--------------
+Client: \\192.168.0.200
+ComputerName: NetWkstaGetInfo Failed; 53
+ComputerDomain: NetWkstaGetInfo Failed; 53
+User: Administrator
+Active: 0
+Idle: 0
+-------------End Session------------

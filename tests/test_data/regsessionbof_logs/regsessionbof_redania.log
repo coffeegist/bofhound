@@ -1,0 +1,25 @@
+[*] Querying local registry...
+-----------Registry Session---------
+UserSid: S-1-5-21-1308756548-3893869957-2915408613-1116
+Host: TRETOGOR.redania.local
+---------End Registry Session-------
+
+-----------Registry Session---------
+UserSid: S-1-5-21-1308756548-3893869957-2915408613-500
+Host: TRETOGOR.redania.local
+---------End Registry Session-------
+
+[*] Found 2 sessions in the registry
+
+[*] Querying registry on oxenfurt.redania.local...
+-----------Registry Session---------
+UserSid: S-1-5-21-1308756548-3893869957-2915408613-1116
+Host: oxenfurt.redania.local
+---------End Registry Session-------
+
+-----------Registry Session---------
+UserSid: S-1-5-21-3209726975-3062735514-2329926824-1001
+Host: oxenfurt.redania.local
+---------End Registry Session-------
+
+[*] Found 2 sessions in the registry

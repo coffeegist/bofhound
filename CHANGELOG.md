@@ -1,4 +1,11 @@
 # Changelog
+## [0.3.0] - 12/27/2023
+### Added
+- ADDS model for AD crossRef objects (referrals)
+- Models for Local objects (sessions and local group memberships) 
+- Parsers for registry sessions, privileged sessions, sessions and local group memberships
+- ADDS processing logic to tie local group/session data to a computer object
+
 ## [0.2.1] - 08/09/2023
 ### Changed
 - Updated output JSON to v5 (BloodHound CE) specs

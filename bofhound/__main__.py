@@ -3,9 +3,10 @@ import logging
 import typer
 import glob
 import os
-from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser
+from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, GenericParser
 from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS
+from bofhound.local import LocalBroker
 from bofhound import console
 
 app = typer.Typer(
@@ -67,22 +68,27 @@ def main(
         logging.debug('Using Brute Ratel parser')
         parser = Brc4LdapSentinelParser
 
-    parsed_objects = []
+    parsed_ldap_objects = []
+    parsed_local_objects = []
     with console.status(f"", spinner="aesthetic") as status:
         for log in cs_logs:
             status.update(f" [bold] Parsing {log}")
             new_objects = parser.parse_file(log)
+            new_local_objects = GenericParser.parse_file(log)
             logging.debug(f"Parsed {log}")
             logging.debug(f"Found {len(new_objects)} objects in {log}")
-            parsed_objects.extend(new_objects)
+            parsed_ldap_objects.extend(new_objects)
+            parsed_local_objects.extend(new_local_objects)
 
-
-    logging.info(f"Parsed {len(parsed_objects)} objects from {len(cs_logs)} log files")
+    logging.info(f"Parsed {len(parsed_ldap_objects)} LDAP objects from {len(cs_logs)} log files")
+    logging.info(f"Parsed {len(parsed_local_objects)} local group/session objects from {len(cs_logs)} log files")
 
     ad = ADDS()
+    broker = LocalBroker()
 
     logging.info("Sorting parsed objects by type...")
-    ad.import_objects(parsed_objects)
+    ad.import_objects(parsed_ldap_objects)
+    broker.import_objects(parsed_local_objects, ad.DOMAIN_MAP.values())
 
     logging.info(f"Parsed {len(ad.users)} Users")
     logging.info(f"Parsed {len(ad.groups)} Groups")
@@ -92,9 +98,15 @@ def main(
     logging.info(f"Parsed {len(ad.ous)} OUs")
     logging.info(f"Parsed {len(ad.gpos)} GPOs")
     logging.info(f"Parsed {len(ad.schemas)} Schemas")
+    logging.info(f"Parsed {len(ad.CROSSREF_MAP)} Referrals")
     logging.info(f"Parsed {len(ad.unknown_objects)} Unknown Objects")
+    logging.info(f"Parsed {len(broker.sessions)} Sessions")
+    logging.info(f"Parsed {len(broker.privileged_sessions)} Privileged Sessions")
+    logging.info(f"Parsed {len(broker.registry_sessions)} Registry Sessions")
+    logging.info(f"Parsed {len(broker.local_group_memberships)} Local Group Memberships")
 
     ad.process()
+    ad.process_local_objects(broker)
 
     BloodHoundWriter.write(
         output_folder,
@@ -118,7 +130,7 @@ def banner():
 |  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
 |______/   \\______/  |__|     |__|  |___\\_\\________\\_\\________\\|__| \\___\\|_________\\
 
-                              by Fortalice ✪
+                            << @coffeegist | @Tw1sm >>
     ''')
 
 

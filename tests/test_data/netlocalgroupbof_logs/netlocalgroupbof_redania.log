@@ -1,0 +1,43 @@
+Querying Remote Desktop Users...
+----------Local Group Member----------
+Host: oxenfurt.redania.local
+Group: Remote Desktop Users
+Member: REDANIA\Domain Admins
+MemberSid: S-1-5-21-1308756548-3893869957-2915408613-512
+MemberSidType: Group
+--------End Local Group Member--------
+
+Querying Distributed COM Users...
+----------Local Group Member----------
+Host: oxenfurt.redania.local
+Group: Distributed COM Users
+Member: REDANIA\geralt
+MemberSid: S-1-5-21-1308756548-3893869957-2915408613-1103
+MemberSidType: User
+--------End Local Group Member--------
+
+Querying Remote Management Users...
+Querying Administrators...
+----------Local Group Member----------
+Host: oxenfurt.redania.local
+Group: Administrators
+Member: OXENFURT\Administrator
+MemberSid: S-1-5-21-3209726975-3062735514-2329926824-500
+MemberSidType: User
+--------End Local Group Member--------
+
+----------Local Group Member----------
+Host: oxenfurt.redania.local
+Group: Administrators
+Member: REDANIA\Domain Admins
+MemberSid: S-1-5-21-1308756548-3893869957-2915408613-512
+MemberSidType: Group
+--------End Local Group Member--------
+
+----------Local Group Member----------
+Host: oxenfurt.redania.local
+Group: Administrators
+Member: OXENFURT\localadmin
+MemberSid: S-1-5-21-3209726975-3062735514-2329926824-1001
+MemberSidType: User
+--------End Local Group Member--------
