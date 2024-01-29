@@ -432,6 +432,10 @@ class ADDS():
 
 
     def link_gpos(self):
+        # BHCE appears to now require domainsid prop on GPOs
+        for gpo in self.gpos:
+            self.add_domainsid_prop(gpo)
+
         for object in self.ous + self.domains:
             if object._entry_type == 'OU':
                 self.add_domainsid_prop(object) # since OUs don't have a SID to get a domainsid from

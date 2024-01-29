@@ -1,4 +1,9 @@
 # Changelog
+## [0.3.1] - 1/25/2024
+### Fixed
+- GPO JSON file not matching JSON definition for BHCE
+    - `domainsid` property gets set on all GPO objects now (requires domain objects to be queried)
+
 ## [0.3.0] - 12/27/2023
 ### Added
 - ADDS model for AD crossRef objects (referrals)
