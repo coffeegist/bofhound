@@ -1,12 +1,12 @@
 ```
-                         _____________________________ __    __    ______    __    __   __   __   _______
-                        |   _   /  /  __   / |   ____/|  |  |  |  /  __  \  |  |  |  | |  \ |  | |       \
-                        |  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \|  | |  .--.  |
-                        |   _  <  |  |  |  | |   __|  |   __   | |  |  |  | |  |  |  | |  . `  | |  |  |  |
-                        |  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
-                        |______/   \______/  |__|     |__|  |___\_\________\_\________\|__| \___\|_________\
+              _____________________________ __    __    ______    __    __   __   __   _______
+             |   _   /  /  __   / |   ____/|  |  |  |  /  __  \  |  |  |  | |  \ |  | |       \
+             |  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \|  | |  .--.  |
+             |   _  <  |  |  |  | |   __|  |   __   | |  |  |  | |  |  |  | |  . `  | |  |  |  |
+             |  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
+             |______/   \______/  |__|     |__|  |___\_\________\_\________\|__| \___\|_________\
            
-                                                    << @coffeegist | @Tw1sm >>
+                                         << @coffeegist | @Tw1sm >>
 ```
 
 <h1 align="center">
@@ -26,6 +26,8 @@ Check this [PR](https://github.com/trustedsec/CS-Situational-Awareness-BOF/pull/
 [Blog - Granularize Your AD Recon Game](https://www.fortalicesolutions.com/posts/bofhound-granularize-your-active-directory-reconnaissance-game)
 
 [Blog - Granularize Your AD Recon Game Part 2](https://www.fortalicesolutions.com/posts/granularize-your-active-directory-reconnaissance-game-part-2)
+
+[Blog - BOFHound: Session Integration](https://posts.specterops.io/bofhound-session-integration-7b88b6f18423)
 
 # Installation
 BOFHound can be installed with `pip3 install bofhound` or by cloning this repository and running `pip3 install .`
