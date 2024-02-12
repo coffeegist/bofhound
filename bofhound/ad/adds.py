@@ -3,7 +3,7 @@ import logging
 from io import BytesIO
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
-from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundDomainTrust
+from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
 
@@ -27,6 +27,7 @@ class ADDS():
         self.SID_MAP = {} # {sid: BofHoundModel}
         self.DN_MAP = {} # {dn: BofHoundModel}
         self.DOMAIN_MAP = {} # {dc: ObjectIdentifier}
+        self.CROSSREF_MAP = {} # { netBiosName: BofHoundModel }
         self.ObjectTypeGuidMap = {} # { Name : schemaIdGuid }
         self.domains = []
         self.users = []
@@ -48,6 +49,7 @@ class ADDS():
         """
 
         for object in objects:
+            # check if object is a schema - exception for normally required attributes
             schemaIdGuid = object.get(ADDS.AT_SCHEMAIDGUID, None)
             if schemaIdGuid:
                 new_schema = BloodHoundSchema(object)
@@ -55,6 +57,14 @@ class ADDS():
                     self.schemas.append(new_schema)
                     if new_schema.Name not in self.ObjectTypeGuidMap.keys():
                         self.ObjectTypeGuidMap[new_schema.Name] = new_schema.SchemaIdGuid
+                continue
+            
+            # check if object is a crossRef - exception for normally required attributes
+            if 'top, crossRef' in object.get(ADDS.AT_OBJECTCLASS, ''):
+                new_crossref = BloodHoundCrossRef(object)
+                if new_crossref.netBiosName is not None:
+                    if new_crossref.netBiosName not in self.CROSSREF_MAP.keys():
+                        self.CROSSREF_MAP[new_crossref.netBiosName] = new_crossref
                 continue
 
             accountType = int(object.get(ADDS.AT_SAMACCOUNTTYPE, 0))
@@ -422,6 +432,10 @@ class ADDS():
 
 
     def link_gpos(self):
+        # BHCE appears to now require domainsid prop on GPOs
+        for gpo in self.gpos:
+            self.add_domainsid_prop(gpo)
+
         for object in self.ous + self.domains:
             if object._entry_type == 'OU':
                 self.add_domainsid_prop(object) # since OUs don't have a SID to get a domainsid from
@@ -724,3 +738,205 @@ class ADDS():
             target_list = self.groups
         bhObject.Properties["name"] = ADUtils.WELLKNOWN_SIDS[sid][0].upper()
         return bhObject, target_list
+    
+
+    def _get_domain_sid_from_netbios_name(self, nbtns_domain):
+        if nbtns_domain in self.CROSSREF_MAP.keys():
+            dn = self.CROSSREF_MAP[nbtns_domain].distinguishedName
+            if dn in self.DOMAIN_MAP.keys():
+                return self.DOMAIN_MAP[dn]
+        return None
+
+
+    # process local group memberships and sessions
+    def process_local_objects(self, broker):
+        for computer in self.computers:
+            self.process_privileged_sessions(broker.privileged_sessions, computer)
+            self.process_registry_sessions(broker.registry_sessions, computer)
+            self.process_sessions(broker.sessions, computer)
+            self.process_local_group_memberships(broker.local_group_memberships, computer)
+
+
+        if len(broker.local_group_memberships) > 0:
+            logging.info(f"Resolved local group memberships")
+
+        if len(broker.privileged_sessions) > 0 \
+            or len(broker.registry_sessions) > 0 \
+            or len(broker.sessions) > 0:
+
+            logging.info(f"Resolved sessions")
+
+
+    # correlate privileged sessions to BH Computer objects
+    def process_privileged_sessions(self, privileged_sessions, computer_object):
+        for session in privileged_sessions:
+            # skip sessions that have already been matched to a computer object
+            if session.matched:
+                continue
+            
+            computer_found = False
+
+            # first we'll try to directly match the session host's dns name to a
+            # computer object's dNSHostName attribute
+            if session.host_fqdn is not None:
+                if computer_object.matches_dnshostname(session.host_fqdn):
+                    computer_found = True
+
+            # second we'll check to see if the host's DNS domain is a known domain
+            # converting the host DNS suffix to a domain component could be problematic?
+            if session.host_domain is not None and not computer_found:
+                dc = BloodHoundObject.get_dn(session.host_domain.upper())
+                domain_sid = self.DOMAIN_MAP.get(dc, None)
+
+                # if we have the domain, check for a computer with samaccountname host$
+                # and the domain's sid 
+                if domain_sid is not None:
+                    if computer_object.matches_samaccountname(session.host_name) and \
+                        computer_object.ObjectIdentifier.startswith(domain_sid):
+
+                        computer_found = True
+
+            # if we've got the computer, then try to find the user's SID
+            if not computer_found:
+                continue
+
+            match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.user.lower()]
+            if len(match_users) > 1:
+                logging.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for privileged session")
+                # TODO: implement NetBIOS domain name handling
+                continue
+            elif len(match_users) == 1:
+                user_sid = match_users[0].ObjectIdentifier
+                computer_object.add_session(user_sid, "privileged")
+                logging.debug(f"Resolved privileged session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+
+    
+    # correlate registry sessions to BH Computer objects
+    def process_registry_sessions(self, registry_sessions, computer_object):
+        for session in registry_sessions:
+            # skip sessions that have already been matched to a computer object
+            if session.matched:
+                continue
+            
+            # first we'll try to directly match the session host's dns name to a
+            # computer object's dNSHostName attribute
+            if session.host_fqdn is not None:
+                if computer_object.matches_dnshostname(session.host_name):
+                    session.matched = True
+                    computer_object.add_session(session.user_sid, "registry")
+                    logging.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via dNSHostName match", extra=OBJ_EXTRA_FMT)
+                    continue
+
+            # second we'll check to see if the host's DNS domain is a known domain
+            # converting the host DNS suffix to a domain component could be problematic?
+            if session.host_domain is not None:
+                dc = BloodHoundObject.get_dn(session.host_domain.upper())
+                domain_sid = self.DOMAIN_MAP.get(dc, None)
+
+                # if we have the domain, check for a computer with samaccountname host$
+                # and the domain's sid 
+                if domain_sid is not None:
+                    if computer_object.matches_samaccountname(session.host_name) and \
+                        computer_object.ObjectIdentifier.startswith(domain_sid):
+
+                        session.matched = True
+                        computer_object.add_session(session.user_sid, "registry")
+                        logging.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via domain + sAMAccountName match", extra=OBJ_EXTRA_FMT)
+                        continue
+
+            # if we don't have the host domain/FQDN from the session, we just try to match samaccountname
+            # this is probably only error prone if there multiple domains with the same hostname
+            elif computer_object.matches_samaccountname(session.host_name):
+                session.matched = True
+                computer_object.add_session(session.user_sid, "registry")
+                logging.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via fuzzy sAMAccountName match", extra=OBJ_EXTRA_FMT)
+
+
+    # correlate sessions to BH Computer objects
+    def process_sessions(self, sessions, computer_object):
+        for session in sessions:
+            # skip sessions that have already been matched to a computer object
+            if session.matched:
+                continue
+            
+            computer_found = False
+
+            # case 1: we have the host's DNS name
+            if session.ptr_record is not None:
+
+                # first try to match dNSHostName
+                if computer_object.matches_dnshostname(session.ptr_record):
+                    computer_found = True
+
+                # if that doesn't work, try to match the host's domain
+                if session.computer_domain is not None and not computer_found:
+                    dc = BloodHoundObject.get_dn(session.computer_domain.upper())
+                    domain_sid = self.DOMAIN_MAP.get(dc, None)
+
+                    # if we have the domain, check for a computer with samaccountname host$
+                    # and the domain's sid 
+                    if domain_sid is not None:
+                        if computer_object.matches_samaccountname(session.computer_name) and \
+                            computer_object.ObjectIdentifier.startswith(domain_sid):
+
+                            computer_found = True
+
+            # case 2: we have the NETBIOS host and domain name
+            elif session.computer_netbios_domain is not None:
+                domain_sid = self._get_domain_sid_from_netbios_name(session.computer_netbios_domain) 
+                if domain_sid is not None:
+                    if computer_object.matches_samaccountname(session.computer_name) and computer_object.ObjectIdentifier.startswith(domain_sid):
+                        computer_found = True
+            
+            # if we've got the computer, then try to find the user's SID
+            if not computer_found:
+                continue
+            
+            match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.username.lower()]
+            if len(match_users) > 1:
+                logging.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for session")
+                # TODO: implement NetBIOS domain name handling
+                continue
+            elif len(match_users) == 1:
+                user_sid = match_users[0].ObjectIdentifier
+                computer_object.add_session(user_sid, "session")
+                logging.debug(f"Resolved session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+
+
+    # correlate local group memberships to BH Computer objects
+    def process_local_group_memberships(self, local_group_memberships, computer_object):
+        for member in local_group_memberships:
+            # skip memberships that have already been matched to a computer object
+            if member.matched:
+                continue
+            
+            computer_found = False
+
+            # first we'll try to directly match the session host's dns name to a
+            # computer object's dNSHostName attribute
+            if member.host_fqdn is not None:
+                if computer_object.matches_dnshostname(member.host_fqdn):
+                    computer_found = True
+
+            
+            # second we'll check to see if the host's DNS domain is a known domain
+            if member.host_domain is not None and not computer_found:
+                dc = BloodHoundObject.get_dn(member.host_domain.upper())
+                domain_sid = self.DOMAIN_MAP.get(dc, None)
+
+                # if we have the domain, check for a computer with samaccountname host$
+                # and the domain's sid 
+                if domain_sid is not None:
+                    if computer_object.matches_samaccountname(member.host_name) and \
+                        computer_object.ObjectIdentifier.startswith(domain_sid):
+
+                        computer_found = True
+
+            # if we've got the computer, then check the sid before submitting
+            if not computer_found:
+                continue
+
+            color = ColorScheme.user if member.member_sid_type == "User" else ColorScheme.group
+                
+            computer_object.add_local_group_member(member.member_sid, member.member_sid_type, member.group)
+            logging.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)

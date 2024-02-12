@@ -1,14 +1,14 @@
 [tool.poetry]
 name = "bofhound"
-version = "0.2.1"
+version = "0.3.1"
 description = "Parse output from common sources and transform it into BloodHound-ingestible data"
 authors = [
 	"Adam Brown",
 	"Matt Creel"
 ]
 readme = "README.md"
-homepage = "https://github.com/fortalice/bofhound"
-repository = "https://github.com/fortalice/bofhound"
+homepage = "https://github.com/coffeegist/bofhound"
+repository = "https://github.com/coffeegist/bofhound"
 include = ["CHANGELOG.md"]
 
 [tool.poetry.dependencies]

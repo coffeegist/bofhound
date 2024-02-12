@@ -1,4 +1,17 @@
 # Changelog
+
+## [0.3.1] - 1/25/2024
+### Fixed
+- GPO JSON file not matching JSON definition for BHCE
+    - `domainsid` property gets set on all GPO objects now (requires domain objects to be queried)
+
+## [0.3.0] - 12/27/2023
+### Added
+- ADDS model for AD crossRef objects (referrals)
+- Models for Local objects (sessions and local group memberships) 
+- Parsers for registry sessions, privileged sessions, sessions and local group memberships
+- ADDS processing logic to tie local group/session data to a computer object
+
 ## [0.2.2] - 10/17/2023
 ### Fixed
 - Bug in parsing logic where interlaced ldap logs would cause incorrect parsed object results

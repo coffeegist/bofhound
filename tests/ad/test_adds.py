@@ -71,6 +71,31 @@ def raw_domain():
     }
 
 
+@pytest.fixture
+def raw_crossref():
+    yield {
+        "cn": "REDANIA",
+        "dcsorepropagationdata": "16010101000000.0Z",
+        "distinguishedname": "CN=REDANIA,CN=Partitions,CN=Configuration,DC=redania,DC=local",
+        "dnsroot": "redania.local",
+        "instancetype": "4",
+        "msds-behavior-version": "7",
+        "ncname": "DC=redania,DC=local",
+        "netbiosname": "REDANIA",
+        "ntmixeddomain": "0",
+        "name": "REDANIA",
+        "objectcategory": "CN=Cross-Ref,CN=Schema,CN=Configuration,DC=redania,DC=local",
+        "objectclass": "top, crossRef",
+        "objectguid": "f66cd454-5cf0-41c2-83c4-743ce81fb33e",
+        "showinadvancedviewonly": "True",
+        "systemflags": "3",
+        "usnchanged": "12565",
+        "usncreated": "4118",
+        "whenchanged": "20230214042300.0Z",
+        "whencreated": "20230214042103.0Z",
+    }
+
+
 def test_import_objects_singleSchema():
     adds = ADDS()
     adds.import_objects([{ADDS.AT_SCHEMAIDGUID: 'ABWwRRnE0RG7yQCAx2ZwwA==', ADDS.AT_NAME: 'ANR'}])
@@ -159,3 +184,26 @@ def test_import_duplicate_trust(raw_trust, raw_domain):
 
     assert len(adds.domains) == expected_domain_count
     assert len(adds.domains[0].Trusts) == expected_trust_count
+
+
+def test_import_unique_crossref(raw_crossref):
+    expected_crossref_count = 1
+
+    adds = ADDS()
+
+    adds = ADDS()
+    adds.import_objects([raw_crossref])
+    
+    assert len(adds.CROSSREF_MAP) == expected_crossref_count
+
+
+def test_import_duplicate_crossref(raw_crossref):
+    expected_crossref_count = 1
+
+    adds = ADDS()
+
+    adds = ADDS()
+    adds.import_objects([raw_crossref, raw_crossref])
+
+    assert len(adds.CROSSREF_MAP) == expected_crossref_count
+

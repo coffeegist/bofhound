@@ -19,6 +19,13 @@ class BloodHoundComputer(BloodHoundObject):
         'memberof'
     ]
 
+    LOCAL_GROUP_SIDS = {
+        "administrators": 544,
+        "remote desktop users": 555,
+        "remote management users": 580,
+        "distributed com users": 562
+    }
+
     def __init__(self, object):
         super().__init__(object)
 
@@ -36,6 +43,10 @@ class BloodHoundComputer(BloodHoundObject):
         self.sessions = None #['not currently supported by bofhound']
         self.AllowedToDelegate = []
         self.MemberOfDNs = []
+        self.sessions = []
+        self.privileged_sessions = []
+        self.registry_sessions = []
+        self.local_group_members = {} # {group_name: [{member_sid, member_type}]}
 
         if self.ObjectIdentifier:
             self.Properties['domainsid'] = self.get_domain_sid()
@@ -114,16 +125,16 @@ class BloodHoundComputer(BloodHoundObject):
 
     def to_json(self, only_common_properties=True):
         data = super().to_json(only_common_properties)
-        data["Sessions"] = self.not_collected
-        data["PrivilegedSessions"] = self.not_collected
-        data["RegistrySessions"] = self.not_collected
+        data["Sessions"] = self.format_session_json(self.sessions)
+        data["PrivilegedSessions"] = self.format_session_json(self.privileged_sessions)
+        data["RegistrySessions"] = self.format_session_json(self.registry_sessions)
         data["ObjectIdentifier"] = self.ObjectIdentifier
         data["PrimaryGroupSID"] = self.PrimaryGroupSid
         data["AllowedToDelegate"] = self.AllowedToDelegate
         data["AllowedToAct"] = []
         data["HasSidHistory"] = self.Properties.get("sidhistory", [])
         data["DumpSMSAPassword"] = []
-        data["LocalGroups"] = []
+        data["LocalGroups"] = self.format_local_group_json()
         data["UserRights"] = []
         data["Status"] = None
         data["IsDeleted"] = self.IsDeleted
@@ -131,27 +142,78 @@ class BloodHoundComputer(BloodHoundObject):
         data["Aces"] = self.Aces
         data["IsACLProtected"] = self.IsACLProtected
 
-        # TODO: RBCD
-        # Process resource-based constrained delegation
-        # _, aces = parse_binary_acl(data,
-        #                            'computer',
-        #                            object.get('msDS-AllowedToActOnBehalfOfOtherIdentity'),
-        #                            self.addc.objecttype_guid_map)
-        # outdata = self.aceresolver.resolve_aces(aces)
-        # for delegated in outdata:
-        #     if delegated['RightName'] == 'Owner':
-        #         continue
-        #     if delegated['RightName'] == 'GenericAll':
-        #         data['AllowedToAct'].append({'MemberId': delegated['PrincipalSID'], 'MemberType': delegated['PrincipalType']})
-        #
-        # # Run ACL collection if this was not already done centrally
-        # if 'acl' in collect and not skip_acl:
-        #     _, aces = parse_binary_acl(data,
-        #                                'computer',
-        #                                object.get('nTSecurityDescriptor',
-        #                                                           raw=True),
-        #                                self.addc.objecttype_guid_map)
-        #     # Parse aces
-        #     data['Aces'] = self.aceresolver.resolve_aces(aces)
+        return data
+
+    
+    def format_session_json(self, results):
+        if len(results) == 0:
+            return self.not_collected
+
+        return {
+            "Collected": True,
+            "FailureReason": None,
+            "Results": results
+        }
+
+    
+    def format_local_group_json(self):
+        if len(self.local_group_members) == 0:
+            return []
+
+        data = []
+
+        hostname = self.hostname if self.hostname is not None else self.Properties['name']
+
+        for group_name, members in self.local_group_members.items():
+            data.append({
+                "ObjectIdentifier": f"{self.ObjectIdentifier}-{BloodHoundComputer.LOCAL_GROUP_SIDS[group_name]}",
+                "Name": f"{group_name}@{hostname}".upper(),
+                "Results": members,
+                "Collected": True,
+                "FailureReason": None
+            })
 
         return data
+
+    
+    # check if a session host's fully qualified hostname matches 
+    # the computer's dnshostname attribute
+    def matches_dnshostname(self, session_host_fqdn):
+        if self.Properties.get('dnshostname', '').upper() == session_host_fqdn.upper():
+            return True
+        return False
+
+    
+    # check if a session host's hostname matches the computer's samaccountname
+    def matches_samaccountname(self, session_hostname):
+        if self.Properties['samaccountname'].upper() == session_hostname.upper() + '$':
+            return True
+        return False
+
+
+    # add a session to the computer object
+    def add_session(self, user_sid, session_type):
+        session = {
+            "UserSID": user_sid,
+            "ComputerSID": self.ObjectIdentifier,
+        }
+
+        if session_type == 'privileged':
+            self.privileged_sessions.append(session)
+        elif session_type == 'registry':
+            self.registry_sessions.append(session)
+        elif session_type == 'session':
+            self.sessions.append(session)
+
+
+    # add a local group member
+    def add_local_group_member(self, member_sid, member_type, group_name):
+        member = {
+                "ObjectIdentifier": member_sid,
+                "ObjectType": member_type
+        }
+
+        if group_name.lower() not in self.local_group_members.keys():
+            self.local_group_members[group_name.lower()] = [ member ]
+        else:
+            self.local_group_members[group_name.lower()].append(member)    
