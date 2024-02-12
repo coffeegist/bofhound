@@ -35,7 +35,17 @@ class LdapSearchBofParser():
 
         in_result_region = False
 
-        data = re.sub(r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n', '', contents)
+        badPatterns = [
+            r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n',
+            r'^$',
+            r'^\d\d\/\d\d \d\d:\d\d:\d\d UTC \[.*$',
+            r'^Running [\w-] ?.*$',
+            r'^received output:.*$'
+        ]
+
+        data = contents
+        for expression in badPatterns:
+            data = re.sub(expression, '', data)
 
         lines = data.splitlines()
         for line in lines:
@@ -73,6 +83,9 @@ class LdapSearchBofParser():
                 parsed_objects.append(current_object)
                 in_result_region = False
                 current_object = None
+                continue
+            elif any (re.match(regex, line) for regex in badPatterns):
+                logging.info('Skipping badPattern match in_result_region: %s', line)
                 continue
 
             data = line.split(': ')

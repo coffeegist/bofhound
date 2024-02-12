@@ -1,4 +1,5 @@
 # Changelog
+
 ## [0.3.1] - 1/25/2024
 ### Fixed
 - GPO JSON file not matching JSON definition for BHCE
@@ -10,6 +11,10 @@
 - Models for Local objects (sessions and local group memberships) 
 - Parsers for registry sessions, privileged sessions, sessions and local group memberships
 - ADDS processing logic to tie local group/session data to a computer object
+
+## [0.2.2] - 10/17/2023
+### Fixed
+- Bug in parsing logic where interlaced ldap logs would cause incorrect parsed object results
 
 ## [0.2.1] - 08/09/2023
 ### Changed
