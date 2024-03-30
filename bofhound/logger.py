@@ -6,6 +6,8 @@ class ColorScheme:
     user = "[sea_green3]"
     computer = "[red1]"
     group = "[gold1]"
+    pki = "[medium_purple1]"
+    pki_template = "[medium_purple2]"
     schema = "[deep_sky_blue1]"
     ou = "[dark_orange]"
     gpo = "[purple]"

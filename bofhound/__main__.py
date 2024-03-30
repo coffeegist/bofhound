@@ -97,6 +97,8 @@ def main(
     logging.info(f"Parsed {len(ad.trustaccounts)} Trust Accounts")
     logging.info(f"Parsed {len(ad.ous)} OUs")
     logging.info(f"Parsed {len(ad.gpos)} GPOs")
+    logging.info(f"Parsed {len(ad.pkis)} PKIs")
+    logging.info(f"Parsed {len(ad.pki_templates)} PKI Templates")
     logging.info(f"Parsed {len(ad.schemas)} Schemas")
     logging.info(f"Parsed {len(ad.CROSSREF_MAP)} Referrals")
     logging.info(f"Parsed {len(ad.unknown_objects)} Unknown Objects")
@@ -116,6 +118,8 @@ def main(
         groups=ad.groups,
         ous=ad.ous,
         gpos=ad.gpos,
+        pkis=ad.pkis,
+        pki_templates = ad.pki_templates,
         common_properties_only=(not all_properties),
         zip_files=zip_files
     )

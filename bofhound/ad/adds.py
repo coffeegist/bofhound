@@ -3,9 +3,10 @@ import logging
 from io import BytesIO
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
-from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundDomainTrust, BloodHoundCrossRef
+from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundPKI, BloodHoundPKITemplate, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
+from bofhound.ad.bloodhound_security import CertificateSecurity, EXTENDED_RIGHTS_MAP, WELLKNOWN_DOMAIN_SIDS
 
 class ADDS():
 
@@ -35,6 +36,8 @@ class ADDS():
         self.groups = []
         self.ous = []
         self.gpos = []
+        self.pkis = []
+        self.pki_templates = []
         self.schemas = []
         self.trusts = []
         self.trustaccounts = []
@@ -126,6 +129,14 @@ class ADDS():
                 elif 'container, groupPolicyContainer' in object_class:
                     bhObject = BloodHoundGPO(object)
                     target_list = self.gpos
+                # grab PKIs
+                elif 'top, pKIEnrollmentService' in object_class:
+                    bhObject = BloodHoundPKI(object)
+                    target_list = self.pkis
+                # grab PKI Templates
+                elif 'top, pKICertificateTemplate' in object_class:
+                    bhObject = BloodHoundPKITemplate(object)
+                    target_list = self.pki_templates
                 # some well known SIDs dont return the accounttype property
                 elif object.get(ADDS.AT_NAME) in ADUtils.WELLKNOWN_SIDS:
                     bhObject, target_list =  self._lookup_known_sid(object, object.get(ADDS.AT_NAME))
@@ -204,12 +215,16 @@ class ADDS():
 
     def process(self):
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos
+        adcs_object = self.pkis + self.pki_templates
 
         num_parsed_relations = 0
         with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
             for object in all_objects:
                 self.recalculate_sid(object)
                 num_parsed_relations += self.parse_acl(object)
+                status.update(f" [bold] Processing {num_parsed_relations} ACLs")
+            for object in (adcs_object):
+                num_parsed_relations += self.parse_adcs_acl(object)
                 status.update(f" [bold] Processing {num_parsed_relations} ACLs")
 
         logging.info(f"Parsed {num_parsed_relations} ACL relationships")
@@ -478,6 +493,65 @@ class ADDS():
     def resolve_trust_relationships(self):
         pass
 
+    ### DEDICATED ADCS PART
+
+    def update_template(self, template_entry):
+        template_name = template_entry.Properties["Template Name"]
+        cas = []
+        cas_ID = []
+        for ca in self.pkis:
+            for template in ca.Properties["Certificate Templates"]:
+                if template_name == template:
+                    cas.append(ca.Properties["CA Name"])
+                    cas_ID.append(ca.ObjectIdentifier)
+
+        if len(cas)>0:
+            template_entry.Properties["Enabled"] = True
+            template_entry.Properties["Certificate Authorities"] = cas
+            template_entry.cas_ids = cas_ID
+        else:
+            template_entry.Properties["Enabled"] = False
+
+    def parse_adcs_acl(self, entry:BloodHoundObject):
+        if(entry._entry_type == "PKI Template"):
+            self.update_template(entry)
+            
+        if not entry.RawAces:
+            return 0
+
+        try:
+            value = base64.b64decode(entry.RawAces)
+        except:
+            logging.warning(f'Error base64 decoding nTSecurityDescriptor attribute on {entry._entry_type} {entry.Properties["name"]}')
+            return 0
+
+        if not value:
+            return 0
+
+        security = CertificateSecurity(value)
+        relations = []
+
+        relations.append(self.build_relation(entry, security.owner, "Owns", inherited=False))
+
+        for sid, rights in security.aces.items():
+            is_inherited = rights["inherited"]
+            principal = sid
+
+            standard_rights = rights["rights"].to_list()            
+
+            for right in standard_rights:
+                relations.append(self.build_relation(entry, sid, str(right), inherited=is_inherited))
+
+            extended_rights = rights["extended_rights"]
+
+            for extended_right in extended_rights:
+                right_type = EXTENDED_RIGHTS_MAP[extended_right].replace("-", "") if extended_right in EXTENDED_RIGHTS_MAP else extended_right
+                relations.append(self.build_relation(entry, sid, right_type, inherited=is_inherited))
+
+        entry.Aces = relations
+        return len(relations)
+    
+    ### END ADCS DEDICATED PART
 
     # Returns int: number of relations parsed
     def parse_acl(self, entry:BloodHoundObject):
