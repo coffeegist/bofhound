@@ -8,15 +8,12 @@ import logging
 class BloodHoundComputer(BloodHoundObject):
 
     COMMON_PROPERTIES = [
-        'samaccountname', 'useraccountcontrol', 'distinguishedname',
-        'dnshostname', 'samaccounttype', 'objectsid', 'primarygroupid',
-        'serviceprincipalname', 'msds-allowedtodelegateto',
-        'sidhistory', 'whencreated', 'lastlogon', 'lastlogontimestamp',
-        'pwdlastset', 'operatingsystem', 'description', 'operatingsystemservicepack',
-        'msds-allowedtoactonbehalfofotheridentity', 'ms-mcs-admpwdexpirationtime',
+        'samaccountname', 'distinguishedname', 'serviceprincipalname',
+        'whencreated', 'lastlogon', 'lastlogontimestamp',
+        'pwdlastset', 'operatingsystem', 'description',
         'domainsid', 'name', 'unconstraineddelegation', 'enabled',
-        'trustedtoauth', 'domain', 'highvalue', 'haslaps', 'serviceprincipalnames',
-        'memberof'
+        'trustedtoauth', 'domain', 'haslaps', 'serviceprincipalnames',
+        'isdc', 'email', 'sidhistory', 'isaclprotected'
     ]
 
     LOCAL_GROUP_SIDS = {
@@ -44,12 +41,12 @@ class BloodHoundComputer(BloodHoundObject):
         self.AllowedToDelegate = []
         self.MemberOfDNs = []
         self.sessions = []
+        self.ContainedBy = []
         self.privileged_sessions = []
         self.registry_sessions = []
         self.local_group_members = {} # {group_name: [{member_sid, member_type}]}
 
         if self.ObjectIdentifier:
-            self.Properties['domainsid'] = self.get_domain_sid()
             self.Properties['objectid'] = self.ObjectIdentifier
 
         if 'dnshostname' in object.keys():
@@ -65,6 +62,7 @@ class BloodHoundComputer(BloodHoundObject):
             self.Properties['unconstraineddelegation'] = self.uac & 0x00080000 == 0x00080000
             self.Properties['enabled'] = self.uac & 2 == 0
             self.Properties['trustedtoauth'] = self.uac & 0x01000000 == 0x01000000
+            self.Properties['isdc'] = self.uac & 0x2000 == 0x2000
 
         if 'operatingsystem' in object.keys():
             self.Properties['operatingsystem'] = object.get('operatingsystem', 'Unknown')
@@ -74,6 +72,8 @@ class BloodHoundComputer(BloodHoundObject):
 
         if 'sidhistory' in object.keys():
             self.Properties['sidhistory'] = [LDAP_SID(bsid).formatCanonical() for bsid in object.get('sidhistory', [])]
+        else:
+            self.Properties['sidhistory'] = []
 
         if 'distinguishedname' in object.keys():
             domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
@@ -92,6 +92,8 @@ class BloodHoundComputer(BloodHoundObject):
 
         if 'ms-mcs-admpwdexpirationtime' in object.keys():
             self.Properties['haslaps'] = True
+        else:
+            self.Properties['haslaps'] = False
 
         if 'lastlogontimestamp' in object.keys():
             self.Properties['lastlogontimestamp'] = ADUtils.win_timestamp_to_unix(
@@ -122,8 +124,18 @@ class BloodHoundComputer(BloodHoundObject):
                 if len(self.MemberOfDNs) > 0:
                     self.MemberOfDNs[0] = self.MemberOfDNs[0][3:]
 
+        if 'email' in object.keys():
+            self.Properties['email'] = object.get('email')
+        else:
+            self.Properties['email'] = None
+
+        if 'description' in object.keys():
+            self.Properties['description'] = object.get('description')
+        else:
+            self.Properties['description'] = None
 
     def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
         data = super().to_json(only_common_properties)
         data["Sessions"] = self.format_session_json(self.sessions)
         data["PrivilegedSessions"] = self.format_session_json(self.privileged_sessions)
@@ -138,7 +150,7 @@ class BloodHoundComputer(BloodHoundObject):
         data["UserRights"] = []
         data["Status"] = None
         data["IsDeleted"] = self.IsDeleted
-        data["ContainedBy"] = None
+        data["ContainedBy"] = self.ContainedBy
         data["Aces"] = self.Aces
         data["IsACLProtected"] = self.IsACLProtected
 

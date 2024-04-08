@@ -9,7 +9,7 @@ class BloodHoundOU(BloodHoundObject):
     COMMON_PROPERTIES = [
         'distinguishedname', 'whencreated',
         'domain', 'domainsid', 'name', 'highvalue', 'description',
-        'blocksinheritance'
+        'blocksinheritance', 'isaclprotected'
     ]
 
     def __init__(self, object):
@@ -17,6 +17,7 @@ class BloodHoundOU(BloodHoundObject):
 
         self._entry_type = "OU"
         self.GPLinks = []
+        self.ContainedBy = []
         self.Properties["blocksinheritance"] = False
         
         if 'distinguishedname' in object.keys() and 'ou' in object.keys():
@@ -50,6 +51,7 @@ class BloodHoundOU(BloodHoundObject):
         self.ChildObjects = []
         self.GPOChanges = {
             "AffectedComputers": [],
+            "AffectedUsers": [],
             "DcomUsers": [],
             "LocalAdmins": [],
             "PSRemoteUsers": [],
@@ -60,14 +62,20 @@ class BloodHoundOU(BloodHoundObject):
 
 
     def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
         ou = super().to_json(only_common_properties)
 
         ou["ObjectIdentifier"] = self.ObjectIdentifier
+        ou["ContainedBy"] = self.ContainedBy
         # The below is all unsupported as of now.
         ou["Aces"] = self.Aces
         ou["Links"] = self.Links
         ou["ChildObjects"] = self.ChildObjects
+
+        self.GPOChanges["AffectedComputers"] = self.AffectedComputers
+        self.GPOChanges["AffectedUsers"] = self.AffectedUsers
         ou["GPOChanges"] = self.GPOChanges
+
         ou["IsDeleted"] = self.IsDeleted
         ou["IsACLProtected"] = self.IsACLProtected
 

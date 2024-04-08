@@ -1,9 +1,10 @@
 import base64
 import logging
+import datetime
 from io import BytesIO
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
-from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundPKI, BloodHoundPKITemplate, BloodHoundDomainTrust, BloodHoundCrossRef
+from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundCertTemplate, BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
 from bofhound.ad.bloodhound_security import CertificateSecurity, EXTENDED_RIGHTS_MAP, WELLKNOWN_DOMAIN_SIDS
@@ -36,8 +37,11 @@ class ADDS():
         self.groups = []
         self.ous = []
         self.gpos = []
-        self.pkis = []
-        self.pki_templates = []
+        self.enterprisecas = []
+        self.aiacas = []
+        self.rootcas = []
+        self.certtemplates = []
+        self.containers = []
         self.schemas = []
         self.trusts = []
         self.trustaccounts = []
@@ -130,13 +134,23 @@ class ADDS():
                     bhObject = BloodHoundGPO(object)
                     target_list = self.gpos
                 # grab PKIs
+                elif 'top, certificationAuthority' in object_class:
+                    if 'CN=AIA,' in object.get('distinguishedname'):
+                        bhObject = BloodHoundAIACA(object)
+                        target_list = self.aiacas
+                    elif 'CN=Certification Authorities,' in object.get('distinguishedname') :
+                        bhObject = BloodHoundRootCA(object)
+                        target_list = self.rootcas
                 elif 'top, pKIEnrollmentService' in object_class:
-                    bhObject = BloodHoundPKI(object)
-                    target_list = self.pkis
+                    bhObject = BloodHoundEnterpriseCA(object)
+                    target_list = self.enterprisecas
                 # grab PKI Templates
                 elif 'top, pKICertificateTemplate' in object_class:
-                    bhObject = BloodHoundPKITemplate(object)
-                    target_list = self.pki_templates
+                    bhObject = BloodHoundCertTemplate(object)
+                    target_list = self.certtemplates
+                elif 'top, container' in object_class:
+                    bhObject = BloodHoundContainer(object)
+                    target_list = self.containers
                 # some well known SIDs dont return the accounttype property
                 elif object.get(ADDS.AT_NAME) in ADUtils.WELLKNOWN_SIDS:
                     bhObject, target_list =  self._lookup_known_sid(object, object.get(ADDS.AT_NAME))
@@ -212,18 +226,59 @@ class ADDS():
 
         return {'RightName': relation, 'PrincipalSID': PrincipalSid, 'IsInherited': inherited, 'PrincipalType': PrincipalType }
 
+    def calculate_contained(self, object):
+        if object._entry_type == "Domain":
+            object.ContainedBy = None
+            return
+        dn = object.Properties['distinguishedname']
+        start = dn.find(',') + 1
+        contained_dn = dn[start:]
+        start_contained = contained_dn[0:2]
+        type_contained = ""
+        id_contained = None
+        match start_contained:
+            case "CN":
+                if contained_dn.startswith("CN=BUILTIN"):
+                    id_contained = "S-1-5-32"
+                    type_contained = "Base"
+                else:
+                    for cn in self.containers:
+                        if cn.Properties["distinguishedname"] == contained_dn:
+                            id_contained = cn.ObjectIdentifier
+                    type_contained = "Container"
+            case "OU":
+                type_contained = "OU"
+                for ou in self.ous:
+                    if ou.Properties["distinguishedname"] == contained_dn:
+                        id_contained = ou.ObjectIdentifier
+            case "DC":
+                type_contained = "Domain"
+                for domain in self.domains:
+                    if domain.Properties["distinguishedname"] == contained_dn:
+                        id_contained = domain.ObjectIdentifier
+            case _:
+                object.ContainedBy = None
+                return
+        
+        object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
+
 
     def process(self):
-        all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos
-        adcs_object = self.pkis + self.pki_templates
+        all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers
+        adcs_object = self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates
 
         num_parsed_relations = 0
+            
         with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
             for object in all_objects:
                 self.recalculate_sid(object)
+                self.calculate_contained(object)
+                self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_acl(object)
                 status.update(f" [bold] Processing {num_parsed_relations} ACLs")
             for object in (adcs_object):
+                self.calculate_contained(object)
+                self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_adcs_acl(object)
                 status.update(f" [bold] Processing {num_parsed_relations} ACLs")
 
@@ -259,6 +314,13 @@ class ADDS():
             logging.info("Resolved domain trusts")
 
 
+    def get_sid_from_name(self, name):
+        for entry in self.SID_MAP:
+            if(self.SID_MAP[entry].Properties["name"].lower() == name):
+                return (entry, self.SID_MAP[entry]._entry_type)
+        return (None,None)
+
+
     def resolve_delegation_targets(self):
         for object in self.computers + self.users:
             delegatehosts = object.AllowedToDelegate
@@ -270,8 +332,9 @@ class ADDS():
                     logging.warning('Invalid delegation target: %s', host)
                     continue
                 try:
-                    sid = self.SID_MAP.get(target.lower())
-                    resolved_delegation_list.append(sid)
+                    (sid, object_type) = self.get_sid_from_name(target.lower())
+                    delegation_entry = {"ObjectIdentifier": sid, "ObjectType": object_type}
+                    resolved_delegation_list.append(delegation_entry)
                 except KeyError:
                     if '.' in target:
                         resolved_delegation_list.append(target.upper())
@@ -444,6 +507,48 @@ class ADDS():
             if ou is not None:
                 ou.add_ou_member(nested_ou, "OU")
                 logging.debug(f"Identified {ColorScheme.ou}{nested_ou.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+        
+        sorted_ous = sorted(self.ous, key=lambda x: len(x.Properties['distinguishedname']), reverse=True)
+        
+        for ou in sorted_ous:
+            affectedcomputers = []
+            affectedusers = []
+            for childobject in ou.ChildObjects:
+                match childobject["ObjectType"] :
+                    case "Computer":
+                        affectedcomputers.append(childobject)
+                    case "User":
+                        affectedusers.append(childobject)
+                    case "OU":
+                        childid = childobject["ObjectIdentifier"]
+                        for childou in sorted_ous:
+                            if childou.ObjectIdentifier == childid:
+                                affectedcomputers = affectedcomputers + childou.AffectedComputers
+                                affectedusers = affectedusers + childou.AffectedUsers
+
+            ou.AffectedComputers = affectedcomputers
+            ou.AffectedUsers = affectedusers
+
+        sorted_domains = sorted(self.domains, key=lambda x: len(x.Properties['distinguishedname']), reverse=True)
+        
+        for domain in sorted_domains:
+            affectedcomputers = []
+            affectedusers = []
+            for childobject in domain.ChildObjects:
+                match childobject["ObjectType"] :
+                    case "Computer":
+                        affectedcomputers.append(childobject)
+                    case "User":
+                        affectedusers.append(childobject)
+                    case "OU":
+                        childid = childobject["ObjectIdentifier"]
+                        for childou in sorted_ous:
+                            if childou.ObjectIdentifier == childid:
+                                affectedcomputers = affectedcomputers + childou.AffectedComputers
+                                affectedusers = affectedusers + childou.AffectedUsers
+
+            domain.AffectedComputers = affectedcomputers
+            domain.AffectedUsers = affectedusers
 
 
     def link_gpos(self):
@@ -494,28 +599,20 @@ class ADDS():
         pass
 
     ### DEDICATED ADCS PART
+    def updateEnterpriseCA(self, entry:BloodHoundEnterpriseCA):
+        enabled_templates = []
+        for template_name in entry.CertTemplates :
+            for template in self.certtemplates:
+                template.Properties['displayname'].replace(' ','')
+                if template.Properties['displayname'].replace(' ','') == template_name:
+                    enabled_templates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
+        
+        entry.EnabledCertTemplates = enabled_templates
 
-    def update_template(self, template_entry):
-        template_name = template_entry.Properties["Template Name"]
-        cas = []
-        cas_ID = []
-        for ca in self.pkis:
-            for template in ca.Properties["Certificate Templates"]:
-                if template_name == template:
-                    cas.append(ca.Properties["CA Name"])
-                    cas_ID.append(ca.ObjectIdentifier)
-
-        if len(cas)>0:
-            template_entry.Properties["Enabled"] = True
-            template_entry.Properties["Certificate Authorities"] = cas
-            template_entry.cas_ids = cas_ID
-        else:
-            template_entry.Properties["Enabled"] = False
 
     def parse_adcs_acl(self, entry:BloodHoundObject):
-        if(entry._entry_type == "PKI Template"):
-            self.update_template(entry)
-            
+        if entry._entry_type == "EnterpriseCA"    :
+            self.updateEnterpriseCA(entry)       
         if not entry.RawAces:
             return 0
 
@@ -666,13 +763,12 @@ class ADDS():
                     # Since 4.0
                     # Key credential link property write rights
                     if entry._entry_type.lower() in ['user', 'computer'] and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
-                    and ace_object.acedata.get_object_type().lower() == '5b47d60f-6090-40b2-9f37-2a4de88f3063' \
                     and 'ms-ds-key-credential-link' in self.ObjectTypeGuidMap and ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['ms-ds-key-credential-link']:
                         relations.append(self.build_relation(entry, sid, 'AddKeyCredentialLink', inherited=is_inherited))
 
                     # ServicePrincipalName property write rights (exclude generic rights)
                     if entry._entry_type.lower() == 'user' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
-                    and ace_object.acedata.get_object_type().lower() == 'f3a64788-5306-11d1-a9c5-0000f80367c1':
+                    and ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['service-principal-name']:
                         relations.append(self.build_relation(entry, sid, 'WriteSPN', inherited=is_inherited))
 
                 elif ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_SELF):

@@ -8,51 +8,52 @@ import ast
 import base64
 from bofhound.ad.utils import PkiCertificateAuthorityFlags
 
-class BloodHoundPKI(BloodHoundObject):
+
+class BloodHoundEnterpriseCA(BloodHoundObject):
 
     COMMON_PROPERTIES = [
-        'name', 'highvalue', 'CA Name', 'DNS Name', 'Certificate Subject', 'Certificate Serial Number',
-        'Certificate Validity Start', 'Certificate Validity End', 'domain', 'flags'
+        'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
+        'description', 'whencreated', 'flags', 'caname', 'dnshostname', 'certthumbprint',
+        'certname', 'certchain', 'hasbasicconstraints', 'basicconstraintpathlength',
+        'casecuritycollected', 'enrollmentagentrestrictionscollected', 'isuserspecifiessanenabledcollected'
     ]
 
     def __init__(self, object):
         super().__init__(object)
 
-        self._entry_type = "PKI"
+        self._entry_type = "EnterpriseCA"
+        self.IsDeleted = False
         self.GPLinks = []
+        self.ContainedBy = []
+        self.IsACLProtected = False
+        self.Properties['casecuritycollected'] = False
+        self.Properties['enrollmentagentrestrictionscollected'] = False
+        self.Properties['isuserspecifiessanenabledcollected'] = False
+        self.CARegistryData = {}
         self.Properties["blocksinheritance"] = False
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get("objectguid")
 
         if 'distinguishedname' in object.keys():
-            DN = object.get("distinguishedname")
-            domain = ""
-            split = DN.split("DC=")
-            for i in range (1, len(split)):
-                domain = domain + split[i].replace(',', '')
-                if i < (len(split)-1):
-                    domain = domain + "."
-            self.Properties["domain"] = domain.upper()
-            if 'name' in object.keys():
-                self.Properties["name"] = ("%s@%s" % (object.get("name"), domain)).upper()
-        
-        self.Properties["highvalue"] = False
+            domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
+            self.Properties['domain'] = domain
+            self.Properties['distinguishedname'] = object.get('distinguishedname').upper()
 
-        if 'certificatetemplates' in object.keys():
-            self.Properties["Certificate Templates"] = object.get("certificatetemplates").split(', ')
+        if 'description' in object.keys():
+            self.Properties['description'] = object.get('description')
+        else:
+            self.Properties['description'] = None
 
-        if 'cn' in object.keys():
-            self.Properties["CA Name"] = object.get("cn")
+        if 'flags' in object.keys():
+            int_flag = int(object.get("flags"))
+            self.Properties['flags'] = ', '.join([member.name for member in PkiCertificateAuthorityFlags if member.value & int_flag == member.value])
 
-        if 'dNSHostnName' in object.keys():
-            self.Properties["DNS Name"] = object.get("dNSHostnName")
+        if 'name' in object.keys():
+            self.Properties['caname'] = object.get('name')
 
-        if 'ntsecuritydescriptor' in object.keys():
-            self.RawAces = object['ntsecuritydescriptor']
-
-        if 'cacertificatedn' in object.keys():
-                self.Properties["Certificate Subject"] = object.get("cacertificatedn")
+        if 'dnshostname' in object.keys():
+            self.Properties['dnshostname'] = object.get('dnshostname')
 
         if 'cacertificate' in object.keys():
             certificate_b64 = object.get("cacertificate")
@@ -60,20 +61,163 @@ class BloodHoundPKI(BloodHoundObject):
             ca_cert = x509.Certificate.load(certificate_byte_array)[
                     "tbs_certificate"
                 ]
-            self.Properties["Certificate Serial Number"] = hex(int(ca_cert["serial_number"]))[2:].upper()
-            validity = ca_cert["validity"].native
-            self.Properties["Certificate Validity Start"] = str(validity["not_before"])
-            self.Properties["Certificate Validity End"] = str(validity["not_after"])
+
+            # May need a rework
+            self.Properties['certthumbprint'] = None
+            self.Properties['certname'] = self.Properties['certthumbprint']
+            self.Properties['certchain'] = [self.Properties['certthumbprint']]
+            self.Properties['hasbasicconstraints'] = False
+            self.Properties['basicconstraintpathlength'] = 0
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
+
+        self.HostingComputer = (self.Properties['dnshostname'].split('.')[0]).upper()
+        self.EnabledCertTemplates = []
+
+        if 'certificatetemplates' in object.keys():
+            self.CertTemplates = object.get('certificatetemplates').split(', ')
         
-        if 'flags' in object.keys():
-            int_flag = int(object.get("flags"))
-            self.Properties['flags'] = [member.name for member in PkiCertificateAuthorityFlags if member.value & int_flag == member.value]
+        
 
     def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
         data = super().to_json(only_common_properties)
+
+        data["HostingComputer"] = self.HostingComputer
+        data["CARegistryData"] = self.CARegistryData
+        data["EnabledCertTemplates"] = self.EnabledCertTemplates
+        data["Aces"] = self.Aces
         data["ObjectIdentifier"] = self.ObjectIdentifier
+        data["IsDeleted"] = self.IsDeleted
+        data["IsACLProtected"] = self.IsACLProtected
+        data["ContainedBy"] = self.ContainedBy
+        
+        return data
+
+class BloodHoundAIACA(BloodHoundObject):
+
+    COMMON_PROPERTIES = [
+        'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
+        'description', 'whencreated', 'crosscertificatepair', 'hascrosscertificatepair',
+        'certthumbprint', 'certname', 'certchain', 'hasbasicconstraints',
+        'basicconstraintpathlength'
+    ]
+
+    def __init__(self, object):
+        super().__init__(object)
+
+        self._entry_type = "AIACA"
+        self.GPLinks = []
+        self.ContainedBy = []
+        self.IsACLProtected = False
+        self.IsDeleted = False
+        self.Properties["blocksinheritance"] = False
+        self.cas_ids = []
+
+        if 'objectguid' in object.keys():
+            self.ObjectIdentifier = object.get("objectguid")
+
+        if 'distinguishedname' in object.keys():
+            domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
+            self.Properties['domain'] = domain
+            self.Properties['distinguishedname'] = object.get('distinguishedname').upper()
+
+        if 'description' in object.keys():
+            self.Properties['description'] = object.get('description')
+        else:
+            self.Properties['description'] = None
+
+        ### Not parsed atm
+        self.Properties['crosscertificatepair'] = []
+        self.Properties['hascrosscertificatepair'] = False
+
+        if 'cacertificate' in object.keys():
+            certificate_b64 = object.get("cacertificate")
+            certificate_byte_array = base64.b64decode(certificate_b64)
+            ca_cert = x509.Certificate.load(certificate_byte_array)[
+                    "tbs_certificate"
+                ]
+
+            # May need a rework
+            self.Properties['certthumbprint'] = None
+            self.Properties['certname'] = self.Properties['certthumbprint']
+            self.Properties['certchain'] = [self.Properties['certthumbprint']]
+            self.Properties['hasbasicconstraints'] = False
+            self.Properties['basicconstraintpathlength'] = 0
+
+
+        
+    def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
+        data = super().to_json(only_common_properties)
+
+        data["Aces"] = self.Aces
+        data["IsACLProtected"] = self.IsACLProtected
+        data["ObjectIdentifier"] = self.ObjectIdentifier
+        data["ContainedBy"] = self.ContainedBy
+
+        return data
+
+
+class BloodHoundRootCA(BloodHoundObject):
+
+    COMMON_PROPERTIES = [
+        'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
+        'description', 'whencreated', 'crosscertificatepair', 'hascrosscertificatepair',
+        'certthumbprint', 'certname', 'certchain', 'hasbasicconstraints',
+        'basicconstraintpathlength'
+    ]
+
+    def __init__(self, object):
+        super().__init__(object)
+
+        self._entry_type = "RootCA"
+        self.GPLinks = []
+        self.ContainedBy = []
+        self.IsACLProtected = False
+        self.IsDeleted = False
+        self.Properties["blocksinheritance"] = False
+        self.cas_ids = []
+
+        if 'objectguid' in object.keys():
+            self.ObjectIdentifier = object.get("objectguid")
+
+        if 'distinguishedname' in object.keys():
+            domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
+            self.Properties['domain'] = domain
+            self.Properties['distinguishedname'] = object.get('distinguishedname').upper()
+
+        if 'description' in object.keys():
+            self.Properties['description'] = object.get('description')
+        else:
+            self.Properties['description'] = None
+
+        ### Not parsed atm
+        self.Properties['crosscertificatepair'] = []
+        self.Properties['hascrosscertificatepair'] = False
+
+        if 'cacertificate' in object.keys():
+            certificate_b64 = object.get("cacertificate")
+            certificate_byte_array = base64.b64decode(certificate_b64)
+            ca_cert = x509.Certificate.load(certificate_byte_array)[
+                    "tbs_certificate"
+                ]
+
+            # May need a rework
+            self.Properties['certthumbprint'] = None
+            self.Properties['certname'] = self.Properties['certthumbprint']
+            self.Properties['certchain'] = [self.Properties['certthumbprint']]
+            self.Properties['hasbasicconstraints'] = False
+            self.Properties['basicconstraintpathlength'] = 0
+
+
+        
+    def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
+        data = super().to_json(only_common_properties)
+        data['IsACLProtected'] = self.IsACLProtected
+        data["ObjectIdentifier"] = self.ObjectIdentifier
+        data["ContainedBy"] = self.ContainedBy
         data["Aces"] = self.Aces
         return data

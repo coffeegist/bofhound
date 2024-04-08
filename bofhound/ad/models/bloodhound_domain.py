@@ -7,8 +7,8 @@ class BloodHoundDomain(BloodHoundObject):
 
     COMMON_PROPERTIES = [
         'distinguishedname', 'objectid', 'description', 'whencreated',
-        'functionallevel', 'domain',
-        'name', 'highvalue'
+        'functionallevel', 'domain', 'isaclprotected', 'collected',
+        'name'
     ]
 
     def __init__(self, object):
@@ -16,6 +16,7 @@ class BloodHoundDomain(BloodHoundObject):
 
         self._entry_type = "Domain"
         self.GPLinks = []
+        self.ContainedBy = []
         level_id = object.get('msds-behavior-version', 0)
         try:
             functional_level = ADUtils.FUNCTIONAL_LEVELS[int(level_id)]
@@ -23,6 +24,9 @@ class BloodHoundDomain(BloodHoundObject):
             functional_level = 'Unknown'
 
         dc = None
+
+        self.Properties['collected'] = True
+
         if 'distinguishedname' in object.keys():
             self.Properties["name"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())
             self.Properties["domain"] = self.Properties["name"]
@@ -69,15 +73,21 @@ class BloodHoundDomain(BloodHoundObject):
 
 
     def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
         domain = super().to_json(only_common_properties)
 
         domain["ObjectIdentifier"] = self.ObjectIdentifier
         domain["Trusts"] = self.Trusts
+        domain["ContainedBy"] = None
         # The below is all unsupported as of now.
         domain["Aces"] = self.Aces
         domain["Links"] = self.Links
         domain["ChildObjects"] = self.ChildObjects
+        
+        self.GPOChanges["AffectedComputers"] = self.AffectedComputers
+        self.GPOChanges["AffectedUsers"] = self.AffectedUsers
         domain["GPOChanges"] = self.GPOChanges
+
         domain["IsDeleted"] = self.IsDeleted
         domain["IsACLProtected"] = self.IsACLProtected
 

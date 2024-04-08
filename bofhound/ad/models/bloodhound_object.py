@@ -79,15 +79,7 @@ class BloodHoundObject():
                 if not base_preference:
                     if getattr(object, attr):
                         setattr(self, attr, value)
-
-
-    def get_domain_sid(self):
-        domain_sid = None
-
-        if self.ObjectIdentifier:
-            domain_sid = '-'.join(self.ObjectIdentifier.split('-')[0:-1])
-
-        return domain_sid
+    
 
 
     def get_distinguished_name(self):

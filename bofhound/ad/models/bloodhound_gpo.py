@@ -8,13 +8,14 @@ class BloodHoundGPO(BloodHoundObject):
     COMMON_PROPERTIES = [
         'distinguishedname', 'whencreated',
         'domain', 'domainsid', 'name', 'highvalue',
-        'description', 'gpcpath'
+        'description', 'gpcpath', 'isaclprotected'
     ]
 
     def __init__(self, object):
         super().__init__(object)
 
         self._entry_type = "GPO"
+        self.ContainedBy = []
         
         if 'distinguishedname' in object.keys() and 'displayname' in object.keys():
             self.Properties["domain"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())
@@ -24,6 +25,9 @@ class BloodHoundGPO(BloodHoundObject):
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get('objectguid').upper()
             #self.Properties["objectid"] = object.get('objectguid')
+        
+        if self.ObjectIdentifier:
+            self.Properties['objectid'] = self.ObjectIdentifier
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
@@ -42,9 +46,11 @@ class BloodHoundGPO(BloodHoundObject):
         self.IsACLProtected = False
 
     def to_json(self, only_common_properties=True):
+        self.Properties['isaclprotected'] = self.IsACLProtected
         gpo = super().to_json(only_common_properties)
 
         gpo["ObjectIdentifier"] = self.ObjectIdentifier
+        gpo["ContainedBy"] = self.ContainedBy
         # The below is all unsupported as of now.
         gpo["Aces"] = self.Aces
         gpo["IsDeleted"] = self.IsDeleted

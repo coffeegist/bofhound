@@ -6,7 +6,7 @@ import logging
 from zipfile import ZipFile
 from pathlib import PurePath, Path
 from bofhound import console
-from bofhound.ad.models import BloodHoundDomain, BloodHoundComputer, BloodHoundUser, BloodHoundGroup, BloodHoundSchema, BloodHoundPKI, BloodHoundPKITemplate
+from bofhound.ad.models import BloodHoundDomain, BloodHoundComputer, BloodHoundUser, BloodHoundGroup, BloodHoundSchema, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundCertTemplate, BloodHoundContainer
 
 class BloodHoundWriter():
     files = []
@@ -14,7 +14,8 @@ class BloodHoundWriter():
 
     @staticmethod
     def write(out_dir='.', domains=None, computers=None, users=None,
-          groups=None, ous=None, gpos=None, pkis=None, pki_templates=None, 
+          groups=None, ous=None, containers=None, gpos=None, enterprisecas=None, aiacas=None,
+          rootcas=None, certtemplates=None, 
           trusts=None, trustaccounts=None, common_properties_only=True, zip_files=False):
 
         os.makedirs(out_dir, exist_ok=True)
@@ -40,18 +41,30 @@ class BloodHoundWriter():
         if ous is not None:
             with console.status(" [bold] Writing OUs to JSON...\n", spinner="aesthetic"):
                 BloodHoundWriter.write_ous_file(out_dir, ous, common_properties_only)
+        
+        if containers is not None:
+            with console.status(" [bold] Writing Containers to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_containers_file(out_dir, containers, common_properties_only)
 
         if gpos is not None:
             with console.status(" [bold] Writing GPOs to JSON...\n", spinner="aesthetic"):
                 BloodHoundWriter.write_gpos_file(out_dir, gpos, common_properties_only)
 
-        if pkis is not None:
-            with console.status(" [bold] Writing PKIs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_pkis_file(out_dir, pkis, common_properties_only)
+        if enterprisecas is not None:
+            with console.status(" [bold] Writing Enterprise CA to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_enterprisecas_file(out_dir, enterprisecas, common_properties_only)
+
+        if aiacas is not None:
+            with console.status(" [bold] Writing AIA CA to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_aiacas_file(out_dir, aiacas, common_properties_only)
+
+        if rootcas is not None:
+            with console.status(" [bold] Writing Root CA to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_rootcas_file(out_dir, rootcas, common_properties_only)
         
-        if pki_templates is not None:
-            with console.status(" [bold] Writing PKI Templates to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_pki_templates_file(out_dir, pki_templates, common_properties_only)
+        if certtemplates is not None:
+            with console.status(" [bold] Writing Cert Template Templates to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_certtemplates_file(out_dir, certtemplates, common_properties_only)
 
         if trusts is not None:
             BloodHoundWriter.write_trusts_file(out_dir, trusts, common_properties_only)
@@ -96,7 +109,7 @@ class BloodHoundWriter():
         out_file = PurePath(out_dir, f'domains_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
 
     @staticmethod
     def write_computers_file(out_dir, computers, common_properties_only):
@@ -108,8 +121,8 @@ class BloodHoundWriter():
             "meta": {
                 "type": "computers",
                 "count": 0,
-                "methods": 0,
-                "version": 5
+                "methods": 521215,
+                "version": 6
             }
         }
 
@@ -120,7 +133,7 @@ class BloodHoundWriter():
         out_file = PurePath(out_dir, f'computers_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
 
 
     @staticmethod
@@ -133,8 +146,8 @@ class BloodHoundWriter():
             "meta": {
                 "type": "users",
                 "count": 0,
-                "methods": 0,
-                "version": 5
+                "methods": 521215,
+                "version": 6
             }
         }
 
@@ -145,7 +158,7 @@ class BloodHoundWriter():
         out_file = PurePath(out_dir, f'users_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
 
 
     @staticmethod
@@ -158,8 +171,8 @@ class BloodHoundWriter():
             "meta": {
                 "type": "groups",
                 "count": 0,
-                "methods": 0,
-                "version": 5
+                "methods": 521215,
+                "version": 6
             }
         }
 
@@ -170,7 +183,7 @@ class BloodHoundWriter():
         out_file = PurePath(out_dir, f'groups_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
 
     
     @staticmethod
@@ -183,8 +196,8 @@ class BloodHoundWriter():
             "meta": {
                 "type": "ous",
                 "count": 0,
-                "methods": 0,
-                "version": 5
+                "methods": 521215,
+                "version": 6
             }
         }
 
@@ -195,7 +208,32 @@ class BloodHoundWriter():
         out_file = PurePath(out_dir, f'ous_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
+
+
+    @staticmethod
+    def write_containers_file(out_dir, containers, common_properties_only):
+        if len(containers) == 0:
+            return
+
+        datastruct = {
+            "data": [],
+            "meta": {
+                "type": "containers",
+                "count": 0,
+                "methods": 521215,
+                "version": 6
+            }
+        }
+
+        for container in containers:
+            datastruct['data'].append(container.to_json(common_properties_only))
+            datastruct['meta']['count'] += 1
+
+        out_file = PurePath(out_dir, f'containers_{BloodHoundWriter.ct}.json')
+        BloodHoundWriter.files.append(out_file)
+        with codecs.open(out_file, 'w', 'utf-8') as f:
+            json.dump(datastruct, f, ensure_ascii=False)
 
 
     @staticmethod
@@ -220,53 +258,105 @@ class BloodHoundWriter():
         out_file = PurePath(out_dir, f'gpos_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
 
     @staticmethod
-    def write_pkis_file(out_dir, pkis, common_properties_only):
-        if len(pkis) == 0:
+    def write_enterprisecas_file(out_dir, enterprisecas, common_properties_only):
+        if len(enterprisecas) == 0:
             return
 
         datastruct = {
             "data": [],
             "meta": {
-                "type": "cas",
+                "methods" : 521215,
+                "type": "enterprisecas",
                 "count": 0,
-                "version": 5
+                "version": 6
             }
         }
 
-        for pki in pkis:
-            datastruct['data'].append(pki.to_json(common_properties_only))
+        for enterpriseca in enterprisecas:
+            datastruct['data'].append(enterpriseca.to_json(common_properties_only))
             datastruct['meta']['count'] += 1
 
-        out_file = PurePath(out_dir, f'pkis_{BloodHoundWriter.ct}.json')
+        out_file = PurePath(out_dir, f'enterprisecas_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
+
+    @staticmethod
+    def write_aiacas_file(out_dir, aiacas, common_properties_only):
+        if len(aiacas) == 0:
+            return
+
+        datastruct = {
+            "data": [],
+            "meta": {
+                "methods" : 521215,
+                "type": "aiacas",
+                "count": 0,
+                "version": 6
+            }
+        }
+
+        for aiaca in aiacas:
+            datastruct['data'].append(aiaca.to_json(common_properties_only))
+            datastruct['meta']['count'] += 1
+
+        out_file = PurePath(out_dir, f'aiacas_{BloodHoundWriter.ct}.json')
+        BloodHoundWriter.files.append(out_file)
+        with codecs.open(out_file, 'w', 'utf-8') as f:
+            json.dump(datastruct, f, ensure_ascii=False)
+
     
     @staticmethod
-    def write_pki_templates_file(out_dir, pki_templates, common_properties_only):
-        if len(pki_templates) == 0:
+    def write_rootcas_file(out_dir, rootcas, common_properties_only):
+        if len(rootcas) == 0:
             return
 
         datastruct = {
             "data": [],
             "meta": {
-                "type": "templates",
+                "methods" : 521215,
+                "type": "rootcas",
                 "count": 0,
-                "version": 5
+                "version": 6
             }
         }
 
-        for pki_template in pki_templates:
-            datastruct['data'].append(pki_template.to_json(common_properties_only))
+        for rootca in rootcas:
+            datastruct['data'].append(rootca.to_json(common_properties_only))
             datastruct['meta']['count'] += 1
 
-        out_file = PurePath(out_dir, f'pki_templates_{BloodHoundWriter.ct}.json')
+        out_file = PurePath(out_dir, f'rootcas_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
-            json.dump(datastruct, f)
+            json.dump(datastruct, f, ensure_ascii=False)
+
+    
+    @staticmethod
+    def write_certtemplates_file(out_dir, certtemplates, common_properties_only):
+        if len(certtemplates) == 0:
+            return
+
+        datastruct = {
+            "data": [],
+            "meta": {
+                "methods": 521215,
+                "type": "certtemplates",
+                "count": 0,
+                "version": 6
+            }
+        }
+
+        for certtemplate in certtemplates:
+            datastruct['data'].append(certtemplate.to_json(common_properties_only))
+            datastruct['meta']['count'] += 1
+
+        out_file = PurePath(out_dir, f'certtemplates_{BloodHoundWriter.ct}.json')
+        BloodHoundWriter.files.append(out_file)
+        with codecs.open(out_file, 'w', 'utf-8') as f:
+            json.dump(datastruct, f, ensure_ascii=False)
 
 
     @staticmethod
