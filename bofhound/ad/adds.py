@@ -272,19 +272,18 @@ class ADDS():
         num_parsed_relations = 0
             
         with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
-            for object in all_objects:
+            for i, object in enumerate(all_objects):
                 self.recalculate_sid(object)
                 self.calculate_contained(object)
                 self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_acl(object)
-                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} parsed")
-                i += 1
-            for object in (adcs_object):
+                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
+            
+            for i, object in enumerate(adcs_object):
                 self.calculate_contained(object)
                 self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_adcs_acl(object)
-                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} parsed")
-                i += 1
+                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
 
         logging.info(f"Parsed {num_parsed_relations} ACL relationships")
 
