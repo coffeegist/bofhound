@@ -1,8 +1,12 @@
 import sys
+import os
+root = os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/..")
+if root not in sys.path:
+  sys.path.insert(0, root)
+
 import logging
 import typer
 import glob
-import os
 from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, GenericParser
 from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS

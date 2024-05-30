@@ -267,6 +267,8 @@ class ADDS():
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers
         adcs_object = self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates
 
+        total_objects = len(all_objects) + len(adcs_object)
+
         num_parsed_relations = 0
             
         with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
@@ -275,12 +277,14 @@ class ADDS():
                 self.calculate_contained(object)
                 self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_acl(object)
-                status.update(f" [bold] Processing {num_parsed_relations} ACLs")
+                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} parsed")
+                i += 1
             for object in (adcs_object):
                 self.calculate_contained(object)
                 self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_adcs_acl(object)
-                status.update(f" [bold] Processing {num_parsed_relations} ACLs")
+                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} parsed")
+                i += 1
 
         logging.info(f"Parsed {num_parsed_relations} ACL relationships")
 
