@@ -12,7 +12,7 @@ repository = "https://github.com/coffeegist/bofhound"
 include = ["CHANGELOG.md"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 asn1crypto = "^1.5.1"
 click = "^8.0"
 typer = "^0.9"
