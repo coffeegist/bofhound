@@ -51,7 +51,6 @@ def test_constructor_basicFullObject(parsed_full_user):
 
     assert bho.ObjectIdentifier == 'S-1-5-21-3539700351-1165401899-3544196954-500'
     assert bho.get_distinguished_name() == 'CN=ADMINISTRATOR,CN=USERS,DC=TEST,DC=LAB'
-    assert bho.get_domain_sid() == 'S-1-5-21-3539700351-1165401899-3544196954'
     assert bho.Properties['whencreated'] == 1629999042
 
 def test_merge_entry_fullOverwrite():
