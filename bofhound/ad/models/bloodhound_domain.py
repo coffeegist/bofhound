@@ -6,7 +6,7 @@ import logging
 class BloodHoundDomain(BloodHoundObject):
 
     COMMON_PROPERTIES = [
-        'distinguishedname', 'objectid', 'description', 'whencreated',
+        'distinguishedname', 'domainsid', 'description', 'whencreated',
         'functionallevel', 'domain', 'isaclprotected', 'collected',
         'name'
     ]
@@ -34,13 +34,15 @@ class BloodHoundDomain(BloodHoundObject):
             logging.debug(f"Reading Domain object {ColorScheme.domain}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectsid' in object.keys():
-            self.Properties["objectid"] = object.get('objectsid')
+            self.Properties["domainsid"] = object.get('objectsid')
 
         if 'distinguishedname' in object.keys():
             self.Properties['distinguishedname'] = object.get('distinguishedname').upper()
 
         if 'description' in object.keys():
             self.Properties["description"] = object.get('description')
+        else:
+            self.Properties["description"] = None
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
