@@ -105,6 +105,8 @@ def main(
     logging.info(f"Parsed {len(ad.enterprisecas)} Enterprise CAs")
     logging.info(f"Parsed {len(ad.aiacas)} AIA CAs")
     logging.info(f"Parsed {len(ad.rootcas)} Root CAs")
+    logging.info(f"Parsed {len(ad.ntauthstores)} NTAuth Stores")
+    logging.info(f"Parsed {len(ad.issuancepolicies)} Issuance Policies")
     logging.info(f"Parsed {len(ad.certtemplates)} Cert Templates")
     logging.info(f"Parsed {len(ad.schemas)} Schemas")
     logging.info(f"Parsed {len(ad.CROSSREF_MAP)} Referrals")
@@ -129,6 +131,8 @@ def main(
         enterprisecas=ad.enterprisecas,
         aiacas=ad.aiacas,
         rootcas=ad.rootcas,
+        ntauthstores=ad.ntauthstores,
+        issuancepolicies=ad.issuancepolicies,
         certtemplates = ad.certtemplates,
         common_properties_only=(not all_properties),
         zip_files=zip_files

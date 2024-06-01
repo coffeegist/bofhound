@@ -1,4 +1,4 @@
-from bofhound.ad.utils import _decompose, IntFlag
+from bofhound.ad.helpers.cert_utils import _decompose, IntFlag
 from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid

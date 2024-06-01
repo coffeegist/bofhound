@@ -6,7 +6,7 @@ import logging
 from asn1crypto import x509
 import ast
 import base64
-from bofhound.ad.utils import PkiCertificateAuthorityFlags
+from bofhound.ad.helpers.cert_utils import PkiCertificateAuthorityFlags
 
 
 class BloodHoundEnterpriseCA(BloodHoundObject):

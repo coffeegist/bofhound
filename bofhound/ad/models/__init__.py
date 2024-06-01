@@ -10,6 +10,8 @@ from .bloodhound_gpo import BloodHoundGPO
 from .bloodhound_pki import BloodHoundEnterpriseCA
 from .bloodhound_pki import BloodHoundRootCA
 from .bloodhound_pki import BloodHoundAIACA
+from .bloodhound_ntauthstore import BloodHoundNTAuthStore
+from .bloodhound_issuancepolicy import BloodHoundIssuancePolicy
 from .bloodhound_pki_template import BloodHoundCertTemplate
 from .bloodhound_domaintrust import BloodHoundDomainTrust
 from .bloodhound_crossref import BloodHoundCrossRef

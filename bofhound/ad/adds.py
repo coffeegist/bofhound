@@ -4,10 +4,10 @@ import datetime
 from io import BytesIO
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
-from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundCertTemplate, BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
+from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundNTAuthStore, BloodHoundIssuancePolicy, BloodHoundCertTemplate, BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
-from bofhound.ad.bloodhound_security import CertificateSecurity, EXTENDED_RIGHTS_MAP, WELLKNOWN_DOMAIN_SIDS
+from bofhound.ad.helpers.bloodhound_security import CertificateSecurity, EXTENDED_RIGHTS_MAP, WELLKNOWN_DOMAIN_SIDS
 
 class ADDS():
 
@@ -40,6 +40,8 @@ class ADDS():
         self.enterprisecas = []
         self.aiacas = []
         self.rootcas = []
+        self.ntauthstores = []
+        self.issuancepolicies = []
         self.certtemplates = []
         self.containers = []
         self.schemas = []
@@ -141,6 +143,15 @@ class ADDS():
                     elif 'CN=Certification Authorities,' in object.get('distinguishedname') :
                         bhObject = BloodHoundRootCA(object)
                         target_list = self.rootcas
+                    elif object.get('distinguishedname').upper().startswith('CN=NTAUTHCERTIFICATES,CN=PUBLIC KEY SERVICES,CN=SERVICES,CN=CONFIGURATION,'):
+                        bhObject = BloodHoundNTAuthStore(object)
+                        target_list = self.ntauthstores
+                elif 'top, msPKI-Enterprise-Oid' in object_class:
+                    # only want these if flags property is 2, ref: https://github.com/BloodHoundAD/SharpHoundCommon/blob/ea6b097927c5bb795adb8589e9a843293d36ae37/src/CommonLib/Extensions.cs#L402
+                    if 'flags' in object.keys():
+                        if object.get('flags') == '2':
+                            bhObject = BloodHoundIssuancePolicy(object)
+                            target_list = self.issuancepolicies
                 elif 'top, pKIEnrollmentService' in object_class:
                     bhObject = BloodHoundEnterpriseCA(object)
                     target_list = self.enterprisecas
@@ -265,7 +276,7 @@ class ADDS():
 
     def process(self):
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers
-        adcs_object = self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates
+        adcs_object = self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies + self.ntauthstores
 
         total_objects = len(all_objects) + len(adcs_object)
 
@@ -771,7 +782,7 @@ class ADDS():
 
                     # ServicePrincipalName property write rights (exclude generic rights)
                     if entry._entry_type.lower() == 'user' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
-                    and ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['service-principal-name']:
+                    and ace_object.acedata.get_object_type().lower() == 'f3a64788-5306-11d1-a9c5-0000f80367c1':
                         relations.append(self.build_relation(entry, sid, 'WriteSPN', inherited=is_inherited))
 
                 elif ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_SELF):

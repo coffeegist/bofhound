@@ -15,7 +15,7 @@ class BloodHoundWriter():
     @staticmethod
     def write(out_dir='.', domains=None, computers=None, users=None,
           groups=None, ous=None, containers=None, gpos=None, enterprisecas=None, aiacas=None,
-          rootcas=None, certtemplates=None, 
+          rootcas=None, ntauthstores=None, issuancepolicies=None, certtemplates=None, 
           trusts=None, trustaccounts=None, common_properties_only=True, zip_files=False):
 
         os.makedirs(out_dir, exist_ok=True)
@@ -51,19 +51,27 @@ class BloodHoundWriter():
                 BloodHoundWriter.write_gpos_file(out_dir, gpos, common_properties_only)
 
         if enterprisecas is not None:
-            with console.status(" [bold] Writing Enterprise CA to JSON...\n", spinner="aesthetic"):
+            with console.status(" [bold] Writing Enterprise CAs to JSON...\n", spinner="aesthetic"):
                 BloodHoundWriter.write_enterprisecas_file(out_dir, enterprisecas, common_properties_only)
 
         if aiacas is not None:
-            with console.status(" [bold] Writing AIA CA to JSON...\n", spinner="aesthetic"):
+            with console.status(" [bold] Writing AIA CAs to JSON...\n", spinner="aesthetic"):
                 BloodHoundWriter.write_aiacas_file(out_dir, aiacas, common_properties_only)
 
         if rootcas is not None:
-            with console.status(" [bold] Writing Root CA to JSON...\n", spinner="aesthetic"):
+            with console.status(" [bold] Writing Root CAs to JSON...\n", spinner="aesthetic"):
                 BloodHoundWriter.write_rootcas_file(out_dir, rootcas, common_properties_only)
+
+        if ntauthstores is not None:
+            with console.status(" [bold] Writing NTAuth Stores to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_ntauthstores_file(out_dir, ntauthstores, common_properties_only)
+
+        if issuancepolicies is not None:
+            with console.status(" [bold] Writing Issuance Policies to JSON...\n", spinner="aesthetic"):
+                BloodHoundWriter.write_issuancepolicies_file(out_dir, issuancepolicies, common_properties_only)
         
         if certtemplates is not None:
-            with console.status(" [bold] Writing Cert Template Templates to JSON...\n", spinner="aesthetic"):
+            with console.status(" [bold] Writing Cert Templates to JSON...\n", spinner="aesthetic"):
                 BloodHoundWriter.write_certtemplates_file(out_dir, certtemplates, common_properties_only)
 
         if trusts is not None:
@@ -329,6 +337,56 @@ class BloodHoundWriter():
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'rootcas_{BloodHoundWriter.ct}.json')
+        BloodHoundWriter.files.append(out_file)
+        with codecs.open(out_file, 'w', 'utf-8') as f:
+            json.dump(datastruct, f, ensure_ascii=False)
+
+    
+    @staticmethod
+    def write_ntauthstores_file(out_dir, ntauthstores, common_properties_only):
+        if len(ntauthstores) == 0:
+            return
+
+        datastruct = {
+            "data": [],
+            "meta": {
+                "methods" : 0,
+                "type": "ntauthstores",
+                "count": 0,
+                "version": 6
+            }
+        }
+
+        for ntauthstore in ntauthstores:
+            datastruct['data'].append(ntauthstore.to_json(common_properties_only))
+            datastruct['meta']['count'] += 1
+
+        out_file = PurePath(out_dir, f'ntauthstores_{BloodHoundWriter.ct}.json')
+        BloodHoundWriter.files.append(out_file)
+        with codecs.open(out_file, 'w', 'utf-8') as f:
+            json.dump(datastruct, f, ensure_ascii=False)
+
+
+    @staticmethod
+    def write_issuancepolicies_file(out_dir, issuancepolicies, common_properties_only):
+        if len(issuancepolicies) == 0:
+            return
+
+        datastruct = {
+            "data": [],
+            "meta": {
+                "methods" : 0,
+                "type": "issuancepolicies",
+                "count": 0,
+                "version": 6
+            }
+        }
+
+        for issuancepolicy in issuancepolicies:
+            datastruct['data'].append(issuancepolicy.to_json(common_properties_only))
+            datastruct['meta']['count'] += 1
+
+        out_file = PurePath(out_dir, f'issuancepolicies_{BloodHoundWriter.ct}.json')
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
