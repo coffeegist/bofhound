@@ -46,9 +46,6 @@ class BloodHoundComputer(BloodHoundObject):
         self.registry_sessions = []
         self.local_group_members = {} # {group_name: [{member_sid, member_type}]}
 
-        if self.ObjectIdentifier:
-            self.Properties['objectid'] = self.ObjectIdentifier
-
         if 'dnshostname' in object.keys():
             self.hostname = object.get('dnshostname', None)
             self.Properties['name'] = self.hostname.upper()

@@ -24,10 +24,6 @@ class BloodHoundGPO(BloodHoundObject):
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get('objectguid').upper()
-            #self.Properties["objectid"] = object.get('objectguid')
-        
-        if self.ObjectIdentifier:
-            self.Properties['objectid'] = self.ObjectIdentifier
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']

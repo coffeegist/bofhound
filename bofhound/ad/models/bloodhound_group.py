@@ -52,7 +52,6 @@ class BloodHoundGroup(BloodHoundObject):
         if 'member' in object.keys():
             self.MemberDNs = [f'CN={dn.upper()}' for dn in object.get('member').split(', CN=')]
             if len(self.MemberDNs) > 0:
-                print(self.MemberDNs[0])
                 self.MemberDNs[0] = self.MemberDNs[0][3:]
 
         if 'ntsecuritydescriptor' in object.keys():

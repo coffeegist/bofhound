@@ -21,14 +21,12 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
 
         self._entry_type = "EnterpriseCA"
         self.IsDeleted = False
-        self.GPLinks = []
         self.ContainedBy = []
         self.IsACLProtected = False
         self.Properties['casecuritycollected'] = False
         self.Properties['enrollmentagentrestrictionscollected'] = False
         self.Properties['isuserspecifiessanenabledcollected'] = False
         self.CARegistryData = {}
-        self.Properties["blocksinheritance"] = False
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get("objectguid")

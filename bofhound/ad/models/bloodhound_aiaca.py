@@ -19,11 +19,9 @@ class BloodHoundAIACA(BloodHoundObject):
         super().__init__(object)
 
         self._entry_type = "AIACA"
-        self.GPLinks = []
         self.ContainedBy = []
         self.IsACLProtected = False
         self.IsDeleted = False
-        self.Properties["blocksinheritance"] = False
         self.cas_ids = []
 
         if 'objectguid' in object.keys():

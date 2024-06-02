@@ -37,8 +37,6 @@ class BloodHoundUser(BloodHoundObject):
 
         if isinstance(object, dict):
             self.PrimaryGroupSid = self.get_primary_membership(object) # Returns none if not exist
-            if self.ObjectIdentifier:
-                self.Properties['objectid'] = self.ObjectIdentifier
 
             if 'distinguishedname' in object.keys() and 'samaccountname' in object.keys():
                 domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()

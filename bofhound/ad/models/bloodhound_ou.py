@@ -27,7 +27,6 @@ class BloodHoundOU(BloodHoundObject):
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get('objectguid').upper()
-            #self.Properties["objectid"] = object.get('objectguid')
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
