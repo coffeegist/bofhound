@@ -129,7 +129,7 @@ class BloodHoundWriter():
             "meta": {
                 "type": "computers",
                 "count": 0,
-                "methods": 521215,
+                "methods": 0,
                 "version": 6
             }
         }
@@ -154,7 +154,7 @@ class BloodHoundWriter():
             "meta": {
                 "type": "users",
                 "count": 0,
-                "methods": 521215,
+                "methods": 0,
                 "version": 6
             }
         }
@@ -179,7 +179,7 @@ class BloodHoundWriter():
             "meta": {
                 "type": "groups",
                 "count": 0,
-                "methods": 521215,
+                "methods": 0,
                 "version": 6
             }
         }
@@ -204,7 +204,7 @@ class BloodHoundWriter():
             "meta": {
                 "type": "ous",
                 "count": 0,
-                "methods": 521215,
+                "methods": 0,
                 "version": 6
             }
         }
@@ -229,7 +229,7 @@ class BloodHoundWriter():
             "meta": {
                 "type": "containers",
                 "count": 0,
-                "methods": 521215,
+                "methods": 0,
                 "version": 6
             }
         }
@@ -276,7 +276,7 @@ class BloodHoundWriter():
         datastruct = {
             "data": [],
             "meta": {
-                "methods" : 521215,
+                "methods" : 0,
                 "type": "enterprisecas",
                 "count": 0,
                 "version": 6
@@ -300,7 +300,7 @@ class BloodHoundWriter():
         datastruct = {
             "data": [],
             "meta": {
-                "methods" : 521215,
+                "methods" : 0,
                 "type": "aiacas",
                 "count": 0,
                 "version": 6
@@ -325,7 +325,7 @@ class BloodHoundWriter():
         datastruct = {
             "data": [],
             "meta": {
-                "methods" : 521215,
+                "methods" : 0,
                 "type": "rootcas",
                 "count": 0,
                 "version": 6
@@ -400,7 +400,7 @@ class BloodHoundWriter():
         datastruct = {
             "data": [],
             "meta": {
-                "methods": 521215,
+                "methods": 0,
                 "type": "certtemplates",
                 "count": 0,
                 "version": 6
