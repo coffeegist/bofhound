@@ -327,6 +327,11 @@ class ADDS():
                 self.resolve_domain_trusts()
             logging.info("Resolved domain trusts")
 
+        if len(self.aiacas) > 0 or len(self.enterprisecas) > 0:
+            with console.status(" [bold] Building CA certificate chains", spinner="aesthetic"):
+                self.build_certificate_chains()
+            logging.info("Built CA certificate chains")
+
 
     def get_sid_from_name(self, name):
         for entry in self.SID_MAP:
@@ -1124,3 +1129,38 @@ class ADDS():
                 
             computer_object.add_local_group_member(member.member_sid, member.member_sid_type, member.group)
             logging.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+
+
+    @staticmethod
+    def find_issuer_ca(start_ca_obj, all_ca_obj):
+        for potential_issuer in all_ca_obj:
+            if start_ca_obj.x509Certificate['issuer'] == potential_issuer.x509Certificate['subject']:
+                return potential_issuer
+        return None
+    
+
+    @staticmethod
+    def build_certificate_chain(start_ca_obj, all_ca_obj):
+        chain = [start_ca_obj]
+        current_ca = start_ca_obj
+
+        while True:
+            if current_ca.x509Certificate['subject'] == current_ca.x509Certificate['issuer']:
+                # Found a self-signed certificate (root CA)
+                break
+            
+            issuer_ca = ADDS.find_issuer_ca(start_ca_obj, all_ca_obj)
+            if not issuer_ca:
+                break
+            chain.append(issuer_ca)
+            current_ca = issuer_ca
+
+        return [cert.Properties['certthumbprint'] for cert in chain]
+
+    def build_certificate_chains(self):
+        for enterpriseca in self.enterprisecas:
+            enterpriseca.Properties['certchain'] = ADDS.build_certificate_chain(enterpriseca, self.enterprisecas)
+        
+        for aiaca in self.aiacas:
+            aiaca.Properties['certchain'] = ADDS.build_certificate_chain(aiaca, self.aiacas)
+            

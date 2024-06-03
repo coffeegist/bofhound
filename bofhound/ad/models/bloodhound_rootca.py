@@ -2,17 +2,14 @@ from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 import logging
-from asn1crypto import x509
-import base64
 
 
 class BloodHoundRootCA(BloodHoundObject):
 
     COMMON_PROPERTIES = [
         'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
-        'description', 'whencreated', 'crosscertificatepair', 'hascrosscertificatepair',
-        'certthumbprint', 'certname', 'certchain', 'hasbasicconstraints',
-        'basicconstraintpathlength'
+        'description', 'whencreated', 'certthumbprint', 'certname', 'certchain',
+        'hasbasicconstraints', 'basicconstraintpathlength'
     ]
 
     def __init__(self, object):
@@ -22,7 +19,7 @@ class BloodHoundRootCA(BloodHoundObject):
         self.ContainedBy = []
         self.IsACLProtected = False
         self.IsDeleted = False
-        self.cas_ids = []
+        self.x509Certificate = None
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get("objectguid")
@@ -37,31 +34,26 @@ class BloodHoundRootCA(BloodHoundObject):
         else:
             self.Properties['description'] = None
 
-        ### Not parsed atm
-        self.Properties['crosscertificatepair'] = []
-        self.Properties['hascrosscertificatepair'] = False
+        if 'name' in object.keys():
+            if 'domain' in self.Properties.keys():
+                self.Properties['name'] = object.get('name').upper() + "@" + self.Properties['domain'].upper()
 
         if 'cacertificate' in object.keys():
-            certificate_b64 = object.get("cacertificate")
-            certificate_byte_array = base64.b64decode(certificate_b64)
-            ca_cert = x509.Certificate.load(certificate_byte_array)[
-                    "tbs_certificate"
-                ]
+            self.parse_cacertificate(object)
+            # root CA certificates are self-signed
+            self.Properties['certchain'] = [ self.Properties['certthumbprint'] ]
 
-            # May need a rework
-            self.Properties['certthumbprint'] = None
-            self.Properties['certname'] = self.Properties['certthumbprint']
-            self.Properties['certchain'] = [self.Properties['certthumbprint']]
-            self.Properties['hasbasicconstraints'] = False
-            self.Properties['basicconstraintpathlength'] = 0
-
-
-        
+  
     def to_json(self, only_common_properties=True):
         self.Properties['isaclprotected'] = self.IsACLProtected
         data = super().to_json(only_common_properties)
         data['IsACLProtected'] = self.IsACLProtected
+        data['IsDeleted'] = self.IsDeleted
         data["ObjectIdentifier"] = self.ObjectIdentifier
         data["ContainedBy"] = self.ContainedBy
         data["Aces"] = self.Aces
+
+        if "domainsid" in self.Properties:
+            data["DomainSID"] = self.Properties["domainsid"]
+
         return data

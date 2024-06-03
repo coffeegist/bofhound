@@ -2,8 +2,6 @@ from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 import logging
-from asn1crypto import x509
-import base64
 from bofhound.ad.helpers.cert_utils import PkiCertificateAuthorityFlags
 
 
@@ -13,7 +11,8 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
         'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
         'description', 'whencreated', 'flags', 'caname', 'dnshostname', 'certthumbprint',
         'certname', 'certchain', 'hasbasicconstraints', 'basicconstraintpathlength',
-        'casecuritycollected', 'enrollmentagentrestrictionscollected', 'isuserspecifiessanenabledcollected'
+        'casecuritycollected', 'enrollmentagentrestrictionscollected', 'isuserspecifiessanenabledcollected',
+        'unresolvedpublishedtemplates'
     ]
 
     def __init__(self, object):
@@ -26,7 +25,9 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
         self.Properties['casecuritycollected'] = False
         self.Properties['enrollmentagentrestrictionscollected'] = False
         self.Properties['isuserspecifiessanenabledcollected'] = False
-        self.CARegistryData = {}
+        self.Properties['unresolvedpublishedtemplates'] = []
+        self.CARegistryData = None
+        self.x509Certificate = None
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get("objectguid")
@@ -47,34 +48,24 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
 
         if 'name' in object.keys():
             self.Properties['caname'] = object.get('name')
+            if 'domain' in self.Properties.keys():
+                self.Properties['name'] = object.get('name').upper() + "@" + self.Properties['domain'].upper()
 
         if 'dnshostname' in object.keys():
             self.Properties['dnshostname'] = object.get('dnshostname')
 
         if 'cacertificate' in object.keys():
-            certificate_b64 = object.get("cacertificate")
-            certificate_byte_array = base64.b64decode(certificate_b64)
-            ca_cert = x509.Certificate.load(certificate_byte_array)[
-                    "tbs_certificate"
-                ]
-
-            # May need a rework
-            self.Properties['certthumbprint'] = None
-            self.Properties['certname'] = self.Properties['certthumbprint']
-            self.Properties['certchain'] = [self.Properties['certthumbprint']]
-            self.Properties['hasbasicconstraints'] = False
-            self.Properties['basicconstraintpathlength'] = 0
+            self.parse_cacertificate(object)
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
 
-        self.HostingComputer = (self.Properties['dnshostname'].split('.')[0]).upper()
+        self.HostingComputer = None
         self.EnabledCertTemplates = []
 
         if 'certificatetemplates' in object.keys():
-            self.CertTemplates = object.get('certificatetemplates').split(', ')
-        
-        
+            self.CertTemplates = object.get('certificatetemplates').split(', ')  
+    
 
     def to_json(self, only_common_properties=True):
         self.Properties['isaclprotected'] = self.IsACLProtected

@@ -2,8 +2,6 @@ from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 import logging
-from asn1crypto import x509
-import base64
 
 
 class BloodHoundAIACA(BloodHoundObject):
@@ -22,7 +20,7 @@ class BloodHoundAIACA(BloodHoundObject):
         self.ContainedBy = []
         self.IsACLProtected = False
         self.IsDeleted = False
-        self.cas_ids = []
+        self.x509Certificate = None
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get("objectguid")
@@ -37,24 +35,19 @@ class BloodHoundAIACA(BloodHoundObject):
         else:
             self.Properties['description'] = None
 
-        ### Not parsed atm
-        self.Properties['crosscertificatepair'] = []
-        self.Properties['hascrosscertificatepair'] = False
+        if 'name' in object.keys():
+            if 'domain' in self.Properties.keys():
+                self.Properties['name'] = object.get('name').upper() + "@" + self.Properties['domain'].upper()
+
+        if 'crosscertificatepair' in object.keys():
+            self.Properties['crosscertificatepair'] = object.get('crosscertificatepair')
+            self.Properties['hascrosscertificatepair'] = True
+        else:
+            self.Properties['crosscertificatepair'] = []
+            self.Properties['hascrosscertificatepair'] = False
 
         if 'cacertificate' in object.keys():
-            certificate_b64 = object.get("cacertificate")
-            certificate_byte_array = base64.b64decode(certificate_b64)
-            ca_cert = x509.Certificate.load(certificate_byte_array)[
-                    "tbs_certificate"
-                ]
-
-            # May need a rework
-            self.Properties['certthumbprint'] = None
-            self.Properties['certname'] = self.Properties['certthumbprint']
-            self.Properties['certchain'] = [self.Properties['certthumbprint']]
-            self.Properties['hasbasicconstraints'] = False
-            self.Properties['basicconstraintpathlength'] = 0
-
+            self.parse_cacertificate(object)
 
         
     def to_json(self, only_common_properties=True):
@@ -62,6 +55,7 @@ class BloodHoundAIACA(BloodHoundObject):
         data = super().to_json(only_common_properties)
 
         data["Aces"] = self.Aces
+        data["IsDeleted"] = self.IsDeleted
         data["IsACLProtected"] = self.IsACLProtected
         data["ObjectIdentifier"] = self.ObjectIdentifier
         data["ContainedBy"] = self.ContainedBy
