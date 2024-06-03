@@ -22,6 +22,8 @@ class BloodHoundNTAuthStore(BloodHoundObject):
         self.ContainedBy = []
         self.IsACLProtected = False
 
+        self.Properties['certthumbprints'] = []
+
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get("objectguid")
 
@@ -39,13 +41,15 @@ class BloodHoundNTAuthStore(BloodHoundObject):
         else:
             self.Properties['description'] = None
 
-        # how are multiple certs stored in the property/can we handle?
         if 'cacertificate' in object.keys():
             certificate_b64 = object.get("cacertificate")
-            certificate_byte_array = base64.b64decode(certificate_b64)
             
-            self.Properties['certthumbprints'] = [hashlib.sha1(certificate_byte_array).hexdigest().upper()]
-
+            certificate_b64_list = certificate_b64.split(", ")
+            for cert in certificate_b64_list:
+                certificate_byte_array = base64.b64decode(cert)
+                thumbprint = hashlib.sha1(certificate_byte_array).hexdigest().upper()
+                self.Properties['certthumbprints'].append(thumbprint)
+            
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
         
@@ -55,10 +59,12 @@ class BloodHoundNTAuthStore(BloodHoundObject):
         data = super().to_json(only_common_properties)
 
         data["Aces"] = self.Aces
-        data["DomainSID"] = self.Properties["domainsid"]
         data["ObjectIdentifier"] = self.ObjectIdentifier
         data["IsDeleted"] = self.IsDeleted
         data["IsACLProtected"] = self.IsACLProtected
         data["ContainedBy"] = self.ContainedBy
         
+        if "domainsid" in self.Properties:
+            data["DomainSID"] = self.Properties["domainsid"]
+
         return data
