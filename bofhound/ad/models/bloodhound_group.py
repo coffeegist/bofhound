@@ -8,7 +8,7 @@ class BloodHoundGroup(BloodHoundObject):
     COMMON_PROPERTIES = [
         'distinguishedname', 'samaccountname', 'objectsid',
         'admincount', 'description', 'whencreated',
-        'name', 'domain', 'domainsid',
+        'name', 'domain', 'domainsid', 'member', 'memberof'
     ]
 
     def __init__(self, object):

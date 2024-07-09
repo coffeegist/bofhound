@@ -48,6 +48,9 @@ class BloodHoundAIACA(BloodHoundObject):
 
         if 'cacertificate' in object.keys():
             self.parse_cacertificate(object)
+        
+        if 'ntsecuritydescriptor' in object.keys():
+            self.RawAces = object['ntsecuritydescriptor']
 
         
     def to_json(self, only_common_properties=True):

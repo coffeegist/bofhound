@@ -1,3 +1,4 @@
+import re
 import base64
 import logging
 import datetime
@@ -160,8 +161,9 @@ class ADDS():
                     bhObject = BloodHoundCertTemplate(object)
                     target_list = self.certtemplates
                 elif 'top, container' in object_class:
-                    bhObject = BloodHoundContainer(object)
-                    target_list = self.containers
+                    if not (re.search(r'\{.*\},CN=Policies,CN=System,', object.get('distinguishedname')) or 'CN=Operations,CN=DomainUpdates,CN=System' in object.get('distinguishedname')):
+                        bhObject = BloodHoundContainer(object)
+                        target_list = self.containers
                 # some well known SIDs dont return the accounttype property
                 elif object.get(ADDS.AT_NAME) in ADUtils.WELLKNOWN_SIDS:
                     bhObject, target_list =  self._lookup_known_sid(object, object.get(ADDS.AT_NAME))
@@ -251,12 +253,23 @@ class ADDS():
             case "CN":
                 if contained_dn.startswith("CN=BUILTIN"):
                     id_contained = "S-1-5-32"
-                    type_contained = "Base"
+                    type_contained = "Domain"
                 else:
                     for cn in self.containers:
                         if cn.Properties["distinguishedname"] == contained_dn:
                             id_contained = cn.ObjectIdentifier
-                    type_contained = "Container"
+                            type_contained = "Container"
+                    if type_contained == "":
+                        for obj in self.unknown_objects:
+                            if str(obj.get('distinguishedname')).upper() == contained_dn:
+                                id_contained = obj.get('objectguid')
+                                match obj.get('objectclass'):
+                                    case 'top, NTDSService':
+                                        type_contained = "Base"
+                                    case 'top, container':
+                                        type_contained = "Container"
+                                    case 'top, configuration':
+                                        type_contained = "Configuration"
             case "OU":
                 type_contained = "OU"
                 for ou in self.ous:
@@ -271,7 +284,10 @@ class ADDS():
                 object.ContainedBy = None
                 return
         
-        object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
+        if type_contained == "":
+            object.ContainedBy = None
+        else:
+            object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
 
 
     def process(self):
@@ -630,7 +646,7 @@ class ADDS():
 
 
     def parse_adcs_acl(self, entry:BloodHoundObject):
-        if entry._entry_type == "EnterpriseCA"    :
+        if entry._entry_type == "EnterpriseCA":
             self.updateEnterpriseCA(entry)       
         if not entry.RawAces:
             return 0

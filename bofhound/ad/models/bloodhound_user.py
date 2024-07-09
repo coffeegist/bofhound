@@ -18,8 +18,8 @@ class BloodHoundUser(BloodHoundObject):
         'dontreqpreauth', 'sensitive', 'trustedtoauth', 'pwdneverexpires',
         'dontreqpreauth', 'pwdneverexpires', 'sensitive',
         'serviceprincipalnames', 'isaclprotected',
-        'hasspn', 'displayname', 'email', 'title', 'homedirectory', 'userpassword', 'unixpassword',
-        'unicodepassword', 'sfupassword', 'logonscript', 'sidhistory'
+        'hasspn', 'memberof', 'member'
+        #TODO 'displayname', 'email', 'title', 'homedirectory', 'userpassword', 'unixpassword', 'unicodepassword', 'sfupassword', 'logonscript', 'sidhistory'
     ]
 
     def __init__(self, object=None):
@@ -123,18 +123,17 @@ class BloodHoundUser(BloodHoundObject):
                 if len(self.MemberOfDNs) > 0:
                     self.MemberOfDNs[0] = self.MemberOfDNs[0][3:]
 
-            ### Not supported for the moment
-            self.Properties['hasspn'] = None
-            self.Properties['displayname'] = None
-            self.Properties['email'] = None
-            self.Properties['title'] = None
-            self.Properties['homedirectory'] = None
-            self.Properties['userpassword'] = None
-            self.Properties['unixpassword'] = None
-            self.Properties['unicodepassword'] = None
-            self.Properties['sfupassword'] = None
-            self.Properties['logonscript'] = None
-            self.Properties['sidhistory'] = []
+            ### TODO Not supported for the moment
+            # self.Properties['displayname'] = None
+            # self.Properties['email'] = None
+            # self.Properties['title'] = None
+            # self.Properties['homedirectory'] = None
+            # self.Properties['userpassword'] = None
+            # self.Properties['unixpassword'] = None
+            # self.Properties['unicodepassword'] = None
+            # self.Properties['sfupassword'] = None
+            # self.Properties['logonscript'] = None
+            # self.Properties['sidhistory'] = []
 
 
     def to_json(self, only_common_properties=True):

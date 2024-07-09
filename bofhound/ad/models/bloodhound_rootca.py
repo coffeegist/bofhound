@@ -42,7 +42,9 @@ class BloodHoundRootCA(BloodHoundObject):
             self.parse_cacertificate(object)
             # root CA certificates are self-signed
             self.Properties['certchain'] = [ self.Properties['certthumbprint'] ]
-
+        
+        if 'ntsecuritydescriptor' in object.keys():
+            self.RawAces = object['ntsecuritydescriptor']
   
     def to_json(self, only_common_properties=True):
         self.Properties['isaclprotected'] = self.IsACLProtected

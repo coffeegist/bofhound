@@ -27,7 +27,6 @@ class BloodHoundCertTemplate(BloodHoundObject):
         self.GPLinks = []
         self.ContainedBy = []
         self.IsACLProtected = False
-        self.Properties["blocksinheritance"] = False
         self.cas_ids = []
 
         if 'objectguid' in object.keys():

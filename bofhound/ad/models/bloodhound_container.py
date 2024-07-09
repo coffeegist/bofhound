@@ -13,8 +13,7 @@ class BloodHoundContainer(BloodHoundObject):
     def __init__(self, object):
         super().__init__(object)
 
-        self._entry_type = "OU"
-        self.GPLinks = []
+        self._entry_type = "Container"
         self.ContainedBy = []
         self.Properties["blocksinheritance"] = False
 
@@ -45,7 +44,6 @@ class BloodHoundContainer(BloodHoundObject):
 
         ou["ObjectIdentifier"] = self.ObjectIdentifier
         ou["ContainedBy"] = self.ContainedBy
-        # The below is all unsupported as of now.
         ou["Aces"] = self.Aces
         ou["ChildObjects"] = self.ChildObjects
         ou["IsDeleted"] = self.IsDeleted

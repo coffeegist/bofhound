@@ -154,6 +154,7 @@ class IntFlag(enum.IntFlag):
 
     def to_str_list(self):
         return list(map(lambda x: str(x), self.to_list()))
+        
 
     def __str__(self):
         cls = self.__class__
@@ -210,6 +211,20 @@ class MS_PKI_PRIVATE_KEY_FLAG(IntFlag):
     EK_VALIDATE_KEY = 0x00000800
     HELLO_LOGON_KEY = 0x00200000
 
+    def __str__(self):
+        cls = self.__class__
+        if self._name_ is not None:
+            return "%s" % (self._name_)
+        members, _ = _decompose(cls, self._value_)
+        if len(members) == 1 and members[0]._name_ is None:
+            return "%r" % (members[0]._value_)
+        else:
+            return "%s" % (
+                ", ".join(
+                    [str(m._name_ or m._value_) for m in members]
+                ),
+            )
+
 class MS_PKI_ENROLLMENT_FLAG(IntFlag):
     NONE = 0x00000000
     INCLUDE_SYMMETRIC_ALGORITHMS = 0x00000001
@@ -233,3 +248,16 @@ class MS_PKI_ENROLLMENT_FLAG(IntFlag):
     SKIP_AUTO_RENEWAL = 0x00040000
     NO_SECURITY_EXTENSION = 0x00080000
 
+    def __str__(self):
+        cls = self.__class__
+        if self._name_ is not None:
+            return "%s" % (self._name_)
+        members, _ = _decompose(cls, self._value_)
+        if len(members) == 1 and members[0]._name_ is None:
+            return "%r" % (members[0]._value_)
+        else:
+            return "%s" % (
+                ", ".join(
+                    [str(m._name_ or m._value_) for m in members]
+                ),
+            )
