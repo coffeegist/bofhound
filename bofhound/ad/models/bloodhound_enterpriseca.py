@@ -7,12 +7,15 @@ from bofhound.ad.helpers.cert_utils import PkiCertificateAuthorityFlags
 
 class BloodHoundEnterpriseCA(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
         'description', 'whencreated', 'flags', 'caname', 'dnshostname', 'certthumbprint',
         'certname', 'certchain', 'hasbasicconstraints', 'basicconstraintpathlength',
         'casecuritycollected', 'enrollmentagentrestrictionscollected', 'isuserspecifiessanenabledcollected',
         'unresolvedpublishedtemplates'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -67,9 +70,9 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
             self.CertTemplates = object.get('certificatetemplates').split(', ')  
     
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        data = super().to_json(only_common_properties)
+        data = super().to_json(properties_level)
 
         data["HostingComputer"] = self.HostingComputer
         data["CARegistryData"] = self.CARegistryData

@@ -13,7 +13,11 @@ from bofhound.ad.models.bloodhound_schema import BloodHoundSchema
 
 class BloodHoundObject():
 
-    COMMON_PROPERTIES = [ ]
+    GUI_PROPERTIES = [
+    ]
+
+    COMMON_PROPERTIES = [
+    ]
 
     NEVER_SHOW_PROPERTIES = [
         'ntsecuritydescriptor', 'serviceprincipalname'
@@ -98,18 +102,24 @@ class BloodHoundObject():
             return None
 
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         data = {
             "Properties": {}
         }
 
-        if not only_common_properties:
-            data["Properties"] = self.Properties
-        else:
-            for property in self.Properties.keys():
-                if property in self.COMMON_PROPERTIES \
-                    and property not in self.NEVER_SHOW_PROPERTIES:
-                    data["Properties"][property] = self.Properties[property]
+        match properties_level:
+            case 1:
+                for property in self.Properties.keys():
+                    if property in self.GUI_PROPERTIES \
+                        and property not in self.NEVER_SHOW_PROPERTIES:
+                        data["Properties"][property] = self.Properties[property]
+            case 2:
+                for property in self.Properties.keys():
+                    if (property in self.COMMON_PROPERTIES or property in self.GUI_PROPERTIES) \
+                        and property not in self.NEVER_SHOW_PROPERTIES:
+                        data["Properties"][property] = self.Properties[property]
+            case 3:
+                data["Properties"] = self.Properties
 
         return data
 

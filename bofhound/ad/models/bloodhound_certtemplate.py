@@ -8,7 +8,7 @@ import base64
 from bofhound.ad.helpers.cert_utils import OID_TO_STR_MAP, MS_PKI_CERTIFICATE_NAME_FLAG, MS_PKI_PRIVATE_KEY_FLAG, MS_PKI_ENROLLMENT_FLAG, filetime_to_span, span_to_str
 
 class BloodHoundCertTemplate(BloodHoundObject):
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
         'description', 'whencreated', 'validityperiod', 'renewalperiod',
         'schemaversion', 'displayname', 'oid', 'enrollmentflag', 'requiresmanagerapproval',
@@ -17,6 +17,9 @@ class BloodHoundCertTemplate(BloodHoundObject):
         'subjectaltrequirespn', 'subjectrequireemail', 'ekus', 'certificateapplicationpolicy',
         'authorizedsignatures', 'applicationpolicies', 'issuancepolicies', 'effectiveekus',
         'authenticationenabled'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -244,9 +247,9 @@ class BloodHoundCertTemplate(BloodHoundObject):
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        data = super().to_json(only_common_properties)
+        data = super().to_json(properties_level)
         data["ObjectIdentifier"] = self.ObjectIdentifier
         data["ContainedBy"] = self.ContainedBy
         data["Aces"] = self.Aces

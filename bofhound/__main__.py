@@ -1,5 +1,11 @@
 import sys
 import os
+
+# Debug helpful
+# root = os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/..")
+# if root not in sys.path:
+#   sys.path.insert(0, root)
+  
 import logging
 import typer
 import glob
@@ -18,7 +24,7 @@ app = typer.Typer(
 def main(
     input_files: str = typer.Option("/opt/cobaltstrike/logs", "--input", "-i", help="Directory or file containing logs of ldapsearch results. Will default to [green]/opt/bruteratel/logs[/] if --brute-ratel is specified"),
     output_folder: str = typer.Option(".", "--output", "-o", help="Location to export bloodhound files"),
-    all_properties: bool = typer.Option(False, "--all-properties", "-a", help="Write all properties to BloodHound files (instead of only common properties)"),
+    properties_level: int = typer.Option(2, "--properties_level", "-p", help='Write properties depending on choice: 1- GUI properties | 2- Common properties | 3- All properties'),
     brute_ratel: bool = typer.Option(False, "--brute-ratel", help="Parse logs from Brute Ratel's LDAP Sentinel"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive")):
@@ -130,7 +136,7 @@ def main(
         ntauthstores=ad.ntauthstores,
         issuancepolicies=ad.issuancepolicies,
         certtemplates = ad.certtemplates,
-        common_properties_only=(not all_properties),
+        properties_level=properties_level,
         zip_files=zip_files
     )
 

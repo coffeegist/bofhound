@@ -5,10 +5,13 @@ import logging
 
 class BloodHoundDomain(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'distinguishedname', 'domainsid', 'description', 'whencreated',
         'functionallevel', 'domain', 'isaclprotected', 'collected',
         'name'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -74,9 +77,9 @@ class BloodHoundDomain(BloodHoundObject):
         self.IsACLProtected = False
 
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        domain = super().to_json(only_common_properties)
+        domain = super().to_json(properties_level)
 
         domain["ObjectIdentifier"] = self.ObjectIdentifier
         domain["Trusts"] = self.Trusts

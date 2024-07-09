@@ -6,10 +6,13 @@ import logging
 
 class BloodHoundRootCA(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
         'description', 'whencreated', 'certthumbprint', 'certname', 'certchain',
         'hasbasicconstraints', 'basicconstraintpathlength'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -46,9 +49,9 @@ class BloodHoundRootCA(BloodHoundObject):
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
   
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        data = super().to_json(only_common_properties)
+        data = super().to_json(properties_level)
         data['IsACLProtected'] = self.IsACLProtected
         data['IsDeleted'] = self.IsDeleted
         data["ObjectIdentifier"] = self.ObjectIdentifier

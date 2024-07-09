@@ -5,10 +5,13 @@ import logging
 
 class BloodHoundGroup(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'distinguishedname', 'samaccountname', 'objectsid',
         'admincount', 'description', 'whencreated',
         'name', 'domain', 'domainsid', 'member', 'memberof'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -71,8 +74,8 @@ class BloodHoundGroup(BloodHoundObject):
         self.Members.append(member)
 
 
-    def to_json(self, only_common_properties=True):
-        group = super().to_json(only_common_properties)
+    def to_json(self, properties_level=True):
+        group = super().to_json(2)
         group["ObjectIdentifier"] = self.ObjectIdentifier
         group["ContainedBy"] = self.ContainedBy
         group["Aces"] = self.Aces

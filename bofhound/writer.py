@@ -16,7 +16,7 @@ class BloodHoundWriter():
     def write(out_dir='.', domains=None, computers=None, users=None,
           groups=None, ous=None, containers=None, gpos=None, enterprisecas=None, aiacas=None,
           rootcas=None, ntauthstores=None, issuancepolicies=None, certtemplates=None, 
-          trusts=None, trustaccounts=None, common_properties_only=True, zip_files=False):
+          trusts=None, trustaccounts=None, properties_level=2, zip_files=False):
 
         os.makedirs(out_dir, exist_ok=True)
         BloodHoundWriter.ct = BloodHoundWriter.timestamp()
@@ -24,61 +24,61 @@ class BloodHoundWriter():
         if domains is not None:
             # print(BloodHoundSchema.ObjectTypeGuidMap)
             with console.status(" [bold] Writing domains to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_domain_file(out_dir, domains, common_properties_only)
+                BloodHoundWriter.write_domain_file(out_dir, domains, properties_level)
 
         if computers is not None:
             with console.status(" [bold] Writing computers to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_computers_file(out_dir, computers, common_properties_only)
+                BloodHoundWriter.write_computers_file(out_dir, computers, properties_level)
 
         if users is not None:
             with console.status(" [bold] Writing users to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_users_file(out_dir, users, common_properties_only)
+                BloodHoundWriter.write_users_file(out_dir, users, properties_level)
 
         if groups is not None:
             with console.status(" [bold] Writing groups to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_groups_file(out_dir, groups, common_properties_only)
+                BloodHoundWriter.write_groups_file(out_dir, groups, properties_level)
 
         if ous is not None:
             with console.status(" [bold] Writing OUs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_ous_file(out_dir, ous, common_properties_only)
+                BloodHoundWriter.write_ous_file(out_dir, ous, properties_level)
         
         if containers is not None:
             with console.status(" [bold] Writing Containers to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_containers_file(out_dir, containers, common_properties_only)
+                BloodHoundWriter.write_containers_file(out_dir, containers, properties_level)
 
         if gpos is not None:
             with console.status(" [bold] Writing GPOs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_gpos_file(out_dir, gpos, common_properties_only)
+                BloodHoundWriter.write_gpos_file(out_dir, gpos, properties_level)
 
         if enterprisecas is not None:
             with console.status(" [bold] Writing Enterprise CAs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_enterprisecas_file(out_dir, enterprisecas, common_properties_only)
+                BloodHoundWriter.write_enterprisecas_file(out_dir, enterprisecas, properties_level)
 
         if aiacas is not None:
             with console.status(" [bold] Writing AIA CAs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_aiacas_file(out_dir, aiacas, common_properties_only)
+                BloodHoundWriter.write_aiacas_file(out_dir, aiacas, properties_level)
 
         if rootcas is not None:
             with console.status(" [bold] Writing Root CAs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_rootcas_file(out_dir, rootcas, common_properties_only)
+                BloodHoundWriter.write_rootcas_file(out_dir, rootcas, properties_level)
 
         if ntauthstores is not None:
             with console.status(" [bold] Writing NTAuth Stores to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_ntauthstores_file(out_dir, ntauthstores, common_properties_only)
+                BloodHoundWriter.write_ntauthstores_file(out_dir, ntauthstores, properties_level)
 
         if issuancepolicies is not None:
             with console.status(" [bold] Writing Issuance Policies to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_issuancepolicies_file(out_dir, issuancepolicies, common_properties_only)
+                BloodHoundWriter.write_issuancepolicies_file(out_dir, issuancepolicies, properties_level)
         
         if certtemplates is not None:
             with console.status(" [bold] Writing Cert Templates to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_certtemplates_file(out_dir, certtemplates, common_properties_only)
+                BloodHoundWriter.write_certtemplates_file(out_dir, certtemplates, properties_level)
 
         if trusts is not None:
-            BloodHoundWriter.write_trusts_file(out_dir, trusts, common_properties_only)
+            BloodHoundWriter.write_trusts_file(out_dir, trusts, properties_level)
 
         if trustaccounts is not None:
-            BloodHoundWriter.write_trustaccounts_file(out_dir, trustaccounts, common_properties_only)
+            BloodHoundWriter.write_trustaccounts_file(out_dir, trustaccounts, properties_level)
 
         if out_dir == ".":
             logging.info(f'JSON files written to current directory')
@@ -96,7 +96,7 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_domain_file(out_dir, domains, common_properties_only):
+    def write_domain_file(out_dir, domains, properties_level):
         if len(domains) == 0:
             return
 
@@ -111,7 +111,7 @@ class BloodHoundWriter():
         }
 
         for domain in domains:
-            datastruct['data'].append(domain.to_json(common_properties_only))
+            datastruct['data'].append(domain.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'domains_{BloodHoundWriter.ct}.json')
@@ -120,7 +120,7 @@ class BloodHoundWriter():
             json.dump(datastruct, f, ensure_ascii=False)
 
     @staticmethod
-    def write_computers_file(out_dir, computers, common_properties_only):
+    def write_computers_file(out_dir, computers, properties_level):
         if len(computers) == 0:
             return
 
@@ -135,7 +135,7 @@ class BloodHoundWriter():
         }
 
         for computer in computers:
-            datastruct['data'].append(computer.to_json(common_properties_only))
+            datastruct['data'].append(computer.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'computers_{BloodHoundWriter.ct}.json')
@@ -145,7 +145,7 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_users_file(out_dir, users, common_properties_only):
+    def write_users_file(out_dir, users, properties_level):
         if len(users) == 0:
             return
 
@@ -160,7 +160,7 @@ class BloodHoundWriter():
         }
 
         for user in users:
-            datastruct['data'].append(user.to_json(common_properties_only))
+            datastruct['data'].append(user.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'users_{BloodHoundWriter.ct}.json')
@@ -170,7 +170,7 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_groups_file(out_dir, groups, common_properties_only):
+    def write_groups_file(out_dir, groups, properties_level):
         if len(groups) == 0:
             return
 
@@ -185,7 +185,7 @@ class BloodHoundWriter():
         }
 
         for group in groups:
-            datastruct['data'].append(group.to_json(common_properties_only))
+            datastruct['data'].append(group.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'groups_{BloodHoundWriter.ct}.json')
@@ -195,7 +195,7 @@ class BloodHoundWriter():
 
     
     @staticmethod
-    def write_ous_file(out_dir, ous, common_properties_only):
+    def write_ous_file(out_dir, ous, properties_level):
         if len(ous) == 0:
             return
 
@@ -210,7 +210,7 @@ class BloodHoundWriter():
         }
 
         for ou in ous:
-            datastruct['data'].append(ou.to_json(common_properties_only))
+            datastruct['data'].append(ou.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'ous_{BloodHoundWriter.ct}.json')
@@ -220,7 +220,7 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_containers_file(out_dir, containers, common_properties_only):
+    def write_containers_file(out_dir, containers, properties_level):
         if len(containers) == 0:
             return
 
@@ -235,7 +235,7 @@ class BloodHoundWriter():
         }
 
         for container in containers:
-            datastruct['data'].append(container.to_json(common_properties_only))
+            datastruct['data'].append(container.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'containers_{BloodHoundWriter.ct}.json')
@@ -245,7 +245,7 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_gpos_file(out_dir, gpos, common_properties_only):
+    def write_gpos_file(out_dir, gpos, properties_level):
         if len(gpos) == 0:
             return
 
@@ -260,7 +260,7 @@ class BloodHoundWriter():
         }
 
         for gpo in gpos:
-            datastruct['data'].append(gpo.to_json(common_properties_only))
+            datastruct['data'].append(gpo.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'gpos_{BloodHoundWriter.ct}.json')
@@ -269,7 +269,7 @@ class BloodHoundWriter():
             json.dump(datastruct, f, ensure_ascii=False)
 
     @staticmethod
-    def write_enterprisecas_file(out_dir, enterprisecas, common_properties_only):
+    def write_enterprisecas_file(out_dir, enterprisecas, properties_level):
         if len(enterprisecas) == 0:
             return
 
@@ -284,7 +284,7 @@ class BloodHoundWriter():
         }
 
         for enterpriseca in enterprisecas:
-            datastruct['data'].append(enterpriseca.to_json(common_properties_only))
+            datastruct['data'].append(enterpriseca.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'enterprisecas_{BloodHoundWriter.ct}.json')
@@ -293,7 +293,7 @@ class BloodHoundWriter():
             json.dump(datastruct, f, ensure_ascii=False)
 
     @staticmethod
-    def write_aiacas_file(out_dir, aiacas, common_properties_only):
+    def write_aiacas_file(out_dir, aiacas, properties_level):
         if len(aiacas) == 0:
             return
 
@@ -308,7 +308,7 @@ class BloodHoundWriter():
         }
 
         for aiaca in aiacas:
-            datastruct['data'].append(aiaca.to_json(common_properties_only))
+            datastruct['data'].append(aiaca.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'aiacas_{BloodHoundWriter.ct}.json')
@@ -318,7 +318,7 @@ class BloodHoundWriter():
 
     
     @staticmethod
-    def write_rootcas_file(out_dir, rootcas, common_properties_only):
+    def write_rootcas_file(out_dir, rootcas, properties_level):
         if len(rootcas) == 0:
             return
 
@@ -333,7 +333,7 @@ class BloodHoundWriter():
         }
 
         for rootca in rootcas:
-            datastruct['data'].append(rootca.to_json(common_properties_only))
+            datastruct['data'].append(rootca.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'rootcas_{BloodHoundWriter.ct}.json')
@@ -343,7 +343,7 @@ class BloodHoundWriter():
 
     
     @staticmethod
-    def write_ntauthstores_file(out_dir, ntauthstores, common_properties_only):
+    def write_ntauthstores_file(out_dir, ntauthstores, properties_level):
         if len(ntauthstores) == 0:
             return
 
@@ -358,7 +358,7 @@ class BloodHoundWriter():
         }
 
         for ntauthstore in ntauthstores:
-            datastruct['data'].append(ntauthstore.to_json(common_properties_only))
+            datastruct['data'].append(ntauthstore.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'ntauthstores_{BloodHoundWriter.ct}.json')
@@ -368,7 +368,7 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_issuancepolicies_file(out_dir, issuancepolicies, common_properties_only):
+    def write_issuancepolicies_file(out_dir, issuancepolicies, properties_level):
         if len(issuancepolicies) == 0:
             return
 
@@ -383,7 +383,7 @@ class BloodHoundWriter():
         }
 
         for issuancepolicy in issuancepolicies:
-            datastruct['data'].append(issuancepolicy.to_json(common_properties_only))
+            datastruct['data'].append(issuancepolicy.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'issuancepolicies_{BloodHoundWriter.ct}.json')
@@ -393,7 +393,7 @@ class BloodHoundWriter():
 
     
     @staticmethod
-    def write_certtemplates_file(out_dir, certtemplates, common_properties_only):
+    def write_certtemplates_file(out_dir, certtemplates, properties_level):
         if len(certtemplates) == 0:
             return
 
@@ -408,7 +408,7 @@ class BloodHoundWriter():
         }
 
         for certtemplate in certtemplates:
-            datastruct['data'].append(certtemplate.to_json(common_properties_only))
+            datastruct['data'].append(certtemplate.to_json(properties_level))
             datastruct['meta']['count'] += 1
 
         out_file = PurePath(out_dir, f'certtemplates_{BloodHoundWriter.ct}.json')
@@ -418,12 +418,12 @@ class BloodHoundWriter():
 
 
     @staticmethod
-    def write_trusts_file(out_dir, trusts, common_properties_only):
+    def write_trusts_file(out_dir, trusts, properties_level):
         pass
 
 
     @staticmethod
-    def write_trustaccounts_file(out_dir, trustaccounts, common_properties_only):
+    def write_trustaccounts_file(out_dir, trustaccounts, properties_level):
         pass
 
     @staticmethod

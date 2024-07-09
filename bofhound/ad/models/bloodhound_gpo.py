@@ -5,10 +5,13 @@ import logging
 
 class BloodHoundGPO(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'distinguishedname', 'whencreated',
         'domain', 'domainsid', 'name', 'highvalue',
         'description', 'gpcpath', 'isaclprotected'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -41,9 +44,9 @@ class BloodHoundGPO(BloodHoundObject):
         self.IsDeleted = False
         self.IsACLProtected = False
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        gpo = super().to_json(only_common_properties)
+        gpo = super().to_json(properties_level)
 
         gpo["ObjectIdentifier"] = self.ObjectIdentifier
         gpo["ContainedBy"] = self.ContainedBy

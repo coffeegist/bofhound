@@ -6,10 +6,13 @@ import logging
 
 class BloodHoundOU(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'distinguishedname', 'whencreated',
         'domain', 'domainsid', 'name', 'highvalue', 'description',
         'blocksinheritance', 'isaclprotected'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -60,9 +63,9 @@ class BloodHoundOU(BloodHoundObject):
         self.IsACLProtected = False
 
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        ou = super().to_json(only_common_properties)
+        ou = super().to_json(properties_level)
 
         ou["ObjectIdentifier"] = self.ObjectIdentifier
         ou["ContainedBy"] = self.ContainedBy

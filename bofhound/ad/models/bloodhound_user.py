@@ -7,19 +7,21 @@ import logging
 
 class BloodHoundUser(BloodHoundObject):
 
+    GUI_PROPERTIES = [
+        'domain', 'name', 'distinguishedname', 'domainsid', 'samaccountname',
+        'isaclprotected', 'description', 'whencreated', 'sensitive',
+        'dontreqpreauth', 'passwordnotreqd', 'unconstraineddelegation',
+        'pwdneverexpires', 'enabled', 'trustedtoauth', 'lastlogon', 'lastlogontimestamp',
+        'pwdlastset', 'serviceprincipalnames', 'hasspn', 'admincount',
+        'displayname', 'email', 'title', 'homedirectory', 'userpassword',
+        'unixpassword', 'unicodepassword', 'sfupassword', 'logonscript', 'sidhistory'
+    ]
+
     COMMON_PROPERTIES = [
-        'samaccountname', 'distinguishedname', 'isdeleted', 'msds-groupmsamembership',
-        'serviceprincipalname', 'displayname',
-        'lastlogon', 'lastlogontimestamp', 'pwdlastset', 'mail', 'title',
-        'homedirectory', 'description', 'userpassword', 'admincount',
-        'msds-allowedtodelegateto', 'sidhistory', 'whencreated', 'unicodepwd', 'unixuserpassword',
-        'domainsid', 'allowedtodelegate', 'name', 'domain', 'admincount',
-        'highvalue', 'unconstraineddelegation', 'passwordnotreqd', 'enabled',
-        'dontreqpreauth', 'sensitive', 'trustedtoauth', 'pwdneverexpires',
-        'dontreqpreauth', 'pwdneverexpires', 'sensitive',
-        'serviceprincipalnames', 'isaclprotected',
-        'hasspn', 'memberof', 'member'
-        #TODO 'displayname', 'email', 'title', 'homedirectory', 'userpassword', 'unixpassword', 'unicodepassword', 'sfupassword', 'logonscript', 'sidhistory'
+        'samaccounttype', 'objectsid', 'primarygroupid', 'isdeleted',
+        'msds-groupmsamembership', 'serviceprincipalname', 'useraccountcontrol', 
+        'mail', 'msds-allowedtodelegateto', 'unicodepwd', 'allowedtodelegate',   
+        'memberof'
     ]
 
     def __init__(self, object=None):
@@ -90,6 +92,9 @@ class BloodHoundUser(BloodHoundObject):
             if 'serviceprincipalname' in object.keys():
                 self.Properties["hasspn"] = len(object.get('serviceprincipalname', [])) > 0
 
+            if 'samaccounttype' in object.keys():
+                self.Properties["samaccounttype"] = object.get('samaccounttype')
+            
             if 'displayname' in object.keys():
                 self.Properties["displayname"] = object.get('displayname')
 
@@ -136,9 +141,9 @@ class BloodHoundUser(BloodHoundObject):
             # self.Properties['sidhistory'] = []
 
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        user = super().to_json(only_common_properties)
+        user = super().to_json(properties_level)
 
         user["ObjectIdentifier"] = self.ObjectIdentifier
         user["ContainedBy"] = self.ContainedBy

@@ -6,11 +6,14 @@ import logging
 
 class BloodHoundAIACA(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'domain', 'name', 'distinguishedname', 'domainsid', 'isaclprotected',
         'description', 'whencreated', 'crosscertificatepair', 'hascrosscertificatepair',
         'certthumbprint', 'certname', 'certchain', 'hasbasicconstraints',
         'basicconstraintpathlength'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -53,9 +56,9 @@ class BloodHoundAIACA(BloodHoundObject):
             self.RawAces = object['ntsecuritydescriptor']
 
         
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
         self.Properties['isaclprotected'] = self.IsACLProtected
-        data = super().to_json(only_common_properties)
+        data = super().to_json(properties_level)
 
         data["Aces"] = self.Aces
         data["IsDeleted"] = self.IsDeleted

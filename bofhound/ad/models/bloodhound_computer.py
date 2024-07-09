@@ -7,13 +7,18 @@ import logging
 
 class BloodHoundComputer(BloodHoundObject):
 
+    GUI_PROPERTIES = [
+        'domain', 'name', 'distinguishedname', 'domainsid', 'samaccountname',
+        'haslaps', 'isaclprotected', 'description', 'whencreated', 'enabled',
+        'unconstraineddelegation', 'trustedtoauth', 'isdc', 'lastlogon', 'lastlogontimestamp',
+        'pwdlastset', 'serviceprincipalnames', 'email', 'operatingsystem', 'sidhistory'
+    ]
+
     COMMON_PROPERTIES = [
-        'samaccountname', 'distinguishedname', 'serviceprincipalname',
-        'whencreated', 'lastlogon', 'lastlogontimestamp',
-        'pwdlastset', 'operatingsystem', 'description',
-        'domainsid', 'name', 'unconstraineddelegation', 'enabled',
-        'trustedtoauth', 'domain', 'haslaps', 'serviceprincipalnames',
-        'isdc', 'email', 'sidhistory', 'isaclprotected'
+        'useraccountcontrol', 'dnshostname', 'samaccounttype', 'primarygroupid',
+        'msds-allowedtodelegateto', 'operatingsystemservicepack',
+        'msds-allowedtoactonbehalfofotheridentity', 'ms-mcs-admpwdexpirationtime',
+        'memberof'
     ]
 
     LOCAL_GROUP_SIDS = {
@@ -112,6 +117,12 @@ class BloodHoundComputer(BloodHoundObject):
 
         if 'description' in object.keys():
             self.Properties['description'] = object.get('description')
+        
+        if 'email' in object.keys():
+            self.Properties['email'] = object.get('email')
+
+        if 'samaccounttype' in object.keys():
+            self.Properties['samaccounttype'] = object.get('samaccounttype')    
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
@@ -131,9 +142,10 @@ class BloodHoundComputer(BloodHoundObject):
         else:
             self.Properties['description'] = None
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level=2):
+        self.Properties['msds-allowedtodelegateto'] = self.AllowedToDelegate
         self.Properties['isaclprotected'] = self.IsACLProtected
-        data = super().to_json(only_common_properties)
+        data = super().to_json(properties_level)
         data["Sessions"] = self.format_session_json(self.sessions)
         data["PrivilegedSessions"] = self.format_session_json(self.privileged_sessions)
         data["RegistrySessions"] = self.format_session_json(self.registry_sessions)
@@ -150,6 +162,7 @@ class BloodHoundComputer(BloodHoundObject):
         data["ContainedBy"] = self.ContainedBy
         data["Aces"] = self.Aces
         data["IsACLProtected"] = self.IsACLProtected
+        data["IsDC"] = self.Properties["isdc"]
 
         return data
 
