@@ -10,7 +10,7 @@ class GenericParser:
 
 
     @staticmethod
-    def parse_file(file, is_outflankc2):
+    def parse_file(file, is_outflankc2=False):
          with codecs.open(file, 'r', 'utf-8') as f:
             if is_outflankc2:
                 return GenericParser.parse_outflank_file(f.read())
