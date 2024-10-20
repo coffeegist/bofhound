@@ -24,7 +24,7 @@ app = typer.Typer(
 def main(
     input_files: str = typer.Option("/opt/cobaltstrike/logs", "--input", "-i", help="Directory or file containing logs of ldapsearch results. Will default to [green]/opt/bruteratel/logs[/] if --brute-ratel is specified"),
     output_folder: str = typer.Option(".", "--output", "-o", help="Location to export bloodhound files"),
-    properties_level: int = typer.Option(2, "--properties_level", "-p", help='Write properties depending on choice: 1- GUI properties | 2- Common properties | 3- All properties'),
+    properties_level: int = typer.Option(2, "--properties-level", "-p", help='Write properties depending on choice: 1- GUI properties | 2- Common properties | 3- All properties'),
     brute_ratel: bool = typer.Option(False, "--brute-ratel", help="Parse logs from Brute Ratel's LDAP Sentinel"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive")):
@@ -145,9 +145,9 @@ def banner():
     print('''
  _____________________________ __    __    ______    __    __   __   __   _______
 |   _   /  /  __   / |   ____/|  |  |  |  /  __  \\  |  |  |  | |  \\ |  | |       \\
-|  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \|  | |  .--.  |
+|  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \\|  | |  .--.  |
 |   _  <  |  |  |  | |   __|  |   __   | |  |  |  | |  |  |  | |  . `  | |  |  |  |
-|  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
+|  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\\   | |  '--'  |
 |______/   \\______/  |__|     |__|  |___\\_\\________\\_\\________\\|__| \\___\\|_________\\
 
                             << @coffeegist | @Tw1sm >>
