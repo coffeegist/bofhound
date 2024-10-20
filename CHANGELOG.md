@@ -1,8 +1,19 @@
 # Changelog
-## [0.3.2] - 3/30/2024
+## [0.4] - 10/20/2024
 ### Added
-- ADDS model for AD ADCS objects (PKI)
-- ACE parser for ADCS objects
+- Models for ADCS objects and abuse
+    - AIACAs
+    - Root CAs
+    - Enterprise CAs
+    - Certificate Templates
+    - Issuance Policies
+    - NTAuth Stores
+
+### Changed
+- Split `--all-properties` into 3 levels of properties
+    - `Standard` to closely mirror object attributes shown by SharpHound/BHCE
+    - `Member` to include `member` and `memberOf` properties (and a few others)
+    - `All` to include all properties parsed by bofhound
 
 ## [0.3.1] - 1/25/2024
 ### Fixed

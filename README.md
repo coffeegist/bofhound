@@ -109,3 +109,4 @@ poetry run bofhound --help
 # References and Credits
 - [@_dirkjan](https://twitter.com/_dirkjan) (and other contributors) for [BloodHound.py](https://github.com/fox-it/BloodHound.py)
 - TrustedSec for [CS-Situational-Awareness-BOF](https://github.com/trustedsec/CS-Situational-Awareness-BOF)
+- [P-aLu](https://github.com/P-aLu) for collaboration on bofhoud's [ADCS support](https://github.com/coffeegist/bofhound/pull/8)
