@@ -352,7 +352,7 @@ class ADDS():
         if len(self.enterprisecas) > 0:
             with console.status(" [bold] Resolving enabled templates per CA", spinner="aesthetic"):
                 for ca in self.enterprisecas:
-                    self.resolve_enabled_templates(ca)
+                    self.resolve_published_templates(ca)
             logging.info("Resolved enabled templates per CA")
 
 
@@ -641,11 +641,11 @@ class ADDS():
         pass
 
 
-    def resolve_enabled_templates(self, entry:BloodHoundEnterpriseCA):
+    def resolve_published_templates(self, entry:BloodHoundEnterpriseCA):
         for template_name in entry.CertTemplates :
             for template in self.certtemplates:
-                template.Properties['displayname'].replace(' ','')
-                if template.Properties['displayname'].replace(' ','') == template_name:
+                if template.Properties['name'].split('@')[0].lower() == template_name.lower() \
+                and template.Properties['domain'] == entry.Properties['domain']:
                     entry.EnabledCertTemplates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
 
 

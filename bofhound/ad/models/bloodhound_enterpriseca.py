@@ -67,7 +67,7 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
         self.EnabledCertTemplates = []
 
         if 'certificatetemplates' in object.keys():
-            self.CertTemplates = object.get('certificatetemplates').split(', ')  
+            self.CertTemplates = object.get('certificatetemplates').split(', ')
     
 
     def to_json(self, properties_level=2):

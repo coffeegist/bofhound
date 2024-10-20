@@ -38,6 +38,7 @@ class BloodHoundCertTemplate(BloodHoundObject):
             domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
             self.Properties['domain'] = domain
             self.Properties['distinguishedname'] = object.get('distinguishedname').upper()
+            self.Properties['name'] = self.get_cn_from_dn(object.get('distinguishedname')) + "@" + domain
 
         if 'description' in object.keys():
             self.Properties['description'] = object.get('description')
@@ -59,7 +60,6 @@ class BloodHoundCertTemplate(BloodHoundObject):
 
         if 'displayname' in object.keys():
             self.Properties["displayname"] = object.get("displayname")
-            self.Properties["name"] = (object.get("displayname").replace(' ', '') + '@' + domain).upper()
 
         if 'mspki-cert-template-oid' in object.keys():
             self.Properties["oid"] = object.get("mspki-cert-template-oid")

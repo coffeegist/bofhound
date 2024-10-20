@@ -186,6 +186,13 @@ class BloodHoundObject():
         
         return base[1:]
     
+    
+    @staticmethod
+    def get_cn_from_dn(dn):
+        for component in dn.split(',', 1):
+            if component.startswith('CN='):
+                return component[3:]
+    
     #
     # for AIACAs, EnterpriseCAs, and RootCAs
     #
