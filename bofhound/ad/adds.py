@@ -3,12 +3,18 @@ import base64
 import logging
 import datetime
 from io import BytesIO
+from impacket.uuid import string_to_bin
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
 from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundNTAuthStore, BloodHoundIssuancePolicy, BloodHoundCertTemplate, BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
-from bofhound.ad.helpers.bloodhound_security import CertificateSecurity, EXTENDED_RIGHTS_MAP, WELLKNOWN_DOMAIN_SIDS
+
+#
+# Add a GUID for enroll to the bloodhound-python mapping we imported
+#
+EXTRIGHTS_GUID_MAPPING["Enroll"] = string_to_bin("0e10c968-78fb-11d2-90d4-00c04f79dc55")
+
 
 class ADDS():
 
@@ -291,10 +297,11 @@ class ADDS():
 
 
     def process(self):
-        all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers
-        adcs_object = self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies + self.ntauthstores
-
-        total_objects = len(all_objects) + len(adcs_object)
+        all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers \
+                        + self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies \
+                        + self.ntauthstores
+        
+        total_objects = len(all_objects)
 
         num_parsed_relations = 0
             
@@ -304,12 +311,6 @@ class ADDS():
                 self.calculate_contained(object)
                 self.add_domainsid_prop(object)
                 num_parsed_relations += self.parse_acl(object)
-                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
-            
-            for i, object in enumerate(adcs_object):
-                self.calculate_contained(object)
-                self.add_domainsid_prop(object)
-                num_parsed_relations += self.parse_adcs_acl(object)
                 status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
 
         logging.info(f"Parsed {num_parsed_relations} ACL relationships")
@@ -347,6 +348,12 @@ class ADDS():
             with console.status(" [bold] Building CA certificate chains", spinner="aesthetic"):
                 self.build_certificate_chains()
             logging.info("Built CA certificate chains")
+
+        if len(self.enterprisecas) > 0:
+            with console.status(" [bold] Resolving enabled templates per CA", spinner="aesthetic"):
+                for ca in self.enterprisecas:
+                    self.resolve_enabled_templates(ca)
+            logging.info("Resolved enabled templates per CA")
 
 
     def get_sid_from_name(self, name):
@@ -633,57 +640,14 @@ class ADDS():
     def resolve_trust_relationships(self):
         pass
 
-    ### DEDICATED ADCS PART
-    def updateEnterpriseCA(self, entry:BloodHoundEnterpriseCA):
-        enabled_templates = []
+
+    def resolve_enabled_templates(self, entry:BloodHoundEnterpriseCA):
         for template_name in entry.CertTemplates :
             for template in self.certtemplates:
                 template.Properties['displayname'].replace(' ','')
                 if template.Properties['displayname'].replace(' ','') == template_name:
-                    enabled_templates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
-        
-        entry.EnabledCertTemplates = enabled_templates
+                    entry.EnabledCertTemplates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
 
-
-    def parse_adcs_acl(self, entry:BloodHoundObject):
-        if entry._entry_type == "EnterpriseCA":
-            self.updateEnterpriseCA(entry)       
-        if not entry.RawAces:
-            return 0
-
-        try:
-            value = base64.b64decode(entry.RawAces)
-        except:
-            logging.warning(f'Error base64 decoding nTSecurityDescriptor attribute on {entry._entry_type} {entry.Properties["name"]}')
-            return 0
-
-        if not value:
-            return 0
-
-        security = CertificateSecurity(value)
-        relations = []
-
-        relations.append(self.build_relation(entry, security.owner, "Owns", inherited=False))
-
-        for sid, rights in security.aces.items():
-            is_inherited = rights["inherited"]
-            principal = sid
-
-            standard_rights = rights["rights"].to_list()            
-
-            for right in standard_rights:
-                relations.append(self.build_relation(entry, sid, str(right), inherited=is_inherited))
-
-            extended_rights = rights["extended_rights"]
-
-            for extended_right in extended_rights:
-                right_type = EXTENDED_RIGHTS_MAP[extended_right].replace("-", "") if extended_right in EXTENDED_RIGHTS_MAP else extended_right
-                relations.append(self.build_relation(entry, sid, right_type, inherited=is_inherited))
-
-        entry.Aces = relations
-        return len(relations)
-    
-    ### END ADCS DEDICATED PART
 
     # Returns int: number of relations parsed
     def parse_acl(self, entry:BloodHoundObject):
@@ -806,6 +770,17 @@ class ADDS():
                     and ace_object.acedata.get_object_type().lower() == 'f3a64788-5306-11d1-a9c5-0000f80367c1':
                         relations.append(self.build_relation(entry, sid, 'WriteSPN', inherited=is_inherited))
 
+                    #
+                    # Rights for certificate templates
+                    #
+                    if entry._entry_type.lower() == 'pki template' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    and ace_object.acedata.get_object_type().lower() == 'ea1dddc4-60ff-416e-8cc0-17cee534bce7':
+                        relations.append(self.build_relation(entry, sid, 'WritePKINameFlag', inherited=is_inherited))
+                    
+                    if entry._entry_type.lower() == 'pki template' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    and ace_object.acedata.get_object_type().lower() == 'd15ef7d8-f226-46db-ae79-b34e560bd12c':
+                        relations.append(self.build_relation(entry, sid, 'WritePKIEnrollmentFlag', inherited=is_inherited))
+
                 elif ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_SELF):
                     # Self add - since 4.0
                     if entry._entry_type.lower() == 'group' and ace_object.acedata.data.ObjectType == EXTRIGHTS_GUID_MAPPING['WriteMember']:
@@ -836,6 +811,13 @@ class ADDS():
                         relations.append(self.build_relation(entry, sid, 'GetChangesInFilteredSet', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'user' and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']):
                         relations.append(self.build_relation(entry, sid, 'ForceChangePassword', '', inherited=is_inherited))
+
+                    #
+                    # Rights for certificate templates
+                    #
+                    if entry._entry_type.lower() == 'pki template' and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
+                        relations.append(self.build_relation(entry, sid, 'Enroll', '', inherited=is_inherited))
+
 
             if ace_object.ace.AceType == 0x00:
                 is_inherited = ace_object.has_flag(ACE.INHERITED_ACE)

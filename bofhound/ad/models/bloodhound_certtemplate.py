@@ -1,4 +1,3 @@
-from distutils.ccompiler import gen_preprocess_options
 from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
