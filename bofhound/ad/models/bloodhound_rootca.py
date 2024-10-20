@@ -49,7 +49,7 @@ class BloodHoundRootCA(BloodHoundObject):
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
   
-    def to_json(self, properties_level=2):
+    def to_json(self, properties_level):
         self.Properties['isaclprotected'] = self.IsACLProtected
         data = super().to_json(properties_level)
         data['IsACLProtected'] = self.IsACLProtected

@@ -141,7 +141,7 @@ class BloodHoundUser(BloodHoundObject):
             # self.Properties['sidhistory'] = []
 
 
-    def to_json(self, properties_level=2):
+    def to_json(self, properties_level):
         self.Properties['isaclprotected'] = self.IsACLProtected
         user = super().to_json(properties_level)
 

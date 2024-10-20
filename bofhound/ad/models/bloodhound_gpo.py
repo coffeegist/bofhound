@@ -44,7 +44,7 @@ class BloodHoundGPO(BloodHoundObject):
         self.IsDeleted = False
         self.IsACLProtected = False
 
-    def to_json(self, properties_level=2):
+    def to_json(self, properties_level):
         self.Properties['isaclprotected'] = self.IsACLProtected
         gpo = super().to_json(properties_level)
 

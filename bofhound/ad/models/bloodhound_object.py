@@ -8,6 +8,7 @@ from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_
 from bloodhound.ad.utils import ADUtils
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound.ad.models.bloodhound_schema import BloodHoundSchema
+from bofhound.ad.helpers import PropertiesLevel
 
 # TODO: Move appropriate actions from this class to a super class of Users/Computers/maybe groups?
 
@@ -102,23 +103,23 @@ class BloodHoundObject():
             return None
 
 
-    def to_json(self, properties_level=2):
+    def to_json(self, properties_level):
         data = {
             "Properties": {}
         }
 
         match properties_level:
-            case 1:
+            case PropertiesLevel.Standard:
                 for property in self.Properties.keys():
                     if property in self.GUI_PROPERTIES \
                         and property not in self.NEVER_SHOW_PROPERTIES:
                         data["Properties"][property] = self.Properties[property]
-            case 2:
+            case PropertiesLevel.Member:
                 for property in self.Properties.keys():
                     if (property in self.COMMON_PROPERTIES or property in self.GUI_PROPERTIES) \
                         and property not in self.NEVER_SHOW_PROPERTIES:
                         data["Properties"][property] = self.Properties[property]
-            case 3:
+            case PropertiesLevel.All:
                 data["Properties"] = self.Properties
 
         return data

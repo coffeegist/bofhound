@@ -62,7 +62,7 @@ class BloodHoundOU(BloodHoundObject):
         self.IsACLProtected = False
 
 
-    def to_json(self, properties_level=2):
+    def to_json(self, properties_level):
         self.Properties['isaclprotected'] = self.IsACLProtected
         ou = super().to_json(properties_level)
 

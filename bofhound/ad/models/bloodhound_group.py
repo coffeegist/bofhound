@@ -8,10 +8,11 @@ class BloodHoundGroup(BloodHoundObject):
     GUI_PROPERTIES = [
         'distinguishedname', 'samaccountname', 'objectsid',
         'admincount', 'description', 'whencreated',
-        'name', 'domain', 'domainsid', 'member', 'memberof'
+        'name', 'domain', 'domainsid'
     ]
 
     COMMON_PROPERTIES = [
+        'member', 'memberof'
     ]
 
     def __init__(self, object):
@@ -74,8 +75,8 @@ class BloodHoundGroup(BloodHoundObject):
         self.Members.append(member)
 
 
-    def to_json(self, properties_level=True):
-        group = super().to_json(2)
+    def to_json(self, properties_level):
+        group = super().to_json(properties_level)
         group["ObjectIdentifier"] = self.ObjectIdentifier
         group["ContainedBy"] = self.ContainedBy
         group["Aces"] = self.Aces

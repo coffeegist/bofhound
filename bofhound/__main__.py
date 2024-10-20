@@ -14,6 +14,7 @@ from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
 from bofhound import console
+from bofhound.ad.helpers import PropertiesLevel
 
 app = typer.Typer(
     add_completion=False,
@@ -24,7 +25,7 @@ app = typer.Typer(
 def main(
     input_files: str = typer.Option("/opt/cobaltstrike/logs", "--input", "-i", help="Directory or file containing logs of ldapsearch results. Will default to [green]/opt/bruteratel/logs[/] if --brute-ratel is specified"),
     output_folder: str = typer.Option(".", "--output", "-o", help="Location to export bloodhound files"),
-    properties_level: int = typer.Option(2, "--properties-level", "-p", help='Write properties depending on choice: 1- GUI properties | 2- Common properties | 3- All properties'),
+    properties_level: PropertiesLevel = typer.Option(PropertiesLevel.Member.value, "--properties-level", "-p", case_sensitive=False, help='Change the verbosity of properties exported to JSON: Standard - Common BH properties | Member - Includes MemberOf and Member | All - Includes all properties'),
     brute_ratel: bool = typer.Option(False, "--brute-ratel", help="Parse logs from Brute Ratel's LDAP Sentinel"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive")):

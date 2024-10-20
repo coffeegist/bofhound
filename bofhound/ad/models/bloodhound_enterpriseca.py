@@ -70,7 +70,7 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
             self.CertTemplates = object.get('certificatetemplates').split(', ')
     
 
-    def to_json(self, properties_level=2):
+    def to_json(self, properties_level):
         self.Properties['isaclprotected'] = self.IsACLProtected
         data = super().to_json(properties_level)
 
