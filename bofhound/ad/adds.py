@@ -815,7 +815,7 @@ class ADDS():
                     #
                     # Rights for certificate templates
                     #
-                    if entry._entry_type.lower() == 'pki template' and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
+                    if entry._entry_type.lower() in ['pki template', 'enterpriseca'] and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
                         relations.append(self.build_relation(entry, sid, 'Enroll', '', inherited=is_inherited))
 
 
