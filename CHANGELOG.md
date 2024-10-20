@@ -1,4 +1,9 @@
 # Changelog
+## [0.3.2] - 3/30/2024
+### Added
+- ADDS model for AD ADCS objects (PKI)
+- ACE parser for ADCS objects
+
 ## [0.3.1] - 1/25/2024
 ### Fixed
 - GPO JSON file not matching JSON definition for BHCE

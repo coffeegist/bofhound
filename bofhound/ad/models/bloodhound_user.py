@@ -7,18 +7,21 @@ import logging
 
 class BloodHoundUser(BloodHoundObject):
 
+    GUI_PROPERTIES = [
+        'domain', 'name', 'distinguishedname', 'domainsid', 'samaccountname',
+        'isaclprotected', 'description', 'whencreated', 'sensitive',
+        'dontreqpreauth', 'passwordnotreqd', 'unconstraineddelegation',
+        'pwdneverexpires', 'enabled', 'trustedtoauth', 'lastlogon', 'lastlogontimestamp',
+        'pwdlastset', 'serviceprincipalnames', 'hasspn', 'admincount',
+        'displayname', 'email', 'title', 'homedirectory', 'userpassword',
+        'unixpassword', 'unicodepassword', 'sfupassword', 'logonscript', 'sidhistory'
+    ]
+
     COMMON_PROPERTIES = [
-        'samaccountname', 'distinguishedname', 'samaccounttype', 'objectsid',
-        'primarygroupid', 'isdeleted', 'msds-groupmsamembership',
-        'serviceprincipalname', 'useraccountcontrol', 'displayname',
-        'lastlogon', 'lastlogontimestamp', 'pwdlastset', 'mail', 'title',
-        'homedirectory', 'description', 'userpassword', 'admincount',
-        'msds-allowedtodelegateto', 'sidhistory', 'whencreated', 'unicodepwd', 'unixuserpassword',
-        'domainsid', 'allowedtodelegate', 'name', 'domain', 'admincount',
-        'highvalue', 'unconstraineddelegation', 'passwordnotreqd', 'enabled',
-        'dontreqpreauth', 'sensitive', 'trustedtoauth', 'pwdneverexpires',
-        'dontreqpreauth', 'pwdneverexpires', 'sensitive',
-        'serviceprincipalnames', 'hasspn', 'email', 'memberof'
+        'samaccounttype', 'objectsid', 'primarygroupid', 'isdeleted',
+        'msds-groupmsamembership', 'serviceprincipalname', 'useraccountcontrol', 
+        'mail', 'msds-allowedtodelegateto', 'unicodepwd', 'allowedtodelegate',   
+        'memberof'
     ]
 
     def __init__(self, object=None):
@@ -28,6 +31,7 @@ class BloodHoundUser(BloodHoundObject):
         self.PrimaryGroupSid = None
         self.AllowedToDelegate = []
         self.Aces = []
+        self.ContainedBy = []
         self.SPNTargets = []
         self.HasSIDHistory = []
         self.IsACLProtected = False
@@ -35,8 +39,6 @@ class BloodHoundUser(BloodHoundObject):
 
         if isinstance(object, dict):
             self.PrimaryGroupSid = self.get_primary_membership(object) # Returns none if not exist
-            if self.ObjectIdentifier:
-                self.Properties['domainsid'] = self.get_domain_sid()
 
             if 'distinguishedname' in object.keys() and 'samaccountname' in object.keys():
                 domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
@@ -82,12 +84,17 @@ class BloodHoundUser(BloodHoundObject):
 
             if 'serviceprincipalname' in object.keys():
                 self.Properties["serviceprincipalnames"] = object.get('serviceprincipalname').split(',')
+                self.Properties['hasspn'] = True
             else:
                 self.Properties["serviceprincipalnames"] = []
+                self.Properties['hasspn'] = False
 
             if 'serviceprincipalname' in object.keys():
                 self.Properties["hasspn"] = len(object.get('serviceprincipalname', [])) > 0
 
+            if 'samaccounttype' in object.keys():
+                self.Properties["samaccounttype"] = object.get('samaccounttype')
+            
             if 'displayname' in object.keys():
                 self.Properties["displayname"] = object.get('displayname')
 
@@ -121,11 +128,25 @@ class BloodHoundUser(BloodHoundObject):
                 if len(self.MemberOfDNs) > 0:
                     self.MemberOfDNs[0] = self.MemberOfDNs[0][3:]
 
+            ### TODO Not supported for the moment
+            # self.Properties['displayname'] = None
+            # self.Properties['email'] = None
+            # self.Properties['title'] = None
+            # self.Properties['homedirectory'] = None
+            # self.Properties['userpassword'] = None
+            # self.Properties['unixpassword'] = None
+            # self.Properties['unicodepassword'] = None
+            # self.Properties['sfupassword'] = None
+            # self.Properties['logonscript'] = None
+            # self.Properties['sidhistory'] = []
 
-    def to_json(self, only_common_properties=True):
-        user = super().to_json(only_common_properties)
+
+    def to_json(self, properties_level):
+        self.Properties['isaclprotected'] = self.IsACLProtected
+        user = super().to_json(properties_level)
 
         user["ObjectIdentifier"] = self.ObjectIdentifier
+        user["ContainedBy"] = self.ContainedBy
         user["AllowedToDelegate"] = self.AllowedToDelegate
         user["PrimaryGroupSID"] = self.PrimaryGroupSid
 

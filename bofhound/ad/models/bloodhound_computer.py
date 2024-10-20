@@ -7,15 +7,17 @@ import logging
 
 class BloodHoundComputer(BloodHoundObject):
 
+    GUI_PROPERTIES = [
+        'domain', 'name', 'distinguishedname', 'domainsid', 'samaccountname',
+        'haslaps', 'isaclprotected', 'description', 'whencreated', 'enabled',
+        'unconstraineddelegation', 'trustedtoauth', 'isdc', 'lastlogon', 'lastlogontimestamp',
+        'pwdlastset', 'serviceprincipalnames', 'email', 'operatingsystem', 'sidhistory'
+    ]
+
     COMMON_PROPERTIES = [
-        'samaccountname', 'useraccountcontrol', 'distinguishedname',
-        'dnshostname', 'samaccounttype', 'objectsid', 'primarygroupid',
-        'serviceprincipalname', 'msds-allowedtodelegateto',
-        'sidhistory', 'whencreated', 'lastlogon', 'lastlogontimestamp',
-        'pwdlastset', 'operatingsystem', 'description', 'operatingsystemservicepack',
+        'useraccountcontrol', 'dnshostname', 'samaccounttype', 'primarygroupid',
+        'msds-allowedtodelegateto', 'operatingsystemservicepack',
         'msds-allowedtoactonbehalfofotheridentity', 'ms-mcs-admpwdexpirationtime',
-        'domainsid', 'name', 'unconstraineddelegation', 'enabled',
-        'trustedtoauth', 'domain', 'highvalue', 'haslaps', 'serviceprincipalnames',
         'memberof'
     ]
 
@@ -44,13 +46,10 @@ class BloodHoundComputer(BloodHoundObject):
         self.AllowedToDelegate = []
         self.MemberOfDNs = []
         self.sessions = []
+        self.ContainedBy = []
         self.privileged_sessions = []
         self.registry_sessions = []
         self.local_group_members = {} # {group_name: [{member_sid, member_type}]}
-
-        if self.ObjectIdentifier:
-            self.Properties['domainsid'] = self.get_domain_sid()
-            self.Properties['objectid'] = self.ObjectIdentifier
 
         if 'dnshostname' in object.keys():
             self.hostname = object.get('dnshostname', None)
@@ -65,6 +64,7 @@ class BloodHoundComputer(BloodHoundObject):
             self.Properties['unconstraineddelegation'] = self.uac & 0x00080000 == 0x00080000
             self.Properties['enabled'] = self.uac & 2 == 0
             self.Properties['trustedtoauth'] = self.uac & 0x01000000 == 0x01000000
+            self.Properties['isdc'] = self.uac & 0x2000 == 0x2000
 
         if 'operatingsystem' in object.keys():
             self.Properties['operatingsystem'] = object.get('operatingsystem', 'Unknown')
@@ -74,6 +74,8 @@ class BloodHoundComputer(BloodHoundObject):
 
         if 'sidhistory' in object.keys():
             self.Properties['sidhistory'] = [LDAP_SID(bsid).formatCanonical() for bsid in object.get('sidhistory', [])]
+        else:
+            self.Properties['sidhistory'] = []
 
         if 'distinguishedname' in object.keys():
             domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
@@ -92,6 +94,8 @@ class BloodHoundComputer(BloodHoundObject):
 
         if 'ms-mcs-admpwdexpirationtime' in object.keys():
             self.Properties['haslaps'] = True
+        else:
+            self.Properties['haslaps'] = False
 
         if 'lastlogontimestamp' in object.keys():
             self.Properties['lastlogontimestamp'] = ADUtils.win_timestamp_to_unix(
@@ -113,6 +117,12 @@ class BloodHoundComputer(BloodHoundObject):
 
         if 'description' in object.keys():
             self.Properties['description'] = object.get('description')
+        
+        if 'email' in object.keys():
+            self.Properties['email'] = object.get('email')
+
+        if 'samaccounttype' in object.keys():
+            self.Properties['samaccounttype'] = object.get('samaccounttype')    
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
@@ -122,9 +132,20 @@ class BloodHoundComputer(BloodHoundObject):
                 if len(self.MemberOfDNs) > 0:
                     self.MemberOfDNs[0] = self.MemberOfDNs[0][3:]
 
+        if 'email' in object.keys():
+            self.Properties['email'] = object.get('email')
+        else:
+            self.Properties['email'] = None
 
-    def to_json(self, only_common_properties=True):
-        data = super().to_json(only_common_properties)
+        if 'description' in object.keys():
+            self.Properties['description'] = object.get('description')
+        else:
+            self.Properties['description'] = None
+
+    def to_json(self, properties_level):
+        self.Properties['msds-allowedtodelegateto'] = self.AllowedToDelegate
+        self.Properties['isaclprotected'] = self.IsACLProtected
+        data = super().to_json(properties_level)
         data["Sessions"] = self.format_session_json(self.sessions)
         data["PrivilegedSessions"] = self.format_session_json(self.privileged_sessions)
         data["RegistrySessions"] = self.format_session_json(self.registry_sessions)
@@ -138,9 +159,10 @@ class BloodHoundComputer(BloodHoundObject):
         data["UserRights"] = []
         data["Status"] = None
         data["IsDeleted"] = self.IsDeleted
-        data["ContainedBy"] = None
+        data["ContainedBy"] = self.ContainedBy
         data["Aces"] = self.Aces
         data["IsACLProtected"] = self.IsACLProtected
+        data["IsDC"] = self.Properties["isdc"]
 
         return data
 

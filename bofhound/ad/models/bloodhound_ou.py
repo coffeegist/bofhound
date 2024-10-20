@@ -1,4 +1,3 @@
-from distutils.ccompiler import gen_preprocess_options
 from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
@@ -6,10 +5,13 @@ import logging
 
 class BloodHoundOU(BloodHoundObject):
 
-    COMMON_PROPERTIES = [
+    GUI_PROPERTIES = [
         'distinguishedname', 'whencreated',
         'domain', 'domainsid', 'name', 'highvalue', 'description',
-        'blocksinheritance'
+        'blocksinheritance', 'isaclprotected'
+    ]
+
+    COMMON_PROPERTIES = [
     ]
 
     def __init__(self, object):
@@ -17,6 +19,7 @@ class BloodHoundOU(BloodHoundObject):
 
         self._entry_type = "OU"
         self.GPLinks = []
+        self.ContainedBy = []
         self.Properties["blocksinheritance"] = False
         
         if 'distinguishedname' in object.keys() and 'ou' in object.keys():
@@ -26,7 +29,6 @@ class BloodHoundOU(BloodHoundObject):
 
         if 'objectguid' in object.keys():
             self.ObjectIdentifier = object.get('objectguid').upper()
-            #self.Properties["objectid"] = object.get('objectguid')
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
@@ -50,6 +52,7 @@ class BloodHoundOU(BloodHoundObject):
         self.ChildObjects = []
         self.GPOChanges = {
             "AffectedComputers": [],
+            "AffectedUsers": [],
             "DcomUsers": [],
             "LocalAdmins": [],
             "PSRemoteUsers": [],
@@ -59,15 +62,21 @@ class BloodHoundOU(BloodHoundObject):
         self.IsACLProtected = False
 
 
-    def to_json(self, only_common_properties=True):
-        ou = super().to_json(only_common_properties)
+    def to_json(self, properties_level):
+        self.Properties['isaclprotected'] = self.IsACLProtected
+        ou = super().to_json(properties_level)
 
         ou["ObjectIdentifier"] = self.ObjectIdentifier
+        ou["ContainedBy"] = self.ContainedBy
         # The below is all unsupported as of now.
         ou["Aces"] = self.Aces
         ou["Links"] = self.Links
         ou["ChildObjects"] = self.ChildObjects
+
+        self.GPOChanges["AffectedComputers"] = self.AffectedComputers
+        self.GPOChanges["AffectedUsers"] = self.AffectedUsers
         ou["GPOChanges"] = self.GPOChanges
+
         ou["IsDeleted"] = self.IsDeleted
         ou["IsACLProtected"] = self.IsACLProtected
 

@@ -1,13 +1,20 @@
 import sys
+import os
+
+# Debug helpful
+# root = os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/..")
+# if root not in sys.path:
+#   sys.path.insert(0, root)
+  
 import logging
 import typer
 import glob
-import os
 from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, GenericParser
 from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
 from bofhound import console
+from bofhound.ad.helpers import PropertiesLevel
 
 app = typer.Typer(
     add_completion=False,
@@ -18,7 +25,7 @@ app = typer.Typer(
 def main(
     input_files: str = typer.Option("/opt/cobaltstrike/logs", "--input", "-i", help="Directory or file containing logs of ldapsearch results. Will default to [green]/opt/bruteratel/logs[/] if --brute-ratel is specified"),
     output_folder: str = typer.Option(".", "--output", "-o", help="Location to export bloodhound files"),
-    all_properties: bool = typer.Option(False, "--all-properties", "-a", help="Write all properties to BloodHound files (instead of only common properties)"),
+    properties_level: PropertiesLevel = typer.Option(PropertiesLevel.Member.value, "--properties-level", "-p", case_sensitive=False, help='Change the verbosity of properties exported to JSON: Standard - Common BH properties | Member - Includes MemberOf and Member | All - Includes all properties'),
     brute_ratel: bool = typer.Option(False, "--brute-ratel", help="Parse logs from Brute Ratel's LDAP Sentinel"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive")):
@@ -96,7 +103,14 @@ def main(
     logging.info(f"Parsed {len(ad.domains)} Domains")
     logging.info(f"Parsed {len(ad.trustaccounts)} Trust Accounts")
     logging.info(f"Parsed {len(ad.ous)} OUs")
+    logging.info(f"Parsed {len(ad.containers)} Containers")
     logging.info(f"Parsed {len(ad.gpos)} GPOs")
+    logging.info(f"Parsed {len(ad.enterprisecas)} Enterprise CAs")
+    logging.info(f"Parsed {len(ad.aiacas)} AIA CAs")
+    logging.info(f"Parsed {len(ad.rootcas)} Root CAs")
+    logging.info(f"Parsed {len(ad.ntauthstores)} NTAuth Stores")
+    logging.info(f"Parsed {len(ad.issuancepolicies)} Issuance Policies")
+    logging.info(f"Parsed {len(ad.certtemplates)} Cert Templates")
     logging.info(f"Parsed {len(ad.schemas)} Schemas")
     logging.info(f"Parsed {len(ad.CROSSREF_MAP)} Referrals")
     logging.info(f"Parsed {len(ad.unknown_objects)} Unknown Objects")
@@ -115,8 +129,15 @@ def main(
         users=ad.users,
         groups=ad.groups,
         ous=ad.ous,
+        containers=ad.containers,
         gpos=ad.gpos,
-        common_properties_only=(not all_properties),
+        enterprisecas=ad.enterprisecas,
+        aiacas=ad.aiacas,
+        rootcas=ad.rootcas,
+        ntauthstores=ad.ntauthstores,
+        issuancepolicies=ad.issuancepolicies,
+        certtemplates = ad.certtemplates,
+        properties_level=properties_level,
         zip_files=zip_files
     )
 
@@ -125,9 +146,9 @@ def banner():
     print('''
  _____________________________ __    __    ______    __    __   __   __   _______
 |   _   /  /  __   / |   ____/|  |  |  |  /  __  \\  |  |  |  | |  \\ |  | |       \\
-|  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \|  | |  .--.  |
+|  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \\|  | |  .--.  |
 |   _  <  |  |  |  | |   __|  |   __   | |  |  |  | |  |  |  | |  . `  | |  |  |  |
-|  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
+|  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\\   | |  '--'  |
 |______/   \\______/  |__|     |__|  |___\\_\\________\\_\\________\\|__| \\___\\|_________\\
 
                             << @coffeegist | @Tw1sm >>

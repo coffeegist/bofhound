@@ -5,10 +5,13 @@ import logging
 
 class BloodHoundDomain(BloodHoundObject):
 
+    GUI_PROPERTIES = [
+        'distinguishedname', 'domainsid', 'description', 'whencreated',
+        'functionallevel', 'domain', 'isaclprotected', 'collected',
+        'name'
+    ]
+
     COMMON_PROPERTIES = [
-        'distinguishedname', 'objectid', 'description', 'whencreated',
-        'functionallevel', 'domain',
-        'name', 'highvalue'
     ]
 
     def __init__(self, object):
@@ -16,6 +19,7 @@ class BloodHoundDomain(BloodHoundObject):
 
         self._entry_type = "Domain"
         self.GPLinks = []
+        self.ContainedBy = []
         level_id = object.get('msds-behavior-version', 0)
         try:
             functional_level = ADUtils.FUNCTIONAL_LEVELS[int(level_id)]
@@ -23,6 +27,9 @@ class BloodHoundDomain(BloodHoundObject):
             functional_level = 'Unknown'
 
         dc = None
+
+        self.Properties['collected'] = True
+
         if 'distinguishedname' in object.keys():
             self.Properties["name"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())
             self.Properties["domain"] = self.Properties["name"]
@@ -30,13 +37,15 @@ class BloodHoundDomain(BloodHoundObject):
             logging.debug(f"Reading Domain object {ColorScheme.domain}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectsid' in object.keys():
-            self.Properties["objectid"] = object.get('objectsid')
+            self.Properties["domainsid"] = object.get('objectsid')
 
         if 'distinguishedname' in object.keys():
             self.Properties['distinguishedname'] = object.get('distinguishedname').upper()
 
         if 'description' in object.keys():
             self.Properties["description"] = object.get('description')
+        else:
+            self.Properties["description"] = None
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
@@ -68,16 +77,22 @@ class BloodHoundDomain(BloodHoundObject):
         self.IsACLProtected = False
 
 
-    def to_json(self, only_common_properties=True):
-        domain = super().to_json(only_common_properties)
+    def to_json(self, properties_level):
+        self.Properties['isaclprotected'] = self.IsACLProtected
+        domain = super().to_json(properties_level)
 
         domain["ObjectIdentifier"] = self.ObjectIdentifier
         domain["Trusts"] = self.Trusts
+        domain["ContainedBy"] = None
         # The below is all unsupported as of now.
         domain["Aces"] = self.Aces
         domain["Links"] = self.Links
         domain["ChildObjects"] = self.ChildObjects
+        
+        self.GPOChanges["AffectedComputers"] = self.AffectedComputers
+        self.GPOChanges["AffectedUsers"] = self.AffectedUsers
         domain["GPOChanges"] = self.GPOChanges
+
         domain["IsDeleted"] = self.IsDeleted
         domain["IsACLProtected"] = self.IsACLProtected
 

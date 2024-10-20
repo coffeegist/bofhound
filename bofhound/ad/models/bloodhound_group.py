@@ -5,11 +5,14 @@ import logging
 
 class BloodHoundGroup(BloodHoundObject):
 
+    GUI_PROPERTIES = [
+        'distinguishedname', 'samaccountname', 'objectsid',
+        'admincount', 'description', 'whencreated',
+        'name', 'domain', 'domainsid'
+    ]
+
     COMMON_PROPERTIES = [
-        'distinguishedname', 'samaccountname', 'samaccounttype', 'objectsid',
-        'member', 'admincount', 'description', 'whencreated',
-        'name', 'domain', 'domainsid', 'distinguishedname', 'admincount',
-        'description', 'whencreated', 'memberof'
+        'member', 'memberof'
     ]
 
     def __init__(self, object):
@@ -18,6 +21,7 @@ class BloodHoundGroup(BloodHoundObject):
         self._entry_type = "Group"
         self.Members = []
         self.Aces = []
+        self.ContainedBy = []
         self.IsDeleted = False
         self.IsACLProtected = False
         self.MemberDNs = []
@@ -43,12 +47,11 @@ class BloodHoundGroup(BloodHoundObject):
 
         if 'admincount' in object.keys():
             self.Properties["admincount"] = int(object.get('admincount')) == 1 # do not move this lower, it may break imports for users
+        else:
+            self.Properties["admincount"] = False
 
         if 'description' in object.keys():
             self.Properties["description"] = object.get('description')
-
-        if 'whencreated' in object.keys():
-            self.Properties["whencreated"] = object.get('whencreated')
 
         if 'member' in object.keys():
             self.MemberDNs = [f'CN={dn.upper()}' for dn in object.get('member').split(', CN=')]
@@ -72,9 +75,10 @@ class BloodHoundGroup(BloodHoundObject):
         self.Members.append(member)
 
 
-    def to_json(self, only_common_properties=True):
-        group = super().to_json(only_common_properties)
+    def to_json(self, properties_level):
+        group = super().to_json(properties_level)
         group["ObjectIdentifier"] = self.ObjectIdentifier
+        group["ContainedBy"] = self.ContainedBy
         group["Aces"] = self.Aces
         group["Members"] = self.Members
         group["IsDeleted"] = self.IsDeleted

@@ -1,17 +1,24 @@
 import logging
 import calendar
+import hashlib
+import base64
+from asn1crypto import x509
 from datetime import datetime
-from io import BytesIO
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
 from bloodhound.ad.utils import ADUtils
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound.ad.models.bloodhound_schema import BloodHoundSchema
+from bofhound.ad.helpers import PropertiesLevel
 
 # TODO: Move appropriate actions from this class to a super class of Users/Computers/maybe groups?
 
 class BloodHoundObject():
 
-    COMMON_PROPERTIES = [ ]
+    GUI_PROPERTIES = [
+    ]
+
+    COMMON_PROPERTIES = [
+    ]
 
     NEVER_SHOW_PROPERTIES = [
         'ntsecuritydescriptor', 'serviceprincipalname'
@@ -79,15 +86,7 @@ class BloodHoundObject():
                 if not base_preference:
                     if getattr(object, attr):
                         setattr(self, attr, value)
-
-
-    def get_domain_sid(self):
-        domain_sid = None
-
-        if self.ObjectIdentifier:
-            domain_sid = '-'.join(self.ObjectIdentifier.split('-')[0:-1])
-
-        return domain_sid
+    
 
 
     def get_distinguished_name(self):
@@ -104,18 +103,24 @@ class BloodHoundObject():
             return None
 
 
-    def to_json(self, only_common_properties=True):
+    def to_json(self, properties_level):
         data = {
             "Properties": {}
         }
 
-        if not only_common_properties:
-            data["Properties"] = self.Properties
-        else:
-            for property in self.Properties.keys():
-                if property in self.COMMON_PROPERTIES \
-                    and property not in self.NEVER_SHOW_PROPERTIES:
-                    data["Properties"][property] = self.Properties[property]
+        match properties_level:
+            case PropertiesLevel.Standard:
+                for property in self.Properties.keys():
+                    if property in self.GUI_PROPERTIES \
+                        and property not in self.NEVER_SHOW_PROPERTIES:
+                        data["Properties"][property] = self.Properties[property]
+            case PropertiesLevel.Member:
+                for property in self.Properties.keys():
+                    if (property in self.COMMON_PROPERTIES or property in self.GUI_PROPERTIES) \
+                        and property not in self.NEVER_SHOW_PROPERTIES:
+                        data["Properties"][property] = self.Properties[property]
+            case PropertiesLevel.All:
+                data["Properties"] = self.Properties
 
         return data
 
@@ -181,4 +186,54 @@ class BloodHoundObject():
             base += f',DC={comp}'
         
         return base[1:]
+    
+    
+    @staticmethod
+    def get_cn_from_dn(dn):
+        for component in dn.split(',', 1):
+            if component.startswith('CN='):
+                return component[3:]
+    
+    #
+    # for AIACAs, EnterpriseCAs, and RootCAs
+    #
+    def parse_cacertificate(self, object):
+        certificate_b64 = object.get("cacertificate")
+            
+        certificate_byte_array = base64.b64decode(certificate_b64)
+        
+        #
+        # thumbprint
+        #
+        thumbprint = hashlib.sha1(certificate_byte_array).hexdigest().upper()
+        self.Properties['certthumbprint'] = thumbprint
+        
+        #
+        # certname
+        #
+        certificate_byte_array = base64.b64decode(certificate_b64)
+        ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
+        self.x509Certificate = ca_cert # set for post-processing
+        self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
+        
+        #
+        # cert chain
+        # not sure that Python libs offer a way to build the chain without access to the issuer cert like it seems SharpHound  does
+        # https://github.com/BloodHoundAD/SharpHoundCommon/blob/ea6b097927c5bb795adb8589e9a843293d36ae37/src/CommonLib/Processors/LDAPPropertyProcessor.cs#L772
+        # so we will have the build the chain manually in post-processing
+        #
+        self.Properties['certchain'] = []
+
+        #
+        # extensions (hasbasicconstraints, basicconstraintpathlength)
+        #
+        self.Properties['hasbasicconstraints'] = False
+        self.Properties['basicconstraintpathlength'] = 0
+        for ext in ca_cert['extensions']:
+            if ext['extn_id'].native == 'basic_constraints':
+                basic_constraints = ext['extn_value'].parsed
+                if basic_constraints['path_len_constraint'].native is not None:
+                    self.Properties['hasbasicconstraints'] = True
+                    self.Properties['basicconstraintpathlength'] = basic_constraints['path_len_constraint'].native
+                break
 
