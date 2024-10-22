@@ -27,7 +27,7 @@ class BloodHoundCertTemplate(BloodHoundObject):
 
         self._entry_type = "PKI Template"
         self.GPLinks = []
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.IsACLProtected = False
         self.cas_ids = []
 

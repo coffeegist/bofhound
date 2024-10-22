@@ -23,7 +23,7 @@ class BloodHoundEnterpriseCA(BloodHoundObject):
 
         self._entry_type = "EnterpriseCA"
         self.IsDeleted = False
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.IsACLProtected = False
         self.Properties['casecuritycollected'] = False
         self.Properties['enrollmentagentrestrictionscollected'] = False

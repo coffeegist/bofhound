@@ -21,7 +21,7 @@ class BloodHoundGroup(BloodHoundObject):
         self._entry_type = "Group"
         self.Members = []
         self.Aces = []
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.IsDeleted = False
         self.IsACLProtected = False
         self.MemberDNs = []

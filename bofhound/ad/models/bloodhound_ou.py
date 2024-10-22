@@ -19,7 +19,7 @@ class BloodHoundOU(BloodHoundObject):
 
         self._entry_type = "OU"
         self.GPLinks = []
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.Properties["blocksinheritance"] = False
         
         if 'distinguishedname' in object.keys() and 'ou' in object.keys():

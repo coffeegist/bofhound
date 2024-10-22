@@ -46,7 +46,7 @@ class BloodHoundComputer(BloodHoundObject):
         self.AllowedToDelegate = []
         self.MemberOfDNs = []
         self.sessions = []
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.privileged_sessions = []
         self.registry_sessions = []
         self.local_group_members = {} # {group_name: [{member_sid, member_type}]}

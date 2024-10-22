@@ -22,7 +22,7 @@ class BloodHoundIssuancePolicy(BloodHoundObject):
 
         self._entry_type = "IssuancePolicy"
         self.IsDeleted = False
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.IsACLProtected = False
         self.GroupLink = None # {}
 

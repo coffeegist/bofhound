@@ -19,7 +19,7 @@ class BloodHoundDomain(BloodHoundObject):
 
         self._entry_type = "Domain"
         self.GPLinks = []
-        self.ContainedBy = []
+        self.ContainedBy = {}
         level_id = object.get('msds-behavior-version', 0)
         try:
             functional_level = ADUtils.FUNCTIONAL_LEVELS[int(level_id)]

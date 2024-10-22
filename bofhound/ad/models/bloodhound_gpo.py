@@ -18,7 +18,7 @@ class BloodHoundGPO(BloodHoundObject):
         super().__init__(object)
 
         self._entry_type = "GPO"
-        self.ContainedBy = []
+        self.ContainedBy = {}
         
         if 'distinguishedname' in object.keys() and 'displayname' in object.keys():
             self.Properties["domain"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())

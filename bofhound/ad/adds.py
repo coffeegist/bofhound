@@ -246,15 +246,17 @@ class ADDS():
         return {'RightName': relation, 'PrincipalSID': PrincipalSid, 'IsInherited': inherited, 'PrincipalType': PrincipalType }
 
     def calculate_contained(self, object):
+        
         if object._entry_type == "Domain":
-            object.ContainedBy = None
             return
+       
         dn = object.Properties['distinguishedname']
         start = dn.find(',') + 1
         contained_dn = dn[start:]
         start_contained = contained_dn[0:2]
         type_contained = ""
         id_contained = None
+        
         match start_contained:
             case "CN":
                 if contained_dn.startswith("CN=BUILTIN"):
@@ -287,12 +289,14 @@ class ADDS():
                     if domain.Properties["distinguishedname"] == contained_dn:
                         id_contained = domain.ObjectIdentifier
             case _:
-                object.ContainedBy = None
                 return
         
         if type_contained == "":
-            object.ContainedBy = None
+            return
         else:
+            # 
+            # We've identified the containing object, set prop on the contained object
+            #
             object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
 
 
