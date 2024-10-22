@@ -1,41 +1,56 @@
 import re
-import base64
 import codecs
-
-from io import BytesIO
-from bloodhound.ad.utils import ADUtils
-from bloodhound.enumeration.acls import parse_binary_acl, SecurityDescriptor
-from bloodhound.enumeration.acls import ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, build_relation, has_extended_right, EXTRIGHTS_GUID_MAPPING
 import logging
+from bofhound.parsers.generic_parser import GenericParser
 
-from bofhound.ad.models import BloodHoundDomain, BloodHoundComputer, BloodHoundUser, BloodHoundGroup, BloodHoundSchema
 
-# If field is empty, DO NOT WRITE IT TO FILE!
-
+#
+# This class will be inherited by other parsers since most if not all are based
+#   off the same BOF, wrapped by various C2s. These methods can be overridden
+#   by child classes to handle specific parsing requirements
+#
 class LdapSearchBofParser():
     RESULT_DELIMITER = "-"
     RESULT_BOUNDARY_LENGTH = 20
     _COMPLETE_BOUNDARY_LINE = -1
 
-    def __init__(self):
-        pass #self.objects = []
 
+    def __init__(self):
+        pass
+
+    #
+    # Legacy, used by test cases for 1 liner
+    #   Removed from __main__.py to avoid duplicating file reads and formatting
+    #
     @staticmethod
     def parse_file(file):
+        return LdapSearchBofParser.parse_data(
+            LdapSearchBofParser.prep_file(file)
+        )
 
-        with codecs.open(file, 'r', 'utf-8') as f:
-            return LdapSearchBofParser.parse_data(f.read())
-
+    
+    #
+    # Replaces parse_file() usage in __main__.py to avoid duplicate file reads
+    #
     @staticmethod
-    def parse_data(contents):
+    def prep_file(file):
+        with codecs.open(file, 'r', 'utf-8') as f:
+            contents = f.read()
+
+        return re.sub(r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n', '', contents)
+
+    
+    #
+    # Meat of the parsing logic 
+    #
+    @staticmethod
+    def parse_data(data):
         parsed_objects = []
         current_object = None
         in_result_region = False
         previous_attr = None
 
         in_result_region = False
-
-        data = re.sub(r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n', '', contents)
 
         lines = data.splitlines()
         for line in lines:
@@ -112,3 +127,11 @@ class LdapSearchBofParser():
                 return LdapSearchBofParser.RESULT_BOUNDARY_LENGTH - len(line)
 
         return 0 # Falsey
+
+
+    #
+    # Get local groups, sessions, etc by feeding data to GenericParser class
+    #
+    @staticmethod
+    def parse_local_objects(data):
+        return GenericParser.parse_data(data)

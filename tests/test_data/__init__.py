@@ -1,7 +1,7 @@
 import os 
 import pytest 
 from bofhound.parsers import LdapSearchBofParser
-from bofhound.parsers import GenericParser
+from bofhound.parsers.generic_parser import GenericParser
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
 

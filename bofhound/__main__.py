@@ -9,7 +9,7 @@ import os
 import logging
 import typer
 import glob
-from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, GenericParser
+from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, ParserType
 from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
@@ -23,10 +23,10 @@ app = typer.Typer(
 
 @app.command()
 def main(
-    input_files: str = typer.Option("/opt/cobaltstrike/logs", "--input", "-i", help="Directory or file containing logs of ldapsearch results. Will default to [green]/opt/bruteratel/logs[/] if --brute-ratel is specified"),
+    input_files: str = typer.Option("/opt/cobaltstrike/logs", "--input", "-i", help="Directory or file containing logs of ldapsearch results"),
     output_folder: str = typer.Option(".", "--output", "-o", help="Location to export bloodhound files"),
     properties_level: PropertiesLevel = typer.Option(PropertiesLevel.Member.value, "--properties-level", "-p", case_sensitive=False, help='Change the verbosity of properties exported to JSON: Standard - Common BH properties | Member - Includes MemberOf and Member | All - Includes all properties'),
-    brute_ratel: bool = typer.Option(False, "--brute-ratel", help="Parse logs from Brute Ratel's LDAP Sentinel"),
+    parser: ParserType = typer.Option(ParserType.LdapsearchBof.value, "--parser", case_sensitive=False, help="Parser to use for log files. ldapsearch parser (default) supports ldapsearch BOF logs from Cobalt Strike and pyldapsearch logs"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive")):
     """
@@ -40,15 +40,32 @@ def main(
 
     banner()
 
-    # if BRc4 and input_files is the default, set it to the default BRc4 logs directory
-    if brute_ratel and input_files == "/opt/cobaltstrike/logs":
-        input_files = "/opt/bruteratel/logs"
-
-    # default to Cobalt logfile naming format
+     # default to Cobalt logfile naming format
     logfile_name_format = "beacon*.log"
-    if brute_ratel:
-        logfile_name_format = "b-*.log"
 
+    match parser:
+        
+        case ParserType.LdapsearchBof:
+            logging.debug('Using ldapsearch parser')
+            parser = LdapSearchBofParser
+        
+        case ParserType.BRC4:
+            logging.debug('Using Brute Ratel parser')
+            parser = Brc4LdapSentinelParser
+            logfile_name_format = "b-*.log"
+            if input_files == "/opt/cobaltstrike/logs":
+                input_files = "/opt/bruteratel/logs"
+
+        case ParserType.HAVOC:
+            logging.debug('Using Havoc parser')
+            parser = HavocParser
+            logfile_name_format = "Console_*.log"
+            if input_files == "/opt/cobaltstrike/logs":
+                input_files = "/opt/havoc/data/loot"
+        
+        case _:
+            raise ValueError(f"Unknown parser type: {parser}")
+        
     if os.path.isfile(input_files):
         cs_logs = [input_files]
         logging.debug(f"Log file explicitly provided {input_files}")
@@ -70,18 +87,14 @@ def main(
         logging.error(f"Could not find {input_files} on disk")
         sys.exit(-1)
 
-    parser = LdapSearchBofParser
-    if brute_ratel:
-        logging.debug('Using Brute Ratel parser')
-        parser = Brc4LdapSentinelParser
-
     parsed_ldap_objects = []
     parsed_local_objects = []
     with console.status(f"", spinner="aesthetic") as status:
         for log in cs_logs:
             status.update(f" [bold] Parsing {log}")
-            new_objects = parser.parse_file(log)
-            new_local_objects = GenericParser.parse_file(log)
+            formatted_data = parser.prep_file(log)
+            new_objects = parser.parse_data(formatted_data)
+            new_local_objects = parser.parse_local_objects(formatted_data)
             logging.debug(f"Parsed {log}")
             logging.debug(f"Found {len(new_objects)} objects in {log}")
             parsed_ldap_objects.extend(new_objects)

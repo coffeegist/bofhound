@@ -2,10 +2,9 @@ import re
 import codecs
 import logging
 from datetime import datetime as dt
+from bofhound.parsers import LdapSearchBofParser
 
-# If field is empty, DO NOT WRITE IT TO FILE!
-
-class Brc4LdapSentinelParser():
+class Brc4LdapSentinelParser(LdapSearchBofParser):
     # BRC4 LDAP Sentinel currently only queries attributes=["*"] and objectClass 
     # is always the top result. May need to be updated in the future.
     START_BOUNDARY = '[+] objectclass                        :'
@@ -19,11 +18,24 @@ class Brc4LdapSentinelParser():
     def __init__(self):
         pass #self.objects = []
 
+    #
+    # Legacy, used by test cases for 1 liner
+    #   Removed from __main__.py to avoid duplicating file reads and formatting
+    #
     @staticmethod
     def parse_file(file):
-
         with codecs.open(file, 'r', 'utf-8', errors='ignore') as f:
             return Brc4LdapSentinelParser.parse_data(f.read())
+
+
+    #
+    # Replaces parse_file() usage in __main__.py to avoid duplicate file reads
+    #
+    @staticmethod
+    def prep_file(file):
+        with codecs.open(file, 'r', 'utf-8', errors='ignore') as f:
+            return f.read()
+
 
     @staticmethod
     def parse_data(contents):
