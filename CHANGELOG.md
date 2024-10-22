@@ -1,5 +1,9 @@
 # Changelog
-## [0.4] - 10/20/2024
+## [0.4.1] - 10/22/2024
+### Fixed
+- Addressed [#10](https://github.com/coffeegist/bofhound/issues/10), an issue with the `ContainedBy` attribute in output JSON
+
+## [0.4.0] - 10/20/2024
 ### Added
 - Models for ADCS objects and abuse
     - AIACAs

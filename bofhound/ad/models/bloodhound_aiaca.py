@@ -20,7 +20,7 @@ class BloodHoundAIACA(BloodHoundObject):
         super().__init__(object)
 
         self._entry_type = "AIACA"
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.IsACLProtected = False
         self.IsDeleted = False
         self.x509Certificate = None

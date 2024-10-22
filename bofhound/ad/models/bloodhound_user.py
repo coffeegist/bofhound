@@ -31,7 +31,7 @@ class BloodHoundUser(BloodHoundObject):
         self.PrimaryGroupSid = None
         self.AllowedToDelegate = []
         self.Aces = []
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.SPNTargets = []
         self.HasSIDHistory = []
         self.IsACLProtected = False

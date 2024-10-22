@@ -16,7 +16,7 @@ class BloodHoundContainer(BloodHoundObject):
         super().__init__(object)
 
         self._entry_type = "Container"
-        self.ContainedBy = []
+        self.ContainedBy = {}
         self.Properties["blocksinheritance"] = False
 
         if 'objectguid' in object.keys():
