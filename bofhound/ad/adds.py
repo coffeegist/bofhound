@@ -133,7 +133,18 @@ class ADDS():
                 # grab domain trusts
                 elif 'trustedDomain' in object_class:
                     bhObject = BloodHoundDomainTrust(object)
-                    bhObject.set_temporary_sid(len(self.trusts))
+
+                    # try to find if this domain is new or not
+                    needs_temp_sid = True
+                    for trust in self.trusts:
+                        if trust.TrustProperties['TargetDomainName'].upper() == bhObject.TrustProperties['TargetDomainName'].upper():
+                            bhObject.TrustProperties['TargetDomainSid'] = trust.TrustProperties['TargetDomainSid']
+                            needs_temp_sid = False
+
+                    # set a temporary sid if new trusted domain
+                    if needs_temp_sid:
+                        bhObject.set_temporary_sid(len(self.trusts))
+                        
                     target_list = self.trusts
                 # grab OUs
                 elif 'top, organizationalUnit' in object_class:

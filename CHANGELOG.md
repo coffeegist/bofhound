@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.2] - 10/24/2024
+### Fixed
+- Addressed [#12](https://github.com/coffeegist/bofhound/issues/12), an issue with duplicate trusted domain objects
+
 ## [0.4.1] - 10/22/2024
 ### Fixed
 - Addressed [#10](https://github.com/coffeegist/bofhound/issues/10), an issue with the `ContainedBy` attribute in output JSON
