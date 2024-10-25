@@ -1166,6 +1166,10 @@ class ADDS():
             if not issuer_ca:
                 break
             chain.append(issuer_ca)
+
+            if issuer_ca == current_ca:
+                # Found a circular reference (potentially a stopgap solution)
+                break
             current_ca = issuer_ca
 
         return [cert.Properties['certthumbprint'] for cert in chain]
