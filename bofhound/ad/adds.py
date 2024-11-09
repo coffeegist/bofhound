@@ -135,9 +135,10 @@ class ADDS():
                 object_class = object.get(ADDS.AT_OBJECTCLASS, '')
                 # if 'top, domain' in object_class or 'top, builtinDomain' in object_class:
                 if 'top, domain' in object_class:
-                    bhObject = BloodHoundDomain(object)
-                    self.add_domain(bhObject)
-                    target_list = self.domains
+                    if 'objectsid' in object.keys():
+                        bhObject = BloodHoundDomain(object)
+                        self.add_domain(bhObject)
+                        target_list = self.domains
                 # grab domain trusts
                 elif 'trustedDomain' in object_class:
                     bhObject = BloodHoundDomainTrust(object)
