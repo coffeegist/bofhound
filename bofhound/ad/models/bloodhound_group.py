@@ -37,9 +37,9 @@ class BloodHoundGroup(BloodHoundObject):
 
         if 'objectsid' in object.keys():
             #objectid = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))
-            objectid = object.get('objectsid')
-            self.ObjectIdentifier = objectid
-            self.Properties["domainsid"] = objectid.rsplit('-',1)[0]
+            #objectid = object.get('objectsid')
+            #self.ObjectIdentifier = objectid
+            self.Properties["domainsid"] = self.ObjectIdentifier.rsplit('-',1)[0]
 
 
         if 'distinguishedname' in object.keys():

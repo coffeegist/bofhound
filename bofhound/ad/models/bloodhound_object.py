@@ -4,6 +4,7 @@ import hashlib
 import base64
 from asn1crypto import x509
 from datetime import datetime
+from ldap3.protocol.formatters.formatters import format_sid
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
 from bloodhound.ad.utils import ADUtils
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
@@ -35,7 +36,14 @@ class BloodHoundObject():
             for item in object.keys():
                 self.Properties[item.lower()] = object[item]
 
-            self.ObjectIdentifier = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))
+            try:
+                # shadowhound doesn't parse SIDs out, they're still base64'd so check to see if we have b64 data
+                sid = format_sid(base64.b64decode(object.get('objectsid', None)))
+                self.ObjectIdentifier = BloodHoundObject.get_sid(sid, object.get('distinguishedname', None))
+                print(self.ObjectIdentifier)
+            except:
+                # not base64 data, so normal workflow
+                self.ObjectIdentifier = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))
 
             if 'distinguishedname' in object.keys():
                 self.Properties["distinguishedname"] = object.get('distinguishedname', None).upper()

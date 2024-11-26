@@ -36,7 +36,7 @@ class BloodHoundDomain(BloodHoundObject):
             dc = BloodHoundObject.get_domain_component(object.get('distinguishedname').upper())
             logging.debug(f"Reading Domain object {ColorScheme.domain}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
-        if 'objectsid' in object.keys():
+        if self.ObjectIdentifier:
             self.Properties["domainsid"] = object.get('objectsid')
 
         if 'distinguishedname' in object.keys():
