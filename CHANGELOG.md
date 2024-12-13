@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.3] - 12/13/2024
+### Fixed
+- Addressed [#13](https://github.com/coffeegist/bofhound/issues/13)
+- Catch error is ACL paring fails for an object 
+
 ## [0.4.2] - 10/24/2024
 ### Fixed
 - Addressed [#12](https://github.com/coffeegist/bofhound/issues/12), an issue with duplicate trusted domain objects
