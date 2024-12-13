@@ -1,5 +1,5 @@
 import pytest
-from bofhound.parsers import GenericParser
+from bofhound.parsers.generic_parser import GenericParser
 from bofhound.parsers.shared_parsers import NetLoggedOnBofParser, NetSessionBofParser, NetLocalGroupBofParser, RegSessionBofParser
 from tests.test_data import *
 

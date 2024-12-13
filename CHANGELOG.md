@@ -1,8 +1,16 @@
 # Changelog
-## [0.4.3] - 12/13/2024
+## [0.4.4] - 12/13/2024
 ### Fixed
 - Addressed [#13](https://github.com/coffeegist/bofhound/issues/13)
 - Catch error is ACL paring fails for an object 
+
+## [0.4.3] - 10/30/2024
+### Added
+- Support for pasing ldapsearch BOF results within Havoc log files
+
+### Changed
+- Parsers now can inherit from the `LdapSearchBofParser` (since support for other C2s usually still relies on the same BOF) to cut down on code copypasta
+- The `GenericParser` class (used to parse local group memberships, session data) is now called from main parsers (`LdapSearchBofParser`, `HavocParser`, etc.) to prevent each logfile from being opened, read, formatted, and parsed twice (each file is now read once and just parsed twice, once for LDAP objects and once for local objects)
 
 ## [0.4.2] - 10/24/2024
 ### Fixed
