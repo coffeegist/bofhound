@@ -325,8 +325,14 @@ class ADDS():
                 self.recalculate_sid(object)
                 self.calculate_contained(object)
                 self.add_domainsid_prop(object)
-                num_parsed_relations += self.parse_acl(object)
-                status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
+                try:
+                    num_parsed_relations += self.parse_acl(object)
+                    status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
+                except:
+                    #
+                    # Catch the occasional error parinsing ACLs
+                    #
+                    continue
 
         logging.info(f"Parsed {num_parsed_relations} ACL relationships")
 
