@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.5] - 12/17/2024
+#### Added
+- Support for pasing ldapsearch BOF results within OutflankC2 log files
+
 ## [0.4.4] - 12/13/2024
 ### Fixed
 - Addressed [#13](https://github.com/coffeegist/bofhound/issues/13)

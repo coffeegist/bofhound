@@ -1,15 +1,9 @@
 import sys
 import os
-
-# Debug helpful
-# root = os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/..")
-# if root not in sys.path:
-#   sys.path.insert(0, root)
-  
 import logging
 import typer
 import glob
-from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, ParserType
+from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, ParserType, OutflankC2JsonParser
 from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
@@ -18,7 +12,8 @@ from bofhound.ad.helpers import PropertiesLevel
 
 app = typer.Typer(
     add_completion=False,
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
+    context_settings={'help_option_names': ['-h', '--help']}
 )
 
 @app.command()
@@ -62,6 +57,11 @@ def main(
             logfile_name_format = "Console_*.log"
             if input_files == "/opt/cobaltstrike/logs":
                 input_files = "/opt/havoc/data/loot"
+
+        case ParserType.OUTFLANKC2:
+            logging.debug('Using OutflankC2 parser')
+            parser = OutflankC2JsonParser
+            logfile_name_format = "*.json"
         
         case _:
             raise ValueError(f"Unknown parser type: {parser}")
@@ -94,7 +94,13 @@ def main(
             status.update(f" [bold] Parsing {log}")
             formatted_data = parser.prep_file(log)
             new_objects = parser.parse_data(formatted_data)
-            new_local_objects = parser.parse_local_objects(formatted_data)
+            
+            # jank insert to reparse outflank logs for local data
+            if parser == OutflankC2JsonParser:
+                new_local_objects = parser.parse_local_objects(log)
+            else:
+                new_local_objects = parser.parse_local_objects(formatted_data)
+            
             logging.debug(f"Parsed {log}")
             logging.debug(f"Found {len(new_objects)} objects in {log}")
             parsed_ldap_objects.extend(new_objects)

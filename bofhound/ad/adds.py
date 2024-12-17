@@ -83,7 +83,15 @@ class ADDS():
                         self.CROSSREF_MAP[new_crossref.netBiosName] = new_crossref
                 continue
 
-            accountType = int(object.get(ADDS.AT_SAMACCOUNTTYPE, 0))
+            #
+            # if samaccounttype comes back as something other
+            #  than int, skip the object
+            #
+            try:
+                accountType = int(object.get(ADDS.AT_SAMACCOUNTTYPE, 0))
+            except:
+                continue
+                
             target_list = None
 
             # objectClass: top, container
