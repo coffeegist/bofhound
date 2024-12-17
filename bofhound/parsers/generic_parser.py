@@ -1,5 +1,7 @@
-from .shared_parsers import __all_generic_parsers__
+import json
 import codecs
+from .shared_parsers import __all_generic_parsers__
+
 
 class GenericParser:
 
@@ -8,9 +10,32 @@ class GenericParser:
 
 
     @staticmethod
-    def parse_file(file):
+    def parse_file(file, is_outflankc2=False):
          with codecs.open(file, 'r', 'utf-8') as f:
-            return GenericParser.parse_data(f.read())
+            if is_outflankc2:
+                return GenericParser.parse_outflank_file(f.read())
+            else:    
+                return GenericParser.parse_data(f.read())
+
+    
+    @staticmethod
+    def parse_outflank_file(contents):
+        parsed_objects = []
+
+        for line in contents.splitlines():
+            event_json = json.loads(line.split('UTC ', 1)[1])
+
+            # we only care about task_resonse events
+            if event_json['event_type'] != 'task_response':
+                continue
+             
+            # within task_response events, we only care about tasks with specific BOF names
+            if event_json['task']['name'].lower() not in ['netsession2', 'netloggedon2', 'regsession', 'netlocalgrouplistmembers2']:
+                continue
+            
+            parsed_objects.extend(GenericParser.parse_data(event_json['task']['response']))
+
+        return parsed_objects
 
 
     @staticmethod
