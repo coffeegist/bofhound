@@ -17,7 +17,6 @@ asn1crypto = "^1.5.1"
 click = "^8.0"
 typer = "^0.9"
 bloodhound = "^1.6"
-cffi = "^1.15"
 chardet = "^4.0"
 cryptography = "^36.0"
 dnspython = "^2.2"
@@ -36,8 +35,9 @@ pyOpenSSL = "^22.0.0"
 six = "^1.16.0"
 Werkzeug = "^2.0.2"
 rich = "^12.5"
+cffi = "^1.17.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pylint = "^2.13"
 pytest = "^7.1.2"
 
