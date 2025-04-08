@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.6] - 04/07/2025
+#### Fixed
+- Removed log statement clogging debug output [#19](https://github.com/coffeegist/bofhound/issues/19) 
+- Update deprecated pyproject.toml syntax [#20](https://github.com/coffeegist/bofhound/issues/20) 
+
 ## [0.4.5] - 12/17/2024
 #### Added
 - Support for pasing ldapsearch BOF results within OutflankC2 log files

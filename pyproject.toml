@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bofhound"
-version = "0.4.5"
+version = "0.4.6"
 description = "Parse output from common sources and transform it into BloodHound-ingestible data"
 authors = [
 	"Adam Brown",
