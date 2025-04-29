@@ -1,5 +1,8 @@
 # Changelog
 ## [0.4.7] - 04/29/2025
+### Added
+- Ability to handle schemaIdGuids from ADExplorer LDIF output
+
 ### Fixed
 - Improved fix for [#12](https://github.com/coffeegist/bofhound/issues/12) by keying on the `securityIdentifier` attribute on trust objects
 
