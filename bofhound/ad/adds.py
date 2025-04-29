@@ -694,7 +694,7 @@ class ADDS():
         for ace_object in sd.dacl.aces:
             if ace_object.ace.AceType != 0x05 and ace_object.ace.AceType != 0x00:
                 # These are the only two aces we care about currently
-                logging.debug('Don\'t care about acetype %d', ace_object.ace.AceType)
+                #logging.debug('Don\'t care about acetype %d', ace_object.ace.AceType)
                 continue
             # Check if sid is ignored
             sid = str(ace_object.acedata.sid)
