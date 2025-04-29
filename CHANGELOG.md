@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.7] - 04/29/2025
+### Fixed
+- Improved fix for [#12](https://github.com/coffeegist/bofhound/issues/12) by keying on the `securityIdentifier` attribute on trust objects
+
 ## [0.4.6] - 04/07/2025
 #### Fixed
 - Removed log statement clogging debug output [#19](https://github.com/coffeegist/bofhound/issues/19) 
