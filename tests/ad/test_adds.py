@@ -37,7 +37,8 @@ def raw_trust():
         'trustdirection': '3',
         'trustpartner': 'child.windomain.local',
         'trustposixfffset': '-2147483648',
-        'trusttype': '2'
+        'trusttype': '2',
+        'securityidentifier': 'S-1-5-21-3539700351-1165401899-3544196955',
     }        
     
 
