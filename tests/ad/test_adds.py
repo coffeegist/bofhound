@@ -104,6 +104,13 @@ def test_import_objects_singleSchema():
     assert len(adds.schemas) == 1
 
 
+def test_import_objects_singleSchema_ldif():
+    adds = ADDS()
+    adds.import_objects([{ADDS.AT_SCHEMAIDGUID: '45b01500-c419-11d1-bbc9-0080c76670c0', ADDS.AT_NAME: 'ANR'}])
+
+    assert len(adds.schemas) == 1
+
+
 def test_import_objects_noAccountType(raw_user):
     adds = ADDS()
     raw_user.pop(ADDS.AT_SAMACCOUNTTYPE)
