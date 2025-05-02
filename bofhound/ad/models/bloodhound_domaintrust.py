@@ -1,10 +1,11 @@
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-from bofhound.ad.models.bloodhound_object import BloodHoundObject
 from bloodhound.ad.utils import ADUtils
 from bloodhound.ad.trusts import ADDomainTrust
-from bofhound.ad.helpers import TrustType, TrustDirection
 from impacket.ldap.ldaptypes import LDAP_SID
-import logging
+
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+from bofhound.ad.models.bloodhound_object import BloodHoundObject
+from bofhound.ad.helpers import TrustType, TrustDirection
+
 
 class BloodHoundDomainTrust(object):
     
@@ -30,7 +31,7 @@ class BloodHoundDomainTrust(object):
             self.LocalDomainDn = BloodHoundObject.get_domain_component(object.get('distinguishedname')).upper()
             trust_partner = object.get('trustpartner').upper()
             domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()
-            logging.debug(f'Reading trust relationship between {ColorScheme.domain}{domain}[/] and {ColorScheme.domain}{trust_partner}[/]', extra=OBJ_EXTRA_FMT)
+            logger.debug(f'Reading trust relationship between {ColorScheme.domain}{domain}[/] and {ColorScheme.domain}{trust_partner}[/]', extra=OBJ_EXTRA_FMT)
             domainsid = LDAP_SID()
             domainsid.fromCanonical(object.get('securityidentifier'))
             trust = ADDomainTrust(trust_partner, int(object.get('trustdirection')), object.get('trusttype'), int(object.get('trustattributes')), domainsid.getData())

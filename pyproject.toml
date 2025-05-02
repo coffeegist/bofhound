@@ -36,6 +36,8 @@ six = "^1.16.0"
 Werkzeug = "^2.0.2"
 rich = "^12.5"
 cffi = "^1.17.1"
+mythic = "^0.2.5"
+syncer = "^2.0.3"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^2.13"

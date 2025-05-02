@@ -1,7 +1,8 @@
 import re
 import codecs
 import json
-import logging
+
+from bofhound.logger import logger
 from bofhound.parsers.generic_parser import GenericParser
 from bofhound.parsers import LdapSearchBofParser
 
@@ -102,7 +103,7 @@ class OutflankC2JsonParser(LdapSearchBofParser):
                     current_object[attr] = value
 
                 except Exception as e:
-                    logging.debug(f'Error - {str(e)}')
+                    logger.debug(f'Error - {str(e)}')
 
         return parsed_objects
 

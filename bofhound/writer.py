@@ -2,9 +2,10 @@ import os
 import json
 import codecs
 import datetime
-import logging
 from zipfile import ZipFile
 from pathlib import PurePath, Path
+
+from bofhound.logger import logger
 from bofhound import console
 from bofhound.ad.models import BloodHoundDomain, BloodHoundComputer, BloodHoundUser, BloodHoundGroup, BloodHoundSchema, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundCertTemplate, BloodHoundContainer
 
@@ -81,9 +82,9 @@ class BloodHoundWriter():
             BloodHoundWriter.write_trustaccounts_file(out_dir, trustaccounts, properties_level)
 
         if out_dir == ".":
-            logging.info(f'JSON files written to current directory')
+            logger.info(f'JSON files written to current directory')
         else:
-            logging.info(f'JSON files written to {out_dir}')
+            logger.info(f'JSON files written to {out_dir}')
 
         if zip_files:
             zip_name = PurePath(out_dir, f"bloodhound_{BloodHoundWriter.ct}.zip")
@@ -91,7 +92,7 @@ class BloodHoundWriter():
                 for bh_file in BloodHoundWriter.files:
                     zip.write(bh_file, bh_file.name)
                     Path(bh_file).unlink()
-            logging.info(f'Files compressed into {zip_name}')
+            logger.info(f'Files compressed into {zip_name}')
 
 
 

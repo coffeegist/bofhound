@@ -1,6 +1,6 @@
-from bofhound.logger import ColorScheme, OBJ_EXTRA_FMT
-import logging
 import ipaddress
+
+from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalRegistrySession:
@@ -16,7 +16,7 @@ class LocalRegistrySession:
 
         try:
             ipaddress.ip_address(object[LocalRegistrySession.REGSESSION_HOST])
-            logging.debug(f"Skipping session on {object[LocalRegistrySession.REGSESSION_HOST]} due to IP instead of hostname")
+            logger.debug(f"Skipping session on {object[LocalRegistrySession.REGSESSION_HOST]} due to IP instead of hostname")
             return
         except:
             pass
@@ -34,7 +34,7 @@ class LocalRegistrySession:
                 self.host_domain = '.'.join(self.host_fqdn.split('.')[1:])
             else:
                 self.host_name = object[LocalRegistrySession.REGSESSION_HOST]
-                logging.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user_sid}[/] session on {ColorScheme.computer}{self.host_name}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user_sid}[/] session on {ColorScheme.computer}{self.host_name}[/]", extra=OBJ_EXTRA_FMT)
 
     def should_import(self, known_domain_sids):
         # missing required attributes
@@ -44,11 +44,11 @@ class LocalRegistrySession:
         # do not import local account sessions or 
         # user sessions from unknown domains
         if self.user_sid.rsplit('-', 1)[0] not in known_domain_sids:
-            logging.debug(f"Skipping session for {ColorScheme.user}{self.user_sid}[/] since domain SID is unfamiliar", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Skipping session for {ColorScheme.user}{self.user_sid}[/] since domain SID is unfamiliar", extra=OBJ_EXTRA_FMT)
             return False
 
         computer = self.host_fqdn if self.host_fqdn else self.host_name
-        logging.debug(f"Registry session found for {ColorScheme.user}{self.user_sid}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
+        logger.debug(f"Registry session found for {ColorScheme.user}{self.user_sid}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
         return True
 
 

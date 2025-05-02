@@ -1,7 +1,8 @@
 import base64
 from uuid import UUID
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundSchema(object):
 
@@ -17,6 +18,6 @@ class BloodHoundSchema(object):
 					self.SchemaIdGuid = value.lower()
 				else:
 					self.SchemaIdGuid = str(UUID(bytes_le=base64.b64decode(value))).lower()
-				logging.debug(f"Reading Schema object {ColorScheme.schema}{self.Name}[/]", extra=OBJ_EXTRA_FMT)
+				logger.debug(f"Reading Schema object {ColorScheme.schema}{self.Name}[/]", extra=OBJ_EXTRA_FMT)
 			except:
-				logging.warning(f"Error base64 decoding SchemaIDGUID attribute on Schema {ColorScheme.schema}{self.Name}[/]", extra=OBJ_EXTRA_FMT)
+				logger.warning(f"Error base64 decoding SchemaIDGUID attribute on Schema {ColorScheme.schema}{self.Name}[/]", extra=OBJ_EXTRA_FMT)

@@ -21,8 +21,10 @@ OBJ_EXTRA_FMT = {
 }
 
 FORMAT = "%(message)s"
-logging.basicConfig(
-    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler(omit_repeated_times=False, show_path=False, keywords=[])]
-)
+logger = logging.getLogger("bofhound")
 
-#logging.getLogger("rich")
+handler = RichHandler(omit_repeated_times=False, show_path=False, keywords=[])
+handler.setFormatter(logging.Formatter(FORMAT, datefmt="[%X]"))
+logger.addHandler(handler)
+
+logger.propagate = False

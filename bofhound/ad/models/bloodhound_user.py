@@ -1,9 +1,10 @@
 from bloodhound.ad.utils import ADUtils
 from bloodhound.ad.structures import LDAP_SID
 from bloodhound.enumeration.memberships import MembershipEnumerator
+
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundUser(BloodHoundObject):
 
@@ -45,7 +46,7 @@ class BloodHoundUser(BloodHoundObject):
                 name = f'{object.get("samaccountname")}@{domain}'.upper()
                 self.Properties["name"] = name
                 self.Properties["domain"] = domain
-                logging.debug(f"Reading User object {ColorScheme.user}{name}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Reading User object {ColorScheme.user}{name}[/]", extra=OBJ_EXTRA_FMT)
 
             if 'admincount' in object.keys():
                 self.Properties["admincount"] = int(object.get('admincount')) == 1 # do not move this lower, it may break imports for users

@@ -1,5 +1,6 @@
 import json
 import codecs
+
 from .shared_parsers import __all_generic_parsers__
 
 

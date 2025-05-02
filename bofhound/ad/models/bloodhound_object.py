@@ -1,4 +1,3 @@
-import logging
 import calendar
 import hashlib
 import base64
@@ -6,11 +5,13 @@ from asn1crypto import x509
 from datetime import datetime
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
 from bloodhound.ad.utils import ADUtils
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
+
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
 from bofhound.ad.models.bloodhound_schema import BloodHoundSchema
 from bofhound.ad.helpers import PropertiesLevel
 
 # TODO: Move appropriate actions from this class to a super class of Users/Computers/maybe groups?
+
 
 class BloodHoundObject():
 

@@ -3,12 +3,16 @@ import os
 import logging
 import typer
 import glob
-from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, ParserType, OutflankC2JsonParser
+from syncer import sync
+
+from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, \
+    ParserType, OutflankC2JsonParser, MythicParser
 from bofhound.writer import BloodHoundWriter
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
 from bofhound import console
 from bofhound.ad.helpers import PropertiesLevel
+from bofhound.logger import logger
 
 app = typer.Typer(
     add_completion=False,
@@ -23,7 +27,11 @@ def main(
     properties_level: PropertiesLevel = typer.Option(PropertiesLevel.Member.value, "--properties-level", "-p", case_sensitive=False, help='Change the verbosity of properties exported to JSON: Standard - Common BH properties | Member - Includes MemberOf and Member | All - Includes all properties'),
     parser: ParserType = typer.Option(ParserType.LdapsearchBof.value, "--parser", case_sensitive=False, help="Parser to use for log files. ldapsearch parser (default) supports ldapsearch BOF logs from Cobalt Strike and pyldapsearch logs"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
-    zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive")):
+    zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive"),
+    mythic_server: str = typer.Option(None, "--mythic-server", help="Mythic server to connect to", rich_help_panel="Mythic Options"),
+    mythic_user: str = typer.Option(None, "--mythic-user", help="Mythic user to connect as", rich_help_panel="Mythic Options"),
+    mythic_pass: str = typer.Option(None, "--mythic-pass", help="Mythic password to connect with", rich_help_panel="Mythic Options")):
+   
     """
     Generate BloodHound compatible JSON from logs written by ldapsearch BOF, pyldapsearch and Brute Ratel's LDAP Sentinel
     """
@@ -41,34 +49,48 @@ def main(
     match parser:
         
         case ParserType.LdapsearchBof:
-            logging.debug('Using ldapsearch parser')
+            logger.debug("Using ldapsearch parser")
             parser = LdapSearchBofParser
         
         case ParserType.BRC4:
-            logging.debug('Using Brute Ratel parser')
+            logger.debug("Using Brute Ratel parser")
             parser = Brc4LdapSentinelParser
             logfile_name_format = "b-*.log"
             if input_files == "/opt/cobaltstrike/logs":
                 input_files = "/opt/bruteratel/logs"
 
         case ParserType.HAVOC:
-            logging.debug('Using Havoc parser')
+            logger.debug("Using Havoc parser")
             parser = HavocParser
             logfile_name_format = "Console_*.log"
             if input_files == "/opt/cobaltstrike/logs":
                 input_files = "/opt/havoc/data/loot"
 
         case ParserType.OUTFLANKC2:
-            logging.debug('Using OutflankC2 parser')
+            logger.debug("Using OutflankC2 parser")
             parser = OutflankC2JsonParser
             logfile_name_format = "*.json"
+
+        case ParserType.MYTHIC:
+            logger.debug("Using Mythic parser")
+            parser = MythicParser()
+            if mythic_server is None or mythic_user is None or mythic_pass is None:
+                logger.error("Mythic server, user and password must be provided")
+                sys.exit(-1)
+            #
+            # instead of iteraitng over log files on disk, we'll iterate over
+            # Mythic callback objects
+            #
+            sync(parser.connect(mythic_server, mythic_user, mythic_pass))
+            cs_logs = sync(parser.collect_callbacks())
+
         
         case _:
             raise ValueError(f"Unknown parser type: {parser}")
-        
+
     if os.path.isfile(input_files):
         cs_logs = [input_files]
-        logging.debug(f"Log file explicitly provided {input_files}")
+        logger.debug(f"Log file explicitly provided {input_files}")
     elif os.path.isdir(input_files):
         # recurisively get a list of all .log files in the input directory, sorted by last modified time
         cs_logs = glob.glob(f"{input_files}/**/{logfile_name_format}", recursive=True)
@@ -79,13 +101,14 @@ def main(
         cs_logs.sort(key=os.path.getmtime)
 
         if len(cs_logs) == 0:
-            logging.error(f"No log files found in {input_files}!")
+            logger.error(f"No log files found in {input_files}!")
             return
         else:
-            logging.info(f"Located {len(cs_logs)} beacon log files")
+            logger.info(f"Located {len(cs_logs)} beacon log files")
     else:
-        logging.error(f"Could not find {input_files} on disk")
-        sys.exit(-1)
+        if not isinstance(parser, MythicParser):
+            logger.error(f"Could not find {input_files} on disk")
+            sys.exit(-1)
 
     parsed_ldap_objects = []
     parsed_local_objects = []
@@ -101,42 +124,42 @@ def main(
             else:
                 new_local_objects = parser.parse_local_objects(formatted_data)
             
-            logging.debug(f"Parsed {log}")
-            logging.debug(f"Found {len(new_objects)} objects in {log}")
+            logger.debug(f"Parsed {log}")
+            logger.debug(f"Found {len(new_objects)} objects in {log}")
             parsed_ldap_objects.extend(new_objects)
             parsed_local_objects.extend(new_local_objects)
 
-    logging.info(f"Parsed {len(parsed_ldap_objects)} LDAP objects from {len(cs_logs)} log files")
-    logging.info(f"Parsed {len(parsed_local_objects)} local group/session objects from {len(cs_logs)} log files")
+    logger.info(f"Parsed {len(parsed_ldap_objects)} LDAP objects from {len(cs_logs)} log files")
+    logger.info(f"Parsed {len(parsed_local_objects)} local group/session objects from {len(cs_logs)} log files")
 
     ad = ADDS()
     broker = LocalBroker()
 
-    logging.info("Sorting parsed objects by type...")
+    logger.info("Sorting parsed objects by type...")
     ad.import_objects(parsed_ldap_objects)
     broker.import_objects(parsed_local_objects, ad.DOMAIN_MAP.values())
 
-    logging.info(f"Parsed {len(ad.users)} Users")
-    logging.info(f"Parsed {len(ad.groups)} Groups")
-    logging.info(f"Parsed {len(ad.computers)} Computers")
-    logging.info(f"Parsed {len(ad.domains)} Domains")
-    logging.info(f"Parsed {len(ad.trustaccounts)} Trust Accounts")
-    logging.info(f"Parsed {len(ad.ous)} OUs")
-    logging.info(f"Parsed {len(ad.containers)} Containers")
-    logging.info(f"Parsed {len(ad.gpos)} GPOs")
-    logging.info(f"Parsed {len(ad.enterprisecas)} Enterprise CAs")
-    logging.info(f"Parsed {len(ad.aiacas)} AIA CAs")
-    logging.info(f"Parsed {len(ad.rootcas)} Root CAs")
-    logging.info(f"Parsed {len(ad.ntauthstores)} NTAuth Stores")
-    logging.info(f"Parsed {len(ad.issuancepolicies)} Issuance Policies")
-    logging.info(f"Parsed {len(ad.certtemplates)} Cert Templates")
-    logging.info(f"Parsed {len(ad.schemas)} Schemas")
-    logging.info(f"Parsed {len(ad.CROSSREF_MAP)} Referrals")
-    logging.info(f"Parsed {len(ad.unknown_objects)} Unknown Objects")
-    logging.info(f"Parsed {len(broker.sessions)} Sessions")
-    logging.info(f"Parsed {len(broker.privileged_sessions)} Privileged Sessions")
-    logging.info(f"Parsed {len(broker.registry_sessions)} Registry Sessions")
-    logging.info(f"Parsed {len(broker.local_group_memberships)} Local Group Memberships")
+    logger.info(f"Parsed {len(ad.users)} Users")
+    logger.info(f"Parsed {len(ad.groups)} Groups")
+    logger.info(f"Parsed {len(ad.computers)} Computers")
+    logger.info(f"Parsed {len(ad.domains)} Domains")
+    logger.info(f"Parsed {len(ad.trustaccounts)} Trust Accounts")
+    logger.info(f"Parsed {len(ad.ous)} OUs")
+    logger.info(f"Parsed {len(ad.containers)} Containers")
+    logger.info(f"Parsed {len(ad.gpos)} GPOs")
+    logger.info(f"Parsed {len(ad.enterprisecas)} Enterprise CAs")
+    logger.info(f"Parsed {len(ad.aiacas)} AIA CAs")
+    logger.info(f"Parsed {len(ad.rootcas)} Root CAs")
+    logger.info(f"Parsed {len(ad.ntauthstores)} NTAuth Stores")
+    logger.info(f"Parsed {len(ad.issuancepolicies)} Issuance Policies")
+    logger.info(f"Parsed {len(ad.certtemplates)} Cert Templates")
+    logger.info(f"Parsed {len(ad.schemas)} Schemas")
+    logger.info(f"Parsed {len(ad.CROSSREF_MAP)} Referrals")
+    logger.info(f"Parsed {len(ad.unknown_objects)} Unknown Objects")
+    logger.info(f"Parsed {len(broker.sessions)} Sessions")
+    logger.info(f"Parsed {len(broker.privileged_sessions)} Privileged Sessions")
+    logger.info(f"Parsed {len(broker.registry_sessions)} Registry Sessions")
+    logger.info(f"Parsed {len(broker.local_group_memberships)} Local Group Memberships")
 
     ad.process()
     ad.process_local_objects(broker)

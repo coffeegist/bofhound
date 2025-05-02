@@ -1,5 +1,6 @@
 import re
 import codecs
+
 from bofhound.parsers import LdapSearchBofParser
 
 

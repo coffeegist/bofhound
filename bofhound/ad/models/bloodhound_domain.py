@@ -1,7 +1,8 @@
 from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundDomain(BloodHoundObject):
 
@@ -34,7 +35,7 @@ class BloodHoundDomain(BloodHoundObject):
             self.Properties["name"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())
             self.Properties["domain"] = self.Properties["name"]
             dc = BloodHoundObject.get_domain_component(object.get('distinguishedname').upper())
-            logging.debug(f"Reading Domain object {ColorScheme.domain}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Reading Domain object {ColorScheme.domain}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectsid' in object.keys():
             self.Properties["domainsid"] = object.get('objectsid')

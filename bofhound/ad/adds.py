@@ -1,11 +1,12 @@
 import re
 import base64
-import logging
 import datetime
 from io import BytesIO
 from impacket.uuid import string_to_bin
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
+
+from bofhound.logger import logger
 from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundNTAuthStore, BloodHoundIssuancePolicy, BloodHoundCertTemplate, BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
@@ -331,47 +332,47 @@ class ADDS():
                     #
                     continue
 
-        logging.info(f"Parsed {num_parsed_relations} ACL relationships")
+        logger.info(f"Parsed {num_parsed_relations} ACL relationships")
 
         with console.status(" [bold] Creating default users", spinner="aesthetic"):
             self.write_default_users()
-        logging.info("Created default users")
+        logger.info("Created default users")
 
         with console.status(" [bold] Creating default groups", spinner="aesthetic"):
             self.write_default_groups()
-        logging.info("Created default groups")
+        logger.info("Created default groups")
 
         with console.status(" [bold] Resolving group memberships", spinner="aesthetic"):
             self.resolve_group_members()
-        logging.info("Resolved group memberships")
+        logger.info("Resolved group memberships")
 
         with console.status(" [bold] Resolving delegation relationships", spinner="aesthetic"):
             self.resolve_delegation_targets()
-        logging.info("Resolved delegation relationships")
+        logger.info("Resolved delegation relationships")
 
         with console.status(" [bold] Resolving OU memberships", spinner="aesthetic"):
             self.resolve_ou_members()
-        logging.info("Resolved OU memberships")
+        logger.info("Resolved OU memberships")
 
         with console.status(" [bold] Linking GPOs to OUs", spinner="aesthetic"):
             self.link_gpos()
-        logging.info("Linked GPOs to OUs")
+        logger.info("Linked GPOs to OUs")
 
         if len(self.trusts) > 0:
             with console.status(" [bold] Resolving domain trusts", spinner="aesthetic"):
                 self.resolve_domain_trusts()
-            logging.info("Resolved domain trusts")
+            logger.info("Resolved domain trusts")
 
         if len(self.aiacas) > 0 or len(self.enterprisecas) > 0:
             with console.status(" [bold] Building CA certificate chains", spinner="aesthetic"):
                 self.build_certificate_chains()
-            logging.info("Built CA certificate chains")
+            logger.info("Built CA certificate chains")
 
         if len(self.enterprisecas) > 0:
             with console.status(" [bold] Resolving enabled templates per CA", spinner="aesthetic"):
                 for ca in self.enterprisecas:
                     self.resolve_published_templates(ca)
-            logging.info("Resolved enabled templates per CA")
+            logger.info("Resolved enabled templates per CA")
 
 
     def get_sid_from_name(self, name):
@@ -389,7 +390,7 @@ class ADDS():
                 try:
                     target = host.split('/')[1]
                 except IndexError:
-                    logging.warning('Invalid delegation target: %s', host)
+                    logger.warning('Invalid delegation target: %s', host)
                     continue
                 try:
                     (sid, object_type) = self.get_sid_from_name(target.lower())
@@ -411,7 +412,7 @@ class ADDS():
         for domain in self.domains:
             domainsid = domain.ObjectIdentifier
             domainname = domain.Properties.get('name', 'UNKNOWN').upper()
-            logging.debug(f"Adding default groups for {ColorScheme.domain}{domainname}[/] ({domainsid})", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Adding default groups for {ColorScheme.domain}{domainname}[/] ({domainsid})", extra=OBJ_EXTRA_FMT)
 
             user = BloodHoundUser()
             user.AllowedToDelegate = []
@@ -445,7 +446,7 @@ class ADDS():
         for domain in self.domains:
             domainsid = domain.ObjectIdentifier
             domainname = domain.Properties.get('name', 'UNKNOWN').upper()
-            logging.debug(f"Adding default groups for {ColorScheme.domain}{domainname}[/] ({domainsid})", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Adding default groups for {ColorScheme.domain}{domainname}[/] ({domainsid})", extra=OBJ_EXTRA_FMT)
 
             domain_controllers = [ computer for computer in self.computers if computer.PrimaryGroupSid.endswith('-516') ]
 
@@ -528,19 +529,19 @@ class ADDS():
             for user in self.users:
                 if self._is_member_of(user, group):
                     group.add_group_member(user, "User")
-                    logging.debug(f"Resolved {ColorScheme.user}{user.Properties['name']}[/] as member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                    logger.debug(f"Resolved {ColorScheme.user}{user.Properties['name']}[/] as member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
 
             for computer in self.computers:
                 if self._is_member_of(computer, group):
                     group.add_group_member(computer, "Computer")
-                    logging.debug(f"Resolved {ColorScheme.computer}{computer.Properties['name']}[/] as member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                    logger.debug(f"Resolved {ColorScheme.computer}{computer.Properties['name']}[/] as member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
 
             for subgroup in self.groups:
                 if self._is_nested_group(subgroup, group):
                     group.add_group_member(subgroup, "Group")
-                    logging.debug(f"Resolved {ColorScheme.group}{subgroup.Properties['name']}[/] as nested member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                    logger.debug(f"Resolved {ColorScheme.group}{subgroup.Properties['name']}[/] as nested member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
     
     def resolve_ou_members(self):
@@ -548,25 +549,25 @@ class ADDS():
             ou = self._resolve_object_ou(user)
             if ou is not None:
                 ou.add_ou_member(user, "User")
-                logging.debug(f"Identified {ColorScheme.user}{user.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Identified {ColorScheme.user}{user.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         for group in self.groups:
             ou = self._resolve_object_ou(group)
             if ou is not None:
                 ou.add_ou_member(group, "Group")
-                logging.debug(f"Identified {ColorScheme.group}{group.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Identified {ColorScheme.group}{group.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         for computer in self.computers:
             ou = self._resolve_object_ou(computer)
             if ou is not None:
                 ou.add_ou_member(computer, "Computer")
-                logging.debug(f"Identified {ColorScheme.computer}{computer.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Identified {ColorScheme.computer}{computer.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         for nested_ou in self.ous:
             ou = self._resolve_nested_ou(nested_ou)
             if ou is not None:
                 ou.add_ou_member(nested_ou, "OU")
-                logging.debug(f"Identified {ColorScheme.ou}{nested_ou.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Identified {ColorScheme.ou}{nested_ou.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
         
         sorted_ous = sorted(self.ous, key=lambda x: len(x.Properties['distinguishedname']), reverse=True)
         
@@ -626,9 +627,9 @@ class ADDS():
                     object.add_linked_gpo(gpo, gplink[1])
 
                     if object._entry_type == 'Domain':
-                       logging.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to domain {ColorScheme.domain}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                       logger.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to domain {ColorScheme.domain}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
                     else:
-                        logging.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to OU {ColorScheme.ou}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                        logger.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to OU {ColorScheme.ou}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
     
 
     def resolve_domain_trusts(self):
@@ -675,7 +676,7 @@ class ADDS():
         try:
             value = base64.b64decode(entry.RawAces)
         except:
-            logging.warning(f'Error base64 decoding nTSecurityDescriptor attribute on {entry._entry_type} {entry.Properties["name"]}')
+            logger.warning(f'Error base64 decoding nTSecurityDescriptor attribute on {entry._entry_type} {entry.Properties["name"]}')
             return 0
 
         if not value:
@@ -694,7 +695,7 @@ class ADDS():
         for ace_object in sd.dacl.aces:
             if ace_object.ace.AceType != 0x05 and ace_object.ace.AceType != 0x00:
                 # These are the only two aces we care about currently
-                #logging.debug('Don\'t care about acetype %d', ace_object.ace.AceType)
+                #logger.debug('Don\'t care about acetype %d', ace_object.ace.AceType)
                 continue
             # Check if sid is ignored
             sid = str(ace_object.acedata.sid)
@@ -963,13 +964,13 @@ class ADDS():
 
 
         if len(broker.local_group_memberships) > 0:
-            logging.info(f"Resolved local group memberships")
+            logger.info(f"Resolved local group memberships")
 
         if len(broker.privileged_sessions) > 0 \
             or len(broker.registry_sessions) > 0 \
             or len(broker.sessions) > 0:
 
-            logging.info(f"Resolved sessions")
+            logger.info(f"Resolved sessions")
 
 
     # correlate privileged sessions to BH Computer objects
@@ -1007,13 +1008,13 @@ class ADDS():
 
             match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.user.lower()]
             if len(match_users) > 1:
-                logging.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for privileged session")
+                logger.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for privileged session")
                 # TODO: implement NetBIOS domain name handling
                 continue
             elif len(match_users) == 1:
                 user_sid = match_users[0].ObjectIdentifier
                 computer_object.add_session(user_sid, "privileged")
-                logging.debug(f"Resolved privileged session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Resolved privileged session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
     
     # correlate registry sessions to BH Computer objects
@@ -1029,7 +1030,7 @@ class ADDS():
                 if computer_object.matches_dnshostname(session.host_name):
                     session.matched = True
                     computer_object.add_session(session.user_sid, "registry")
-                    logging.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via dNSHostName match", extra=OBJ_EXTRA_FMT)
+                    logger.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via dNSHostName match", extra=OBJ_EXTRA_FMT)
                     continue
 
             # second we'll check to see if the host's DNS domain is a known domain
@@ -1046,7 +1047,7 @@ class ADDS():
 
                         session.matched = True
                         computer_object.add_session(session.user_sid, "registry")
-                        logging.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via domain + sAMAccountName match", extra=OBJ_EXTRA_FMT)
+                        logger.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via domain + sAMAccountName match", extra=OBJ_EXTRA_FMT)
                         continue
 
             # if we don't have the host domain/FQDN from the session, we just try to match samaccountname
@@ -1054,7 +1055,7 @@ class ADDS():
             elif computer_object.matches_samaccountname(session.host_name):
                 session.matched = True
                 computer_object.add_session(session.user_sid, "registry")
-                logging.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via fuzzy sAMAccountName match", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via fuzzy sAMAccountName match", extra=OBJ_EXTRA_FMT)
 
 
     # correlate sessions to BH Computer objects
@@ -1099,13 +1100,13 @@ class ADDS():
             
             match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.username.lower()]
             if len(match_users) > 1:
-                logging.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for session")
+                logger.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for session")
                 # TODO: implement NetBIOS domain name handling
                 continue
             elif len(match_users) == 1:
                 user_sid = match_users[0].ObjectIdentifier
                 computer_object.add_session(user_sid, "session")
-                logging.debug(f"Resolved session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Resolved session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
 
     # correlate local group memberships to BH Computer objects
@@ -1144,7 +1145,7 @@ class ADDS():
             color = ColorScheme.user if member.member_sid_type == "User" else ColorScheme.group
                 
             computer_object.add_local_group_member(member.member_sid, member.member_sid_type, member.group)
-            logging.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
 
     @staticmethod
