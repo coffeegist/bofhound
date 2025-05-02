@@ -28,8 +28,9 @@ def main(
     parser: ParserType = typer.Option(ParserType.LdapsearchBof.value, "--parser", case_sensitive=False, help="Parser to use for log files. ldapsearch parser (default) supports ldapsearch BOF logs from Cobalt Strike and pyldapsearch logs"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress banner"),
     mythic_server: str = typer.Option(None, "--mythic-server", help="Mythic server to connect to", rich_help_panel="Mythic Options"),
-    mythic_user: str = typer.Option(None, "--mythic-user", help="Mythic user to connect as", rich_help_panel="Mythic Options"),
+    mythic_user: str = typer.Option("mythic_admin", "--mythic-user", help="Mythic user to connect as", rich_help_panel="Mythic Options"),
     mythic_pass: str = typer.Option(None, "--mythic-pass", help="Mythic password to connect with", rich_help_panel="Mythic Options")):
    
     """
@@ -41,7 +42,8 @@ def main(
     else:
         logging.getLogger().setLevel(logging.INFO)
 
-    banner()
+    if not quiet:
+        banner()
 
      # default to Cobalt logfile naming format
     logfile_name_format = "beacon*.log"
