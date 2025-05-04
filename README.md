@@ -115,50 +115,50 @@ objectsid
 
 Some object classes rely on domain objects being populated within BOFHound. Domains can be queried with either of the following commands
 ```
-ldapsearch (objectclass=domain) *,ntsecuritydescriptor
-ldapsearch (distinguishedname=DC=windomain,DC=local) *,ntsecuritydescriptor
+ldapsearch (objectclass=domain) --attributes *,ntsecuritydescriptor
+ldapsearch (distinguishedname=DC=windomain,DC=local) --attributes *,ntsecuritydescriptor
 ``` 
 
 ## Example ldapsearch Queries
 ```
 # Get All the Data (Maybe Run BloodHound Instead?)
-ldapsearch (objectclass=*) *,ntsecuritydescriptor
+ldapsearch (objectclass=*) --attributes *,ntsecuritydescriptor
 
 # Retrieve All Schema Info
-ldapsearch (schemaIDGUID=*) name,schemaidguid 0 3 "" CN=Schema,CN=Configuration,DC=windomain,DC=local
+ldapsearch (schemaIDGUID=*) --attributes name,schemaidguid --dn CN=Schema,CN=Configuration,DC=windomain,DC=local
 
 # Retrieve Only the ms-Mcs-AdmPwd schemaIDGUID
-ldapsearch (name=ms-mcs-admpwd) name,schemaidguid 1 3 "" CN=Schema,CN=Configuration,DC=windomain,DC=local
+ldapsearch (name=ms-mcs-admpwd) --attributes name,schemaidguid --count 1 --dn CN=Schema,CN=Configuration,DC=windomain,DC=local
 
 # Retrieve Domain NetBIOS Names (useful if collecting data via `netsession2/netloggedon2` BOFs)
-ldapsearch (netbiosname=*) * 0 3 "" "CN=Partitions,CN=Configuration,DC=windomain,DC=local"
+ldapsearch (netbiosname=*) --dn "CN=Partitions,CN=Configuration,DC=windomain,DC=local"
 
 # Unroll a group's nested members
-ldapsearch (memberOf:1.2.840.113556.1.4.1941:=CN=TargetGroup,CN=Users,DC=windomain,DC=local) *,ntsecuritydescriptor
+ldapsearch (memberOf:1.2.840.113556.1.4.1941:=CN=TargetGroup,CN=Users,DC=windomain,DC=local) --attributes *,ntsecuritydescriptor
 
 # Query domain trusts
-ldapsearch (objectclass=trusteddomain) *,ntsecuritydescriptor
+ldapsearch (objectclass=trusteddomain) --attributes  *,ntsecuritydescriptor
 
 # Query across a trust
-ldapsearch (objectclass=domain) *,ntsecuritydescriptor 0 3 dc1.trusted.windomain.local "DC=TRUSTED,DC=WINDOMAIN,DC=LOCAL"
+ldapsearch (objectclass=domain) --attributes  *,ntsecuritydescriptor --hostname dc1.trusted.windomain.local --dn "DC=TRUSTED,DC=WINDOMAIN,DC=LOCAL"
 
 #####
 # Queries below populate objects for AD CS parsing
 
 # Query the domain object
-ldapsearch (objectclass=domain) *,ntsecuritydescriptor
+ldapsearch (objectclass=domain) --attributes  *,ntsecuritydescriptor
 
 # Query Enterprise CAs
-ldapsearch (objectclass=pKIEnrollmentService) *,ntsecuritydescriptor 0 3 “” “CN=Configuration,DC=domain,DC=local”
+ldapsearch (objectclass=pKIEnrollmentService) --attributes  *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 
 # Query AIACAs, Root CAs and NTAuth Stores
-ldapsearch (objectclass=certificationAuthority) *,ntsecuritydescriptor 0 3 “” “CN=Configuration,DC=domain,DC=local”
+ldapsearch (objectclass=certificationAuthority) --attributes  *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 
 # Query Certificate Templates
-ldapsearch (objectclass=pKICertificateTemplate) *,ntsecuritydescriptor 0 3 “” “CN=Configuration,DC=domain,DC=local”
+ldapsearch (objectclass=pKICertificateTemplate) --attributes  *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 
 # Query Issuance Policies
-ldapsearch (objectclass=msPKI-Enterprise-Oid) *,ntsecuritydescriptor 0 3 “” “CN=Configuration,DC=domain,DC=local”
+ldapsearch (objectclass=msPKI-Enterprise-Oid) --attributes *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 ```
 
 # Versions
