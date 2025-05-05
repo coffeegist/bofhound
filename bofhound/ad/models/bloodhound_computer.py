@@ -70,7 +70,7 @@ class BloodHoundComputer(BloodHoundObject):
         if 'operatingsystem' in object.keys():
             self.Properties['operatingsystem'] = object.get('operatingsystem', 'Unknown')
 
-        if 'operatingsystemservicepack' in object.keys():
+        if 'operatingsystemservicepack' in object.keys() and 'operatingsystem' in self.Properties:
             self.Properties['operatingsystem'] += f' {object.get("operatingsystemservicepack")}'
 
         if 'sidhistory' in object.keys():
