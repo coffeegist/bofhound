@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.8] - 5/5/2025
+### Fixed
+- Check for `operatingsystemservicepack` property to prevent key error - [merge #30](https://github.com/coffeegist/bofhound/pull/30)
+
 ## [0.4.7] - 04/29/2025
 ### Added
 - Ability to handle schemaIdGuids from ADExplorer LDIF output
