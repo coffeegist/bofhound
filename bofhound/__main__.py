@@ -4,10 +4,12 @@ import logging
 import typer
 import glob
 from syncer import sync
+from pathlib import Path
 
 from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, \
     ParserType, OutflankC2JsonParser, MythicParser
 from bofhound.writer import BloodHoundWriter
+from bofhound.uploader import BloodHoundUploader
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
 from bofhound import console
@@ -31,8 +33,10 @@ def main(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress banner"),
     mythic_server: str = typer.Option(None, "--mythic-server", help="Mythic server to connect to", rich_help_panel="Mythic Options"),
     mythic_user: str = typer.Option("mythic_admin", "--mythic-user", help="Mythic user to connect as", rich_help_panel="Mythic Options"),
-    mythic_pass: str = typer.Option(None, "--mythic-pass", help="Mythic password to connect with", rich_help_panel="Mythic Options")):
-   
+    mythic_pass: str = typer.Option(None, "--mythic-pass", help="Mythic password to connect with", rich_help_panel="Mythic Options"),
+    bh_token_id: str = typer.Option(None, "--bh-token-id", help="BloodHound API token ID", rich_help_panel="BloodHound CE Options"),
+    bh_token_key: str = typer.Option(None, "--bh-token-key", help="BloodHound API token key", rich_help_panel="BloodHound CE Options"),
+    bh_server: str = typer.Option("http://127.0.0.1:8080", "--bh-server", help="BloodHound CE URL", rich_help_panel="BloodHound CE Options")):
     """
     Generate BloodHound compatible JSON from logs written by ldapsearch BOF, pyldapsearch and Brute Ratel's LDAP Sentinel
     """
@@ -166,7 +170,10 @@ def main(
     ad.process()
     ad.process_local_objects(broker)
 
-    BloodHoundWriter.write(
+    #
+    # Write out the BloodHound JSON files
+    #
+    outfiles = BloodHoundWriter.write(
         output_folder,
         domains=ad.domains,
         computers=ad.computers,
@@ -184,6 +191,21 @@ def main(
         properties_level=properties_level,
         zip_files=zip_files
     )
+
+    #
+    # Upload files to BloodHound CE
+    #
+    if bh_token_id and bh_token_key and bh_server:
+        with console.status(f"", spinner="aesthetic") as status:
+            status.update(f" [bold] Uploading files to BloodHound server...")
+            uploader = BloodHoundUploader(bh_server, bh_token_id, bh_token_key)
+            uploader.create_upload_job()
+
+            for file in outfiles:
+                uploader.upload_file(Path(file))
+
+            uploader.close_upload_job()
+        logger.info("Files uploaded to BloodHound server")
 
 
 def banner():
