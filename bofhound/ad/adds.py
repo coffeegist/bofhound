@@ -660,11 +660,12 @@ class ADDS():
 
 
     def resolve_published_templates(self, entry:BloodHoundEnterpriseCA):
-        for template_name in entry.CertTemplates :
-            for template in self.certtemplates:
-                if template.Properties['name'].split('@')[0].lower() == template_name.lower() \
-                and template.Properties['domain'] == entry.Properties['domain']:
-                    entry.EnabledCertTemplates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
+        if hasattr(entry, 'CertTemplates') and entry.CertTemplates:
+            for template_name in entry.CertTemplates :
+                for template in self.certtemplates:
+                    if template.Properties['name'].split('@')[0].lower() == template_name.lower() \
+                    and template.Properties['domain'] == entry.Properties['domain']:
+                        entry.EnabledCertTemplates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
 
 
     # Returns int: number of relations parsed
