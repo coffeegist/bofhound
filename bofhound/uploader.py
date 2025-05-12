@@ -3,6 +3,7 @@ import hashlib
 import base64
 import requests
 import datetime
+from pathlib import Path
 from typing import Optional
 
 from bofhound.logger import logger
@@ -18,48 +19,72 @@ class BloodHoundUploader:
 
 
     def create_upload_job(self):
-        r = self._request(
-            method="POST",
-            uri="/api/v2/file-upload/start"
-        )
+        try:
+            r = self._request(
+                method="POST",
+                uri="/api/v2/file-upload/start"
+            )
 
-        if r.status_code != 201:
-            logger.error(f"Failed to create upload job: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
-            return None
+            if r.status_code != 201:
+                logger.error(f"Failed to create upload job: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
+                return None
+            
+            self.upload_job_id = r.json()["data"]["id"]
+            logger.debug(f"BloodHound upload job created with ID: {self.upload_job_id}")
+            return True
         
-        self.upload_job_id = r.json()["data"]["id"]
-        logger.debug(f"BloodHound upload job created with ID: {self.upload_job_id}")
+        except Exception as e:
+            logger.error(f"Error creating upload job")
+            logger.error(e)
+            return False
 
 
     def upload_file(self, file):
+        #
+        # File comes in as PurePath object
+        #  so create a Path object
+        #
+        file = Path(file)
+
         content_type = "application/json"
         if file.name.endswith(".zip"):
             content_type = "application/zip"
         
-        r = self._request(
-            method="POST",
-            uri=f"/api/v2/file-upload/{self.upload_job_id}",
-            body=file.read_bytes(),
-            content_type=content_type
-        )
+        try:
+            r = self._request(
+                method="POST",
+                uri=f"/api/v2/file-upload/{self.upload_job_id}",
+                body=file.read_bytes(),
+                content_type=content_type
+            )
 
-        if r.status_code != 202:
-            logger.error(f"Failed to upload file {file.name}: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
+            if r.status_code != 202:
+                logger.error(f"Failed to upload file {file.name}: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
 
-        logger.debug(f"Uploaded file {file.name} to BloodHound: HTTP {r.status_code}")
+            logger.debug(f"Uploaded file {file.name} to BloodHound: HTTP {r.status_code}")
+
+        except Exception as e:
+            logger.error(f"Error uploading file {file.name}")
+            logger.error(e)
+            return None
 
     
     def close_upload_job(self):
-        r = self._request(
-            method="POST",
-            uri=f"/api/v2/file-upload/{self.upload_job_id}/end"
-        )
+        try:
+            r = self._request(
+                method="POST",
+                uri=f"/api/v2/file-upload/{self.upload_job_id}/end"
+            )
 
-        if r.status_code != 200:
-            logger.error(f"Failed to close upload job: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
-            return None
-        
-        logger.debug(f"Ended BloodHound upload job successfully")
+            if r.status_code != 200:
+                logger.error(f"Failed to close upload job: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
+                return None
+            
+            logger.debug(f"Ended BloodHound upload job successfully")
+
+        except Exception as e:
+            logger.error(f"Error closing upload job")
+            logger.error(e)
 
     #
     # Sign requests
@@ -90,6 +115,7 @@ class BloodHoundUploader:
                 'Content-Type': content_type,
             },
             data=body,
+            verify=False
         )
 
     @staticmethod

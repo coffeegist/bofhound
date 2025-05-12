@@ -4,7 +4,6 @@ import logging
 import typer
 import glob
 from syncer import sync
-from pathlib import Path
 
 from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, \
     ParserType, OutflankC2JsonParser, MythicParser
@@ -31,7 +30,7 @@ def main(
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress banner"),
-    mythic_server: str = typer.Option(None, "--mythic-server", help="Mythic server to connect to", rich_help_panel="Mythic Options"),
+    mythic_server: str = typer.Option("127.0.0.1", "--mythic-server", help="IP or hostname of Mythic server to connect to", rich_help_panel="Mythic Options"),
     mythic_user: str = typer.Option("mythic_admin", "--mythic-user", help="Mythic user to connect as", rich_help_panel="Mythic Options"),
     mythic_pass: str = typer.Option(None, "--mythic-pass", help="Mythic password to connect with", rich_help_panel="Mythic Options"),
     bh_token_id: str = typer.Option(None, "--bh-token-id", help="BloodHound API token ID", rich_help_panel="BloodHound CE Options"),
@@ -80,8 +79,8 @@ def main(
         case ParserType.MYTHIC:
             logger.debug("Using Mythic parser")
             parser = MythicParser()
-            if mythic_server is None or mythic_user is None or mythic_pass is None:
-                logger.error("Mythic server, user and password must be provided")
+            if mythic_user is None or mythic_pass is None:
+                logger.error("Mythic user and password must be provided")
                 sys.exit(-1)
             #
             # instead of iteraitng over log files on disk, we'll iterate over
@@ -199,10 +198,12 @@ def main(
         with console.status(f"", spinner="aesthetic") as status:
             status.update(f" [bold] Uploading files to BloodHound server...")
             uploader = BloodHoundUploader(bh_server, bh_token_id, bh_token_key)
-            uploader.create_upload_job()
+            
+            if not uploader.create_upload_job():
+                return
 
             for file in outfiles:
-                uploader.upload_file(Path(file))
+                uploader.upload_file(file)
 
             uploader.close_upload_job()
         logger.info("Files uploaded to BloodHound server")
