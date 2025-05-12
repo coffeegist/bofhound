@@ -1,7 +1,8 @@
 # Changelog
-## [0.4.8] - 5/5/2025
+## [0.4.8] - 5/12/2025
 ### Fixed
 - Check for `operatingsystemservicepack` property to prevent key error - [merge #30](https://github.com/coffeegist/bofhound/pull/30)
+- Check for `CertTemplates` property to prevent type error - [merge #31](https://github.com/coffeegist/bofhound/pull/31)
 
 ## [0.4.7] - 04/29/2025
 ### Added
