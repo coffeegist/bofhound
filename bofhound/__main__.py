@@ -37,7 +37,7 @@ def main(
     bh_token_key: str = typer.Option(None, "--bh-token-key", help="BloodHound API token key", rich_help_panel="BloodHound CE Options"),
     bh_server: str = typer.Option("http://127.0.0.1:8080", "--bh-server", help="BloodHound CE URL", rich_help_panel="BloodHound CE Options")):
     """
-    Generate BloodHound compatible JSON from logs written by ldapsearch BOF, pyldapsearch and Brute Ratel's LDAP Sentinel
+    Generate BloodHound compatible JSON from logs written by the ldapsearch BOF, pyldapsearch and specific C2 frameworks
     """
 
     if debug:

@@ -43,42 +43,49 @@ BOFHound can be installed with `pip3 install bofhound` or by cloning this reposi
 
 # Usage
 ```
- Usage: bofhound [OPTIONS]                                                                                  
-                                                                                                            
- Generate BloodHound compatible JSON from logs written by ldapsearch BOF, pyldapsearch and Brute Ratel's    
- LDAP Sentinel                                                                                              
-                                                                                                            
- Generate BloodHound compatible JSON from logs written by ldapsearch BOF, pyldapsearch and Brute  
- Ratel's LDAP Sentinel                                                                            
-                                                                                                  
-╭─ Options ──────────────────────────────────────────────────────────────────────────────────────╮
-│ --input             -i      TEXT                              Directory or file containing     │
-│                                                               logs of ldapsearch results       │
-│                                                               [default:                        │
-│                                                               /opt/cobaltstrike/logs]          │
-│ --output            -o      TEXT                              Location to export bloodhound    │
-│                                                               files                            │
-│                                                               [default: .]                     │
-│ --properties-level  -p      [Standard|Member|All]             Change the verbosity of          │
-│                                                               properties exported to JSON:     │
-│                                                               Standard - Common BH properties  │
-│                                                               | Member - Includes MemberOf and │
-│                                                               Member | All - Includes all      │
-│                                                               properties                       │
-│                                                               [default: Member]                │
-│ --parser                    [ldapsearch|BRC4|Havoc|           Parser to use for log files.     │
-│                             OutflankC2]                       ldapsearch parser (default)      │
-│                                                               supports ldapsearch BOF logs     │
-│                                                               from Cobalt Strike and           │
-│                                                               pyldapsearch logs                │
-│                                                               [default: ldapsearch]            │
-│ --debug                                                       Enable debug output              │
-│ --zip               -z                                        Compress the JSON output files   │
-│                                                               into a zip archive               │
-│ --help              -h                                        Show this message and exit.      │
-╰────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Usage: bofhound [OPTIONS]
 
+ Generate BloodHound compatible JSON from logs written by the ldapsearch BOF, pyldapsearch and
+ specific C2 frameworks
 
+╭─ Options ─────────────────────────────────────────────────────────────────────────────────────╮
+│ --input             -i      TEXT                             Directory or file containing     │
+│                                                              logs of ldapsearch results       │
+│                                                              [default:                        │
+│                                                              /opt/cobaltstrike/logs]          │
+│ --output            -o      TEXT                             Location to export bloodhound    │
+│                                                              files                            │
+│                                                              [default: .]                     │
+│ --properties-level  -p      [Standard|Member|All]            Change the verbosity of          │
+│                                                              properties exported to JSON:     │
+│                                                              Standard - Common BH properties  │
+│                                                              | Member - Includes MemberOf and │
+│                                                              Member | All - Includes all      │
+│                                                              properties                       │
+│                                                              [default: Member]                │
+│ --parser                    [ldapsearch|BRC4|Havoc|Outflank  Parser to use for log files.     │
+│                             C2|Mythic]                       ldapsearch parser (default)      │
+│                                                              supports ldapsearch BOF logs     │
+│                                                              from Cobalt Strike and           │
+│                                                              pyldapsearch logs                │
+│                                                              [default: ldapsearch]            │
+│ --debug                                                      Enable debug output              │
+│ --zip               -z                                       Compress the JSON output files   │
+│                                                              into a zip archive               │
+│ --quiet             -q                                       Suppress banner                  │
+│ --help              -h                                       Show this message and exit.      │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Mythic Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --mythic-server        TEXT  IP or hostname of Mythic server to connect to                    │
+│                              [default: 127.0.0.1]                                             │
+│ --mythic-user          TEXT  Mythic user to connect as [default: mythic_admin]                │
+│ --mythic-pass          TEXT  Mythic password to connect with [default: None]                  │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ BloodHound CE Options ───────────────────────────────────────────────────────────────────────╮
+│ --bh-token-id         TEXT  BloodHound API token ID [default: None]                           │
+│ --bh-token-key        TEXT  BloodHound API token key [default: None]                          │
+│ --bh-server           TEXT  BloodHound CE URL [default: http://127.0.0.1:8080]                │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Example Usage
@@ -137,25 +144,25 @@ ldapsearch (netbiosname=*) --dn "CN=Partitions,CN=Configuration,DC=windomain,DC=
 ldapsearch (memberOf:1.2.840.113556.1.4.1941:=CN=TargetGroup,CN=Users,DC=windomain,DC=local) --attributes *,ntsecuritydescriptor
 
 # Query domain trusts
-ldapsearch (objectclass=trusteddomain) --attributes  *,ntsecuritydescriptor
+ldapsearch (objectclass=trusteddomain) --attributes *,ntsecuritydescriptor
 
 # Query across a trust
-ldapsearch (objectclass=domain) --attributes  *,ntsecuritydescriptor --hostname dc1.trusted.windomain.local --dn "DC=TRUSTED,DC=WINDOMAIN,DC=LOCAL"
+ldapsearch (objectclass=domain) --attributes *,ntsecuritydescriptor --hostname dc1.trusted.windomain.local --dn "DC=TRUSTED,DC=WINDOMAIN,DC=LOCAL"
 
 #####
 # Queries below populate objects for AD CS parsing
 
 # Query the domain object
-ldapsearch (objectclass=domain) --attributes  *,ntsecuritydescriptor
+ldapsearch (objectclass=domain) --attributes *,ntsecuritydescriptor
 
 # Query Enterprise CAs
-ldapsearch (objectclass=pKIEnrollmentService) --attributes  *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
+ldapsearch (objectclass=pKIEnrollmentService) --attributes *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 
 # Query AIACAs, Root CAs and NTAuth Stores
-ldapsearch (objectclass=certificationAuthority) --attributes  *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
+ldapsearch (objectclass=certificationAuthority) --attributes *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 
 # Query Certificate Templates
-ldapsearch (objectclass=pKICertificateTemplate) --attributes  *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
+ldapsearch (objectclass=pKICertificateTemplate) --attributes *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
 
 # Query Issuance Policies
 ldapsearch (objectclass=msPKI-Enterprise-Oid) --attributes *,ntsecuritydescriptor --dn "CN=Configuration,DC=domain,DC=local"
