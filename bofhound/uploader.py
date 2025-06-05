@@ -3,6 +3,7 @@ import hashlib
 import base64
 import requests
 import datetime
+import urllib3
 from pathlib import Path
 from typing import Optional
 
@@ -16,7 +17,7 @@ class BloodHoundUploader:
         self.token_id = token_id
         self.token_key = token_key
         self.upload_job_id = None
-
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     def create_upload_job(self):
         try:
