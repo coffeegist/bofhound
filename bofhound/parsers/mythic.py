@@ -50,12 +50,11 @@ class MythicParser(LdapSearchBofParser):
         super().__init__()
 
 
-    async def connect(self, mythic_server, mythic_user, mythic_pass):
+    async def connect(self, mythic_server, mythic_token):
         logger.debug("Logging into Mythic...")
         try:
             self.mythic_instance = await mythic.login(
-                username=mythic_user,
-                password=mythic_pass,
+                apitoken=mythic_token,
                 server_ip=mythic_server,
                 server_port=7443,
                 timeout=-1,

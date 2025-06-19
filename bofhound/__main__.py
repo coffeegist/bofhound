@@ -31,8 +31,7 @@ def main(
     zip_files: bool = typer.Option(False, "--zip", "-z", help="Compress the JSON output files into a zip archive"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress banner"),
     mythic_server: str = typer.Option("127.0.0.1", "--mythic-server", help="IP or hostname of Mythic server to connect to", rich_help_panel="Mythic Options"),
-    mythic_user: str = typer.Option("mythic_admin", "--mythic-user", help="Mythic user to connect as", rich_help_panel="Mythic Options"),
-    mythic_pass: str = typer.Option(None, "--mythic-pass", help="Mythic password to connect with", rich_help_panel="Mythic Options"),
+    mythic_token: str = typer.Option(None, "--mythic-token", help="Mythic API token", rich_help_panel="Mythic Options"),
     bh_token_id: str = typer.Option(None, "--bh-token-id", help="BloodHound API token ID", rich_help_panel="BloodHound CE Options"),
     bh_token_key: str = typer.Option(None, "--bh-token-key", help="BloodHound API token key", rich_help_panel="BloodHound CE Options"),
     bh_server: str = typer.Option("http://127.0.0.1:8080", "--bh-server", help="BloodHound CE URL", rich_help_panel="BloodHound CE Options")):
@@ -79,14 +78,14 @@ def main(
         case ParserType.MYTHIC:
             logger.debug("Using Mythic parser")
             parser = MythicParser()
-            if mythic_user is None or mythic_pass is None:
-                logger.error("Mythic user and password must be provided")
+            if mythic_token is None:
+                logger.error("Mythic server and API token must be provided")
                 sys.exit(-1)
             #
             # instead of iteraitng over log files on disk, we'll iterate over
             # Mythic callback objects
             #
-            sync(parser.connect(mythic_server, mythic_user, mythic_pass))
+            sync(parser.connect(mythic_server, mythic_token))
             cs_logs = sync(parser.collect_callbacks())
 
         
