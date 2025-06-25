@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.9] - 6/25/2025
+### Added
+- Support for pasing ldapsearch BOF results from Mythic C2 callbacks
+- Ability to upload output files directly to BHCE
+
 ## [0.4.8] - 5/12/2025
 ### Fixed
 - Check for `operatingsystemservicepack` property to prevent key error - [merge #30](https://github.com/coffeegist/bofhound/pull/30)

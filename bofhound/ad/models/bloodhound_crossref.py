@@ -1,5 +1,5 @@
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundCrossRef(object):
 
@@ -12,4 +12,4 @@ class BloodHoundCrossRef(object):
             self.netBiosName = object.get('netbiosname')
             self.nCName = object.get('ncname').upper()
             self.distinguishedName = object.get('distinguishedname').upper()
-            logging.debug(f"Reading CrossRef object {ColorScheme.schema}{self.distinguishedName}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Reading CrossRef object {ColorScheme.schema}{self.distinguishedName}[/]", extra=OBJ_EXTRA_FMT)

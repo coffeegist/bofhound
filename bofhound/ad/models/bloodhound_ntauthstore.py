@@ -1,10 +1,10 @@
-from bloodhound.ad.utils import ADUtils
-from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
-from asn1crypto import x509
 import hashlib
 import base64
+from asn1crypto import x509
+from bloodhound.ad.utils import ADUtils
+
+from .bloodhound_object import BloodHoundObject
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
 
 
 class BloodHoundNTAuthStore(BloodHoundObject):

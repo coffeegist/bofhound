@@ -1,5 +1,4 @@
-from bofhound.logger import ColorScheme, OBJ_EXTRA_FMT
-import logging
+from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalSession:
@@ -55,7 +54,7 @@ class LocalSession:
             return False
         
         computer = self.ptr_record if self.ptr_record else self.computer_name
-        logging.debug(f"NetSessionEnum session found for {ColorScheme.user}{self.username}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
+        logger.debug(f"NetSessionEnum session found for {ColorScheme.user}{self.username}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
         return True
 
 

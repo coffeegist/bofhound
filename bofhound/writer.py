@@ -2,9 +2,10 @@ import os
 import json
 import codecs
 import datetime
-import logging
 from zipfile import ZipFile
 from pathlib import PurePath, Path
+
+from bofhound.logger import logger
 from bofhound import console
 from bofhound.ad.models import BloodHoundDomain, BloodHoundComputer, BloodHoundUser, BloodHoundGroup, BloodHoundSchema, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundCertTemplate, BloodHoundContainer
 
@@ -21,69 +22,101 @@ class BloodHoundWriter():
         os.makedirs(out_dir, exist_ok=True)
         BloodHoundWriter.ct = BloodHoundWriter.timestamp()
 
+        outfiles = []
+
         if domains is not None:
             # print(BloodHoundSchema.ObjectTypeGuidMap)
             with console.status(" [bold] Writing domains to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_domain_file(out_dir, domains, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_domain_file(out_dir, domains, properties_level)
+                )
 
         if computers is not None:
             with console.status(" [bold] Writing computers to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_computers_file(out_dir, computers, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_computers_file(out_dir, computers, properties_level)
+                )
 
         if users is not None:
             with console.status(" [bold] Writing users to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_users_file(out_dir, users, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_users_file(out_dir, users, properties_level)
+                )
 
         if groups is not None:
             with console.status(" [bold] Writing groups to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_groups_file(out_dir, groups, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_groups_file(out_dir, groups, properties_level)
+                )
 
         if ous is not None:
             with console.status(" [bold] Writing OUs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_ous_file(out_dir, ous, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_ous_file(out_dir, ous, properties_level)
+                )
         
         if containers is not None:
             with console.status(" [bold] Writing Containers to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_containers_file(out_dir, containers, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_containers_file(out_dir, containers, properties_level)
+                )
 
         if gpos is not None:
             with console.status(" [bold] Writing GPOs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_gpos_file(out_dir, gpos, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_gpos_file(out_dir, gpos, properties_level)
+                )
 
         if enterprisecas is not None:
             with console.status(" [bold] Writing Enterprise CAs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_enterprisecas_file(out_dir, enterprisecas, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_enterprisecas_file(out_dir, enterprisecas, properties_level)
+                )
 
         if aiacas is not None:
             with console.status(" [bold] Writing AIA CAs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_aiacas_file(out_dir, aiacas, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_aiacas_file(out_dir, aiacas, properties_level)
+                )
 
         if rootcas is not None:
             with console.status(" [bold] Writing Root CAs to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_rootcas_file(out_dir, rootcas, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_rootcas_file(out_dir, rootcas, properties_level)
+                )
 
         if ntauthstores is not None:
             with console.status(" [bold] Writing NTAuth Stores to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_ntauthstores_file(out_dir, ntauthstores, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_ntauthstores_file(out_dir, ntauthstores, properties_level)
+                )
 
         if issuancepolicies is not None:
             with console.status(" [bold] Writing Issuance Policies to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_issuancepolicies_file(out_dir, issuancepolicies, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_issuancepolicies_file(out_dir, issuancepolicies, properties_level)
+                )
         
         if certtemplates is not None:
             with console.status(" [bold] Writing Cert Templates to JSON...\n", spinner="aesthetic"):
-                BloodHoundWriter.write_certtemplates_file(out_dir, certtemplates, properties_level)
+                outfiles.append(
+                    BloodHoundWriter.write_certtemplates_file(out_dir, certtemplates, properties_level)
+                )
 
         if trusts is not None:
-            BloodHoundWriter.write_trusts_file(out_dir, trusts, properties_level)
+            outfiles.append(
+                BloodHoundWriter.write_trusts_file(out_dir, trusts, properties_level)
+            )
 
         if trustaccounts is not None:
-            BloodHoundWriter.write_trustaccounts_file(out_dir, trustaccounts, properties_level)
+            outfiles.append(
+                BloodHoundWriter.write_trustaccounts_file(out_dir, trustaccounts, properties_level)
+            )
 
         if out_dir == ".":
-            logging.info(f'JSON files written to current directory')
+            logger.info(f'JSON files written to current directory')
         else:
-            logging.info(f'JSON files written to {out_dir}')
+            logger.info(f'JSON files written to {out_dir}')
 
         if zip_files:
             zip_name = PurePath(out_dir, f"bloodhound_{BloodHoundWriter.ct}.zip")
@@ -91,9 +124,18 @@ class BloodHoundWriter():
                 for bh_file in BloodHoundWriter.files:
                     zip.write(bh_file, bh_file.name)
                     Path(bh_file).unlink()
-            logging.info(f'Files compressed into {zip_name}')
 
+            #
+            # Single zipfile can be uploaded instad of all JSON files
+            #  override outfiles list with the zip file
+            #
+            outfiles = [zip_name]
 
+            logger.info(f'Files compressed into {zip_name}')
+
+        # remove any 'None' entries from the outfiles list
+        return [f for f in outfiles if f is not None]
+    
 
     @staticmethod
     def write_domain_file(out_dir, domains, properties_level):
@@ -118,6 +160,9 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+        
+        return out_file
+    
 
     @staticmethod
     def write_computers_file(out_dir, computers, properties_level):
@@ -142,6 +187,8 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+
+        return out_file
 
 
     @staticmethod
@@ -168,6 +215,8 @@ class BloodHoundWriter():
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
 
+        return out_file
+
 
     @staticmethod
     def write_groups_file(out_dir, groups, properties_level):
@@ -192,6 +241,8 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+
+        return out_file
 
     
     @staticmethod
@@ -218,6 +269,8 @@ class BloodHoundWriter():
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
 
+        return out_file
+
 
     @staticmethod
     def write_containers_file(out_dir, containers, properties_level):
@@ -242,6 +295,8 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+
+        return out_file
 
 
     @staticmethod
@@ -268,6 +323,9 @@ class BloodHoundWriter():
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
 
+        return out_file
+    
+
     @staticmethod
     def write_enterprisecas_file(out_dir, enterprisecas, properties_level):
         if len(enterprisecas) == 0:
@@ -292,6 +350,9 @@ class BloodHoundWriter():
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
 
+        return out_file
+
+
     @staticmethod
     def write_aiacas_file(out_dir, aiacas, properties_level):
         if len(aiacas) == 0:
@@ -315,6 +376,8 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+
+        return out_file
 
     
     @staticmethod
@@ -341,6 +404,8 @@ class BloodHoundWriter():
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
 
+        return out_file
+
     
     @staticmethod
     def write_ntauthstores_file(out_dir, ntauthstores, properties_level):
@@ -365,6 +430,8 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+
+        return out_file
 
 
     @staticmethod
@@ -391,6 +458,8 @@ class BloodHoundWriter():
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
 
+        return out_file
+
     
     @staticmethod
     def write_certtemplates_file(out_dir, certtemplates, properties_level):
@@ -415,6 +484,8 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
+
+        return out_file
 
 
     @staticmethod

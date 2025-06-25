@@ -1,8 +1,10 @@
 import re
 import codecs
-import logging
 from datetime import datetime as dt
+
+from bofhound.logger import logger
 from bofhound.parsers import LdapSearchBofParser
+
 
 class Brc4LdapSentinelParser(LdapSearchBofParser):
     # BRC4 LDAP Sentinel currently only queries attributes=["*"] and objectClass 
@@ -110,7 +112,7 @@ class Brc4LdapSentinelParser(LdapSearchBofParser):
                 current_object[attr] = value
 
             except Exception as e:
-                logging.debug(f'Error - {str(e)}')
+                logger.debug(f'Error - {str(e)}')
 
         return parsed_objects
 

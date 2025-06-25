@@ -1,6 +1,6 @@
-from bofhound.logger import ColorScheme, OBJ_EXTRA_FMT
-import logging
 import ipaddress
+
+from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalPrivilegedSession:
@@ -20,7 +20,7 @@ class LocalPrivilegedSession:
 
         try:
             ipaddress.ip_address(object[LocalPrivilegedSession.PS_HOST])
-            logging.debug(f"Skipping session on {object[LocalPrivilegedSession.PS_HOST]} due to IP instead of hostname")
+            logger.debug(f"Skipping session on {object[LocalPrivilegedSession.PS_HOST]} due to IP instead of hostname")
             return
         except:
             pass
@@ -37,7 +37,7 @@ class LocalPrivilegedSession:
                 self.host_name = self.host_fqdn.split('.')[0]
                 self.host_domain = '.'.join(self.host_fqdn.split('.')[1:])
             else:
-                logging.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user}[/] session on {ColorScheme.computer}{self.host_fqdn}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user}[/] session on {ColorScheme.computer}{self.host_fqdn}[/]", extra=OBJ_EXTRA_FMT)
 
     def should_import(self):
         # missing required attributes
@@ -53,7 +53,7 @@ class LocalPrivilegedSession:
         if self.host_name.lower() == self.user_domain.lower():
             return False
         
-        logging.debug(f"NetWkstaUserEnum session found for {ColorScheme.user}{self.user}@{self.user_domain}[/] on {ColorScheme.computer}{self.host_fqdn}[/]", extra=OBJ_EXTRA_FMT)
+        logger.debug(f"NetWkstaUserEnum session found for {ColorScheme.user}{self.user}@{self.user_domain}[/] on {ColorScheme.computer}{self.host_fqdn}[/]", extra=OBJ_EXTRA_FMT)
         return True
 
 

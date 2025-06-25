@@ -1,7 +1,8 @@
 from bloodhound.ad.utils import ADUtils
+
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundGroup(BloodHoundObject):
 
@@ -33,7 +34,7 @@ class BloodHoundGroup(BloodHoundObject):
             name = f'{object.get("samaccountname")}@{domain}'.upper()
             self.Properties["name"] = name
             self.Properties["domain"] = domain
-            logging.debug(f"Reading Group object {ColorScheme.group}{name}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Reading Group object {ColorScheme.group}{name}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectsid' in object.keys():
             #objectid = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))

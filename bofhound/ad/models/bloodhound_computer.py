@@ -1,9 +1,10 @@
 import calendar
 from datetime import datetime
 from bloodhound.ad.utils import ADUtils, LDAP_SID
+
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundComputer(BloodHoundObject):
 
@@ -54,7 +55,7 @@ class BloodHoundComputer(BloodHoundObject):
         if 'dnshostname' in object.keys():
             self.hostname = object.get('dnshostname', None)
             self.Properties['name'] = self.hostname.upper()
-            logging.debug(f"Reading Computer object {ColorScheme.computer}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Reading Computer object {ColorScheme.computer}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'msds-allowedtodelegateto' in object.keys():
             self.AllowedToDelegate = object.get('msds-allowedtodelegateto').split(', ')
@@ -87,7 +88,7 @@ class BloodHoundComputer(BloodHoundObject):
                 else:
                     name = f'{samacctname}.{domain}'.upper()
                 self.Properties["name"] = name
-                logging.debug(f"Reading Computer object {ColorScheme.computer}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"Reading Computer object {ColorScheme.computer}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         # TODO: HighValue / AdminCount
         self.Properties['highvalue'] = False

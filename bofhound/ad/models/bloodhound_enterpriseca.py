@@ -1,7 +1,7 @@
 from bloodhound.ad.utils import ADUtils
+
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
 from bofhound.ad.helpers.cert_utils import PkiCertificateAuthorityFlags
 
 

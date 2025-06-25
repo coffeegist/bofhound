@@ -1,10 +1,11 @@
 from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
 import ast
 import base64
+
 from bofhound.ad.helpers.cert_utils import OID_TO_STR_MAP, MS_PKI_CERTIFICATE_NAME_FLAG, MS_PKI_PRIVATE_KEY_FLAG, MS_PKI_ENROLLMENT_FLAG, filetime_to_span, span_to_str
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundCertTemplate(BloodHoundObject):
     GUI_PROPERTIES = [

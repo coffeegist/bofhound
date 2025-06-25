@@ -1,6 +1,6 @@
-from bofhound.logger import ColorScheme, OBJ_EXTRA_FMT
-import logging
 import ipaddress
+
+from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalGroupMembership:
@@ -31,7 +31,7 @@ class LocalGroupMembership:
 
         try:
             ipaddress.ip_address(object[LocalGroupMembership.LOCALGROUP_HOST])
-            logging.debug(f"Skipping local group member on {object[LocalGroupMembership.LOCALGROUP_HOST]} due to IP instead of hostname")
+            logger.debug(f"Skipping local group member on {object[LocalGroupMembership.LOCALGROUP_HOST]} due to IP instead of hostname")
             return
         except:
             pass
@@ -54,7 +54,7 @@ class LocalGroupMembership:
                 self.host_fqdn = object[LocalGroupMembership.LOCALGROUP_HOST]
             else:
                 self.host_name = object[LocalGroupMembership.LOCALGROUP_HOST]
-                logging.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user}[/] session on {ColorScheme.computer}{self.host_name}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user}[/] session on {ColorScheme.computer}{self.host_name}[/]", extra=OBJ_EXTRA_FMT)
 
         if LocalGroupMembership.LOCALGROUP_MEMBER_SID in object.keys():
             self.member_sid = object[LocalGroupMembership.LOCALGROUP_MEMBER_SID]
@@ -77,12 +77,12 @@ class LocalGroupMembership:
         # user sessions from unknown domains
         if self.member_sid.rsplit('-', 1)[0] not in known_domain_sids:
             color = ColorScheme.user if self.member_sid_type == "User" else ColorScheme.group
-            logging.debug(f"Skipping local group membership for {color}{self.member}[/] since domain SID is unfamiliar", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Skipping local group membership for {color}{self.member}[/] since domain SID is unfamiliar", extra=OBJ_EXTRA_FMT)
             return False
         
         computer = f"{self.host_name}.{self.host_domain}" if self.host_domain else self.host_name
         user = f"{self.member}@{self.member_netbios_domain}" if self.member_netbios_domain else self.member
-        logging.debug(f"Local group member found for {ColorScheme.user}{user}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
+        logger.debug(f"Local group member found for {ColorScheme.user}{user}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
         return True
     
 

@@ -1,7 +1,7 @@
 from bloodhound.ad.utils import ADUtils
 from .bloodhound_object import BloodHoundObject
-from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
-import logging
+from bofhound.logger import logger, OBJ_EXTRA_FMT, ColorScheme
+
 
 class BloodHoundContainer(BloodHoundObject):
 
@@ -25,7 +25,7 @@ class BloodHoundContainer(BloodHoundObject):
         if 'distinguishedname' in object.keys() and 'ou' in object.keys():
             self.Properties["domain"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())
             self.Properties["name"] = f"{object.get('name').upper()}@{self.Properties['domain']}"
-            logging.debug(f"Reading Container object {ColorScheme.ou}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(f"Reading Container object {ColorScheme.ou}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
         
         self.Properties['highvalue'] = False
 
