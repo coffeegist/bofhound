@@ -1,5 +1,5 @@
 # Changelog
-## [0.4.9] - 6/16/2025
+## [0.4.9] - 6/25/2025
 ### Added
 - Support for pasing ldapsearch BOF results from Mythic C2 callbacks
 - Ability to upload output files directly to BHCE

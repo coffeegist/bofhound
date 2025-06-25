@@ -78,8 +78,7 @@ BOFHound can be installed with `pip3 install bofhound` or by cloning this reposi
 ╭─ Mythic Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --mythic-server        TEXT  IP or hostname of Mythic server to connect to                    │
 │                              [default: 127.0.0.1]                                             │
-│ --mythic-user          TEXT  Mythic user to connect as [default: mythic_admin]                │
-│ --mythic-pass          TEXT  Mythic password to connect with [default: None]                  │
+│  --mythic-token         TEXT  Mythic API token [default: None]                                │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ BloodHound CE Options ───────────────────────────────────────────────────────────────────────╮
 │ --bh-token-id         TEXT  BloodHound API token ID [default: None]                           │
