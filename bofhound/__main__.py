@@ -99,8 +99,8 @@ def main(
         # recurisively get a list of all .log files in the input directory, sorted by last modified time
         cs_logs = glob.glob(f"{input_files}/**/{logfile_name_format}", recursive=True)
         if len(cs_logs) == 0:
-            # check for ldapsearch python logs
-            cs_logs = glob.glob(f"{input_files}/pyldapsearch*.log", recursive=True)
+            # check for pyldapsearch/soapy logs
+            cs_logs = glob.glob(f"{input_files}/*.log", recursive=True)
 
         cs_logs.sort(key=os.path.getmtime)
 
