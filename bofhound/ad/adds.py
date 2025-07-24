@@ -279,7 +279,7 @@ class ADDS():
                     if type_contained == "":
                         for obj in self.unknown_objects:
                             if str(obj.get('distinguishedname')).upper() == contained_dn:
-                                id_contained = obj.get('objectguid')
+                                id_contained = obj.get("objectguid").upper()
                                 match obj.get('objectclass'):
                                     case 'top, NTDSService':
                                         type_contained = "Base"

@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.11] - 7/24/2025
+### Fixed
+- Modified ObjectIdentifier/ObjectGuid properties to be uppercase so object correlation in BHCE happens correctly
+
 ## [0.4.10] - 7/9/2025
 ### Changed
 - Targeted logfile name syntax changed to be more generic (no longer tied to pyldapsearch) to work with SoaPy
