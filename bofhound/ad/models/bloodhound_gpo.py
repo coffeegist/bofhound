@@ -27,7 +27,7 @@ class BloodHoundGPO(BloodHoundObject):
             logger.debug(f"Reading GPO object {ColorScheme.gpo}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectguid' in object.keys():
-            self.ObjectIdentifier = object.get('objectguid').upper()
+            self.ObjectIdentifier = object.get("objectguid").upper().upper()
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']

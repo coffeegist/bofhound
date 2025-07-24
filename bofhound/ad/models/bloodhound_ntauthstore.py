@@ -28,7 +28,7 @@ class BloodHoundNTAuthStore(BloodHoundObject):
         self.Properties['certthumbprints'] = []
 
         if 'objectguid' in object.keys():
-            self.ObjectIdentifier = object.get("objectguid")
+            self.ObjectIdentifier = object.get("objectguid").upper()
 
         if 'distinguishedname' in object.keys():
             domain = ADUtils.ldap2domain(object.get('distinguishedname')).upper()

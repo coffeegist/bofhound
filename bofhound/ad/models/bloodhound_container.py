@@ -20,7 +20,7 @@ class BloodHoundContainer(BloodHoundObject):
         self.Properties["blocksinheritance"] = False
 
         if 'objectguid' in object.keys():
-            self.ObjectIdentifier = object.get('objectguid').upper()
+            self.ObjectIdentifier = object.get("objectguid").upper().upper()
         
         if 'distinguishedname' in object.keys() and 'ou' in object.keys():
             self.Properties["domain"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())

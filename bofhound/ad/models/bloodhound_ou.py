@@ -29,7 +29,7 @@ class BloodHoundOU(BloodHoundObject):
             logger.debug(f"Reading OU object {ColorScheme.ou}{self.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectguid' in object.keys():
-            self.ObjectIdentifier = object.get('objectguid').upper()
+            self.ObjectIdentifier = object.get("objectguid").upper().upper()
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
