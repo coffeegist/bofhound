@@ -80,7 +80,7 @@ class Brc4LdapSentinelParser(LdapSearchBofParser):
 
                 # BRc4 formats some timestamps for us that we need to revert to raw values
                 if attr in Brc4LdapSentinelParser.FORMATTED_TS_ATTRS:
-                    if value.lower() in ['never expires', 'value not set']:
+                    if value.lower() in ['never expires', 'value not set', '0']:
                         continue
                     timestamp_obj = dt.strptime(value, '%m/%d/%Y %I:%M:%S %p')
                     value = int((timestamp_obj - dt(1601, 1, 1)).total_seconds() * 10000000)
