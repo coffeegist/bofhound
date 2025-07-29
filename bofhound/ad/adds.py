@@ -394,8 +394,12 @@ class ADDS():
                     continue
                 try:
                     (sid, object_type) = self.get_sid_from_name(target.lower())
-                    delegation_entry = {"ObjectIdentifier": sid, "ObjectType": object_type}
-                    resolved_delegation_list.append(delegation_entry)
+                    if sid and object_type:
+                        delegation_entry = {"ObjectIdentifier": sid, "ObjectType": object_type}
+                        logger.debug(f"Resolved delegation Host: {host}, target: {target}, {delegation_entry}")
+                        resolved_delegation_list.append(delegation_entry)
+                    else:
+                        continue
                 except KeyError:
                     if '.' in target:
                         resolved_delegation_list.append(target.upper())
