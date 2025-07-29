@@ -15,7 +15,7 @@ class Brc4LdapSentinelParser(LdapSearchBofParser):
     FORMATTED_TS_ATTRS = ['lastlogontimestamp', 'lastlogon', 'lastlogoff', 'pwdlastset', 'accountexpires']
     ISO_8601_TS_ATTRS = ['dscorepropagationdata', 'whenchanged', 'whencreated']
     BRACKETED_ATTRS = ['objectguid']
-    SEMICOLON_DELIMITED_ATTRS = ['serviceprincipalname', 'memberof', 'member', 'objectclass']
+    SEMICOLON_DELIMITED_ATTRS = ['serviceprincipalname', 'memberof', 'member', 'objectclass', 'msds-allowedtodelegateto']
 
     def __init__(self):
         pass #self.objects = []
