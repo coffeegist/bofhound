@@ -1,4 +1,10 @@
 # Changelog
+## [0.4.12] - 7/31/2025
+### Fixed
+- Fixes for BRc4 attribute formatting
+- Ensure SID and object type properties exist when creating delegation edges
+
+
 ## [0.4.11] - 7/24/2025
 ### Fixed
 - Modified ObjectIdentifier/ObjectGuid properties to be uppercase so object correlation in BHCE happens correctly
