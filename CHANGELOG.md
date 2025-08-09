@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.13] - 8/9/2025
+### Fixed
+- Remove duplicated `msds-allowedtodelegateto` dict from computer object properties
+
+
 ## [0.4.12] - 7/31/2025
 ### Fixed
 - Fixes for BRc4 attribute formatting
