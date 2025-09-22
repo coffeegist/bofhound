@@ -1167,6 +1167,8 @@ class ADDS():
         current_ca = start_ca_obj
 
         while True:
+            if current_ca.x509Certificate is None:
+                return None
             if current_ca.x509Certificate['subject'] == current_ca.x509Certificate['issuer']:
                 # Found a self-signed certificate (root CA)
                 break
