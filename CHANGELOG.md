@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.14] - 9/22/2025
+### Fixed
+- Patch crash that can occur in cert processing [#37](https://github.com/coffeegist/bofhound/issues/37) - merge [#38](https://github.com/coffeegist/bofhound/pull/38)
+
 ## [0.4.13] - 8/9/2025
 ### Fixed
 - Remove duplicated `msds-allowedtodelegateto` dict from computer object properties
