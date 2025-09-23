@@ -29,8 +29,8 @@ Blog Posts:
 |------|-----|
 | [*BOFHound: AD CS Integration*](https://medium.com/specter-ops-posts/bofhound-ad-cs-integration-91b706bc7958) | Oct 30, 2024 |
 | [*BOFHound: Session Integration*](https://posts.specterops.io/bofhound-session-integration-7b88b6f18423) | Jan 30, 2024 |
-| [*Granularize Your AD Recon Game Part 2*](https://www.fortalicesolutions.com/posts/granularize-your-active-directory-reconnaissance-game-part-2) | Jun 15, 2022 |
-| [*Granularize Your AD Recon Game*](https://www.fortalicesolutions.com/posts/bofhound-granularize-your-active-directory-reconnaissance-game) | May 10, 2022  |
+| [*Granularize Your AD Recon Game Part 2*](https://web.archive.org/web/20221205144115/https://www.fortalicesolutions.com/posts/granularize-your-active-directory-reconnaissance-game-part-2) | Jun 15, 2022 |
+| [*Granularize Your AD Recon Game*](https://web.archive.org/web/20220813221840/https://www.fortalicesolutions.com/posts/bofhound-granularize-your-active-directory-reconnaissance-game) | May 10, 2022  |
 
 Presentations:
 
