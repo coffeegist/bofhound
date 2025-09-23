@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.15] - 9/23/2025
+### Fixed
+- Pinned Click to version 8.1.8 to prevent typer help menu crashes
+- Fixed dead blog links in the README
+
 ## [0.4.14] - 9/22/2025
 ### Fixed
 - Patch crash that can occur in cert processing [#37](https://github.com/coffeegist/bofhound/issues/37) - merge [#38](https://github.com/coffeegist/bofhound/pull/38)
