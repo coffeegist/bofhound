@@ -194,18 +194,6 @@ class LdapSearchBofParser():
     def parse_data(data: Iterable) -> List[Dict[str, Any]]:
         """
         Parse LDAP data using true streaming approach with state machine.
-
-        This approach:
-        1. Reads file line by line (streaming)
-        2. Processes each line immediately with state machine
-        3. Never accumulates full file content in memory
-        4. Returns completed objects as they're parsed
-
-        Args:
-            file_path: Path to the log file to parse
-
-        Returns:
-            List of LDAP objects as dictionaries
         """
         if isinstance(data, str):
             raise ValueError("Input data should be an iterable of lines, not a single string.")
