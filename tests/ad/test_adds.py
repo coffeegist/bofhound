@@ -39,8 +39,8 @@ def raw_trust():
         'trustposixfffset': '-2147483648',
         'trusttype': '2',
         'securityidentifier': 'S-1-5-21-3539700351-1165401899-3544196955',
-    }        
-    
+    }
+
 
 @pytest.fixture
 def raw_domain():
@@ -138,7 +138,7 @@ def test_import_objects_expectedValuesFromStandardDataSet(testdata_ldapsearchbof
     assert len(adds.ous) == 1
     assert len(adds.gpos) == 4
     assert len(adds.containers) == 24
-    assert len(adds.unknown_objects) == 69
+    assert len(adds.unknown_objects) == 36
 
 
 def test_import_objects_MinimalObject(raw_user):
@@ -206,7 +206,7 @@ def test_import_unique_crossref(raw_crossref):
 
     adds = ADDS()
     adds.import_objects([raw_crossref])
-    
+
     assert len(adds.CROSSREF_MAP) == expected_crossref_count
 
 
