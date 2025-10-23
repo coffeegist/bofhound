@@ -1,17 +1,24 @@
-import os
-import pytest
+"""Tests for BRC4 LDAP Sentinel parser."""
 from bofhound.ad.models.bloodhound_computer import BloodHoundComputer
-from bofhound.parsers.brc4_ldap_sentinel import Brc4LdapSentinelParser
 from bofhound.ad.adds import ADDS
-from tests.test_data import *
+from bofhound.parsers import Brc4LdapSentinelParser
+from tests.test_data import (
+    brc4ldapsentinel_standard_file_1030
+)
 
 
-def test_parse_file_ldapsearchpyNormalFile(brc4ldapsentinel_standard_file_1030):
-    parsed_objects = Brc4LdapSentinelParser.parse_file(brc4ldapsentinel_standard_file_1030)
+def test_parse_sentinel_standard_file(brc4ldapsentinel_standard_file_1030):
+    """Test parsing of a normal BRC4 LDAP Sentinel file."""
+    parser = Brc4LdapSentinelParser()
+    with open(brc4ldapsentinel_standard_file_1030, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
     assert len(parsed_objects) == 1030
 
 
 def test_parse_data_computer():
+    """Test parsing of computer object data."""
     data = """[+] AccountDisabled                    : FALSE
 
 +-------------------------------------------------------------------+
@@ -55,14 +62,18 @@ def test_parse_data_computer():
 
 +-------------------------------------------------------------------+
     """
-    parsed_objects = Brc4LdapSentinelParser.parse_data(data)
+    parser = Brc4LdapSentinelParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
 
     assert len(parsed_objects) == 1
     assert 'operatingsystem' in parsed_objects[0].keys()
-    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties.keys()
+    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties
 
 
 def test_parse_lower_data_computer():
+    """Test parsing of computer object data with lowercase attribute names."""
     data = """[+] accountdisabled                    : false
 
 +-------------------------------------------------------------------+
@@ -106,17 +117,21 @@ def test_parse_lower_data_computer():
 
 +-------------------------------------------------------------------+
     """
-    parsed_objects = Brc4LdapSentinelParser.parse_data(data)
+    parser = Brc4LdapSentinelParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
     ad = ADDS()
     ad.import_objects(parsed_objects)
 
     assert len(parsed_objects) == 1
     assert 'operatingsystem' in parsed_objects[0].keys()
-    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties.keys()
+    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties
     assert len(ad.computers) == 1
 
 
 def test_parse_data_computer_data_missing_dn():
+    """Test parsing of computer object data missing distinguishedName attribute."""
     data = """[+] AccountDisabled                    : FALSE
 
 +-------------------------------------------------------------------+
@@ -159,33 +174,13 @@ def test_parse_data_computer_data_missing_dn():
 
 +-------------------------------------------------------------------+
     """
-    parsed_objects = Brc4LdapSentinelParser.parse_data(data)
+    parser = Brc4LdapSentinelParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
     ad = ADDS()
     ad.import_objects(parsed_objects)
 
     assert len(parsed_objects) == 1
     # this test is failing - should distinguishedname be required?
     assert len(ad.computers) == 0
-
-
-# This test case currently is not possible with BRc4,
-# since all attributes are returned by default
-
-'''
-def test_parse_mininal_data_computer():
-    data = """[+] accountdisabled                    : false
-
-+-------------------------------------------------------------------+
-[+] distinguishedname                  : cn=ws1,cn=computers,dc=castle,dc=lab
-[+] objectsid                          : s-1-5-21-4033075623-2380760593-384075220-1104
-[+] samaccounttype                     : 805306369
-
-+-------------------------------------------------------------------+
-    """
-    parsed_objects = Brc4LdapSentinelParser.parse_data(data)
-    ad = ADDS()
-    ad.import_objects(parsed_objects)
-
-    assert len(parsed_objects) == 1
-    assert len(ad.computers) == 1
-'''

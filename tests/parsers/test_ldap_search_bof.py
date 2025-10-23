@@ -1,28 +1,49 @@
 """Tests for LDAP Search BOF parser."""
 from bofhound.ad.models.bloodhound_computer import BloodHoundComputer
-from bofhound.parsers.ldap_search_bof import LdapSearchBofParser, StreamingLdapParser
+from bofhound.parsers import LdapSearchBofParser
 from bofhound.ad.adds import ADDS
 from tests.test_data import (
     ldapsearchbof_standard_file_257,
     ldapsearchpy_standard_file_516,
+    ldapsearchbof_standard_file_2052,
     ldapsearchbof_standard_file_marvel
 )
 
 def test_parse_file_ldapsearchpy_normal_file(ldapsearchpy_standard_file_516):
     """Test parsing of a normal LDAP search file (pyldapsearch)."""
-    parsed_objects = LdapSearchBofParser.parse_file(ldapsearchpy_standard_file_516)
+    parser = LdapSearchBofParser()
+    with open(ldapsearchpy_standard_file_516, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
     assert len(parsed_objects) == 451
 
 
 def test_parse_file_ldapsearchbof_normal_file(ldapsearchbof_standard_file_257):
     """Test parsing of a normal LDAP search file (ldapsearchbof)."""
-    parsed_objects = LdapSearchBofParser.parse_file(ldapsearchbof_standard_file_257)
+    parser = LdapSearchBofParser()
+    with open(ldapsearchbof_standard_file_257, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
     assert len(parsed_objects) == 224
 
+def test_parse_file_ldapsearchbof_large_file(ldapsearchbof_standard_file_2052):
+    """Test parsing of a normal LDAP search file (ldapsearchbof)."""
+    parser = LdapSearchBofParser()
+    with open(ldapsearchbof_standard_file_2052, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
+    assert len(parsed_objects) == 2052
 
 def test_parse_file_marvel(ldapsearchbof_standard_file_marvel):
     """Test parsing of a normal LDAP search file (ldapsearchbof)."""
-    parsed_objects = LdapSearchBofParser.parse_file(ldapsearchbof_standard_file_marvel)
+    parser = LdapSearchBofParser()
+    with open(ldapsearchbof_standard_file_marvel, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
     assert len(parsed_objects) == 327
 
 
@@ -47,7 +68,10 @@ bad
 received output:
 PwdCount: 0
 codePage: 0"""
-    parsed_objects = LdapSearchBofParser.parse_data(data.splitlines())
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
     assert len(parsed_objects) == 2
     for obj in parsed_objects:
         assert int(obj.get('useraccountcontrol', 0)) == 66048
@@ -101,7 +125,10 @@ ms-Mcs-AdmPwd: testpassword
 ms-Mcs-AdmPwdExpirationTime: 13295315246991474
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data.splitlines(keepends=True))
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
 
     assert len(parsed_objects) == 1
     assert 'operatingsystem' in parsed_objects[0].keys()
@@ -157,7 +184,10 @@ ms-mcs-admpwd: testpassword
 ms-mcs-admpwdexpirationtime: 13295315246991474
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data.splitlines(keepends=True))
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
     adds = ADDS()
     adds.import_objects(parsed_objects)
 
@@ -216,7 +246,10 @@ ms-Mcs-AdmPwd: testpassword
 ms-Mcs-AdmPwdExpirationTime: 13295315246991474
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data.splitlines())
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
     adds = ADDS()
     adds.import_objects(parsed_objects)
 
@@ -234,7 +267,10 @@ objectSid: S-1-5-21-3674311734-1768984491-1162443153-1104
 sAMAccountType: 805306369
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data.splitlines())
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
     adds = ADDS()
     adds.import_objects(parsed_objects)
 
@@ -244,11 +280,10 @@ sAMAccountType: 805306369
 
 def test_streaming_ldap_parser_direct():
     """Test StreamingLdapParser directly with controlled input"""
-    parser = StreamingLdapParser()
 
     # pylint: disable=line-too-long
     # Test data - simulate what would come from file
-    test_lines = [
+    data = [
         "--------------------",
         "objectClass: top, container",
         "cn: System",
@@ -297,18 +332,9 @@ def test_streaming_ldap_parser_direct():
     ]
     # pylint: enable=line-too-long
 
-    for line in test_lines:
+    parser = LdapSearchBofParser()
+    for line in data:
         parser.process_line(line)
-    parser.finalize()
+    parsed_objects = parser.get_results()
 
-    assert len(parser.get_records()) == 2
-
-def test_streaming_oop_parser_ldapsearchpy(ldapsearchpy_standard_file_516):
-    """Test that new OOP streaming parser produces identical results to original parser"""
-    # Parse with original method
-    original_objects = LdapSearchBofParser.parse_file(ldapsearchpy_standard_file_516)
-
-    # Should have same number of objects
-    assert len(original_objects) == 451
-
-    print(original_objects[-1])
+    assert len(parsed_objects) == 2

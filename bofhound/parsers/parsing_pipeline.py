@@ -1,0 +1,70 @@
+"""Parsing pipeline to coordinate multiple tool parsers for C2 framework logs."""
+from typing import List, Dict, Any
+from .types import ObjectType, ToolParser
+
+class ParsingResult:
+    """Container for categorized parsing results"""
+
+    def __init__(self):
+        self.objects_by_type: Dict[ObjectType, List[Dict[str, Any]]] = {
+            obj_type: [] for obj_type in ObjectType
+        }
+
+    def add_objects(self, obj_type: ObjectType, objects: List[Dict[str, Any]]):
+        """Add objects of a specific type"""
+        self.objects_by_type[obj_type].extend(objects)
+
+    def get_ldap_objects(self) -> List[Dict[str, Any]]:
+        """Get all parsed LDAP objects"""
+        return self.objects_by_type[ObjectType.LDAP_OBJECT]
+
+    def get_sessions(self) -> List[Dict[str, Any]]:
+        """Get all parsed session objects"""
+        return self.objects_by_type[ObjectType.SESSION]
+
+    def get_local_groups(self) -> List[Dict[str, Any]]:
+        """Get all parsed local group objects"""
+        return self.objects_by_type[ObjectType.LOCAL_GROUP]
+
+    def get_registry_sessions(self) -> List[Dict[str, Any]]:
+        """Get all parsed registry session objects"""
+        return self.objects_by_type[ObjectType.REGISTRY_SESSION]
+
+
+class ParsingPipeline:
+    """
+    Coordinates multiple tool parsers to process C2 framework logs.
+    """
+
+    def __init__(self, platform_filters=None):
+        self.tool_parsers: List[ToolParser] = []
+        self.platform_filters = platform_filters or []
+
+    def register_parser(self, parser: ToolParser):
+        """Register a tool parser with the pipeline"""
+        self.tool_parsers.append(parser)
+
+    def process_file(self, file_path: str) -> ParsingResult:
+        """
+        Process a file through all registered parsers.
+
+        Returns categorized results/
+        """
+        result = ParsingResult()
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                # Apply platform-specific filtering
+                #filtered_line = self._apply_platform_filters(line.rstrip('\n\r'))
+                filtered_line = line.rstrip('\n\r')
+
+                # Distribute line to all parsers that can handle it
+                for parser in self.tool_parsers:
+                    parser.process_line(filtered_line)
+
+        # Collect results from all parsers
+        for parser in self.tool_parsers:
+            parsed_objects = parser.get_results()
+            result.add_objects(parser.produces_object_type, parsed_objects)
+
+        return result
