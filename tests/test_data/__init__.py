@@ -29,9 +29,9 @@ def ldapsearchbof_standard_file_257():
 
 
 @pytest.fixture
-def ldapsearchbof_standard_file_202():
+def ldapsearchbof_standard_file_2052():
     """LdapSearchBOF Fixtures"""
-    yield os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_202.log")
+    yield os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_2052.log")
 
 
 @pytest.fixture
@@ -46,21 +46,30 @@ def ldapsearchbof_standard_file_marvel():
 def testdata_ldapsearchbof_beacon_257_objects():
     """Parsed objects from LdapSearchBOF beacon_257-objects.log"""
     log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_257-objects.log")
-    yield LdapSearchBofParser.parse_file(log_file)
+    parser = LdapSearchBofParser()
+    for line in open(log_file, 'r', encoding='utf-8'):
+        parser.process_line(line.rstrip('\n\r'))
+    return parser.get_results()
 
 
 @pytest.fixture
-def testdata_ldapsearchbof_beacon_202_objects():
-    """Parsed objects from LdapSearchBOF beacon_202.log"""
-    log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_202.log")
-    yield LdapSearchBofParser.parse_file(log_file)
+def testdata_ldapsearchbof_beacon_2052_objects():
+    """Parsed objects from LdapSearchBOF beacon_2052.log"""
+    log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_2052.log")
+    parser = LdapSearchBofParser()
+    for line in open(log_file, 'r', encoding='utf-8'):
+        parser.process_line(line.rstrip('\n\r'))
+    yield parser.get_results()
 
 
 @pytest.fixture
 def testdata_pyldapsearch_redania_objects():
     """Parsed objects from LdapSearchBOF pyldapsearch_redania_objects.log"""
     log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/pyldapsearch_redania_objects.log")
-    yield LdapSearchBofParser.parse_file(log_file)
+    parser = LdapSearchBofParser()
+    for line in open(log_file, 'r', encoding='utf-8'):
+        parser.process_line(line.rstrip('\n\r'))
+    yield parser.get_results()
 
 
 @pytest.fixture
@@ -70,7 +79,10 @@ def testdata_marvel_ldap_objects():
         TEST_DATA_DIR,
         "ldapsearchbof_logs/beacon_marvel_ldap_sessions_localgroup.log"
     )
-    yield LdapSearchBofParser.parse_file(log_file)
+    parser = LdapSearchBofParser()
+    for line in open(log_file, 'r', encoding='utf-8'):
+        parser.process_line(line.rstrip('\n\r'))
+    yield parser.get_results()
 
 
 @pytest.fixture
@@ -173,3 +185,13 @@ def marvel_adds(testdata_marvel_ldap_objects, testdata_marvel_local_objects): # 
     ad.process_local_objects(broker)
 
     yield ad
+
+@pytest.fixture
+def havoc_standard_file():
+    """Havoc LDAP Fixtures"""
+    yield os.path.join(TEST_DATA_DIR, "havoc_logs/Console_73169420.log")
+
+@pytest.fixture
+def outflankc2_standard_file():
+    """Outflank LDAP Fixtures"""
+    yield os.path.join(TEST_DATA_DIR, "outflankc2_logs/ldapsearchbof/beacon_2052.json")
