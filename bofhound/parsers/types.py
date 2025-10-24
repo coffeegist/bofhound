@@ -16,9 +16,9 @@ class ObjectType(Enum):
 
 
 class ParsingState(Enum):
-    """States for the LDAP parsing state machine"""
-    WAITING_FOR_LDAP_OBJECT = "waiting_for_ldap_object"
-    IN_LDAP_OBJECT = "in_ldap_object"
+    """States for the parsing state machine"""
+    WAITING_FOR_OBJECT = "waiting_for_object"
+    IN_OBJECT = "in_object"
 
 
 class ToolParser(ABC):
@@ -43,16 +43,18 @@ class ToolParser(ABC):
         """Return all parsed objects and reset internal state"""
 
 
-class LdapRecordParser(ToolParser):
-    """Abstract base class for LDAP record parsers"""
+class BoundaryBasedParser(ToolParser):
+    """Abstract base class for parsing records from tools with start/end boundaries."""
 
-    def __init__(self, boundary_pattern: str):
+    def __init__(self, start_boundary_pattern: str, end_boundary_pattern: str = None):
         self._current_record_lines: List[str] = []
         self._ldap_records: List[Dict[str, Any]] = []
-        self._parsing_state = ParsingState.WAITING_FOR_LDAP_OBJECT
-        self._boundary_detector = BoundaryDetector(boundary_pattern)
+        self._parsing_state = ParsingState.WAITING_FOR_OBJECT
+        self._start_boundary_detector = BoundaryDetector(start_boundary_pattern)
+        self._end_boundary_detector = (
+            BoundaryDetector(end_boundary_pattern) if end_boundary_pattern else None
+        )
         self._skippable_patterns = []
-        self._end_of_tool_output_pattern = None
 
     @override
     def process_line(self, line) -> None:
@@ -60,18 +62,29 @@ class LdapRecordParser(ToolParser):
         Process a single line.
         """
         line = line.strip()
-        boundary = self._boundary_detector.process_line(line)
+        start_boundary = self._start_boundary_detector.process_line(line)
 
-        match boundary:
+        # Handle start boundary results
+        match start_boundary:
             case BoundaryResult.COMPLETE_BOUNDARY:
-                self._handle_boundary_line()
+                self._handle_start_boundary_line()
+                return
             case BoundaryResult.PARTIAL_BOUNDARY:
                 return
-            case BoundaryResult.NOT_BOUNDARY | BoundaryResult.INVALID_BOUNDARY:
-                if self._is_end_of_tool_output(line):
-                    self._handle_end_of_tool_output()
-                elif not self.should_skip_line(line):
-                    self._handle_content_line(line)
+
+        if self._end_boundary_detector is not None:
+            end_boundary = self._end_boundary_detector.process_line(line)
+
+            # Handle end boundary results
+            match end_boundary:
+                case BoundaryResult.COMPLETE_BOUNDARY:
+                    self._handle_end_boundary_line()
+                    return
+                case BoundaryResult.PARTIAL_BOUNDARY:
+                    return
+
+        if not self.should_skip_line(line):
+            self._handle_content_line(line)
 
     @override
     def get_results(self) -> list[dict[str, str]]:
@@ -83,23 +96,16 @@ class LdapRecordParser(ToolParser):
         """Determine if a line should be skipped."""
         return any(re.match(pattern, line) for pattern in self._skippable_patterns)
 
-    def _is_end_of_tool_output(self, line: str) -> bool:
-        """Check if line indicates end of tool's output"""
-        if self._end_of_tool_output_pattern is None:
-            return False
-        else:
-            return re.match(self._end_of_tool_output_pattern, line) is not None
-
-    def _handle_end_of_tool_output(self) -> None:
+    def _handle_end_boundary_line(self) -> None:
         """Handle end of tool's output line"""
-        if self._parsing_state == ParsingState.IN_LDAP_OBJECT:
+        if self._parsing_state == ParsingState.IN_OBJECT:
             self._save_current_record()
-        self._parsing_state = ParsingState.WAITING_FOR_LDAP_OBJECT
+        self._parsing_state = ParsingState.WAITING_FOR_OBJECT
 
-    def _handle_boundary_line(self) -> None:
+    def _handle_start_boundary_line(self) -> None:
         """Handle boundary line between LDAP objects"""
-        if self._parsing_state != ParsingState.IN_LDAP_OBJECT:
-            self._parsing_state = ParsingState.IN_LDAP_OBJECT
+        if self._parsing_state == ParsingState.WAITING_FOR_OBJECT:
+            self._parsing_state = ParsingState.IN_OBJECT
         else:
             # Even if record is empty, add it to stay consistent with
             # number of entries ldapsearchbof reports to have retrieved
@@ -113,7 +119,7 @@ class LdapRecordParser(ToolParser):
         self._current_record_lines = []
 
     def _handle_content_line(self, line: str) -> None:
-        if self._parsing_state == ParsingState.IN_LDAP_OBJECT:
+        if self._parsing_state == ParsingState.IN_OBJECT:
             self._current_record_lines.append(line)
 
     def _parse_lines_to_attributes(self) -> Dict[str, str]:

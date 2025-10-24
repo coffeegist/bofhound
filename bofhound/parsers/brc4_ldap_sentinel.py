@@ -3,10 +3,10 @@ from datetime import datetime as dt
 from typing import Dict, Any
 
 from bofhound.logger import logger
-from .types import ObjectType, LdapRecordParser
+from .types import ObjectType, BoundaryBasedParser
 
 
-class Brc4LdapSentinelParser(LdapRecordParser):
+class Brc4LdapSentinelParser(BoundaryBasedParser):
     """
     BRC4 LDAP Sentinel currently only queries attributes=["*"] and objectClass
     is always the top result. May need to be updated in the future.
@@ -21,7 +21,7 @@ class Brc4LdapSentinelParser(LdapRecordParser):
     ]
 
     def __init__(self):
-        super().__init__(boundary_pattern=f'+{"-" * 67}+')
+        super().__init__(start_boundary_pattern=f'+{"-" * 67}+')
 
         self._skippable_patterns = [
             r'^\[\*\] Task-\d+ \[Thread: \d+\]$',
