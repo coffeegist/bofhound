@@ -1,9 +1,7 @@
 """Parser for Outflank C2 JSON logfiles containing ldapsearch BOF data."""
-import codecs
 import json
 
 from typing_extensions import override
-from bofhound.logger import logger
 from bofhound.parsers.generic_parser import GenericParser
 from bofhound.parsers import LdapSearchBofParser
 
