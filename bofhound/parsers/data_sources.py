@@ -78,24 +78,6 @@ class FileDataStream(DataStream):
                 yield line.rstrip('\n\r')
 
 
-class MythicCallback:
-    """
-    Quick and dirty class to hold Mythic callback information
-    and allow print statments from the main logic to still work
-    """
-    def __init__(self, callback, mythic_instance=None):
-        self.callback_id = callback["id"]
-        self.display_id = callback["display_id"]
-        self.domain = callback["domain"]
-        self.user = callback["user"]
-        self.host = callback["host"]
-        self.uuid = callback["agent_callback_id"]
-        self._mythic_instance = mythic_instance
-
-    def __repr__(self):
-        return f"Mythic callback {self.callback_id} [{self.uuid}]"
-
-
 class MythicDataSource(DataSource):
     """Data source that fetches data from Mythic server."""
 
