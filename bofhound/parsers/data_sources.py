@@ -1,8 +1,9 @@
 """Data source abstractions for BOFHound parsing pipeline."""
 
 import os
-import glob
 import sys
+import glob
+import json
 import logging
 import base64
 import asyncio
@@ -42,21 +43,23 @@ class DataStream(ABC):
 class FileDataSource(DataSource):
     """Data source that reads from local files."""
 
-    def __init__(self, input_path: str, filename_pattern: str = "*.log"):
+    def __init__(self, input_path: str, filename_pattern: str = "*.log",
+                 stream_type=None):
         self.input_path = input_path
         self.filename_pattern = filename_pattern
+        self.stream_type = stream_type or FileDataStream
 
     def get_data_streams(self) -> Iterator['FileDataStream']:
         """Get file-based data streams."""
         if os.path.isfile(self.input_path):
-            yield FileDataStream(self.input_path)
+            yield self.stream_type(self.input_path)
         elif os.path.isdir(self.input_path):
             pattern = f"{self.input_path}/**/{self.filename_pattern}"
             files = glob.glob(pattern, recursive=True)
             files.sort(key=os.path.getmtime)
 
             for file_path in files:
-                yield FileDataStream(file_path)
+                yield self.stream_type(file_path)
         else:
             raise ValueError(f"Input path does not exist: {self.input_path}")
 
@@ -76,6 +79,24 @@ class FileDataStream(DataStream):
         with open(self.file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 yield line.rstrip('\n\r')
+
+
+class OutflankDataStream(FileDataStream):
+    """Data stream for Outflank logs, inherits from FileDataStream."""
+    def lines(self) -> Iterator[str]:
+        """Read lines from the Outflank log file."""
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            bofname = 'ldapsearch'
+            for line in f:
+                event_json = json.loads(line.split('UTC ', 1)[1])
+
+                # we only care about task_resonse events
+                if (event_json['event_type'] == 'task_response'
+                    and event_json['task']['name'].lower() == bofname):
+                    # now we have a block of ldapsearch data we can parse through for objects
+                    response_lines = event_json['task']['response']
+                    for response_line in response_lines.splitlines():
+                        yield response_line
 
 
 class MythicDataSource(DataSource):
