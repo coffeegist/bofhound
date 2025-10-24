@@ -3,10 +3,9 @@ import sys
 import logging
 import typer
 from bofhound.parsers import (
-    LdapSearchBofParser, Brc4LdapSentinelParser, ParserType, OutflankC2JsonParser
+    LdapSearchBofParser, Brc4LdapSentinelParser, ParserType, ParsingPipeline
 )
-from bofhound.parsers.data_sources import FileDataSource, MythicDataSource
-from bofhound.parsers.parsing_pipeline import ParsingPipeline
+from bofhound.parsers.data_sources import FileDataSource, MythicDataSource, OutflankDataStream
 from bofhound.writer import BloodHoundWriter
 from bofhound.uploader import BloodHoundUploader
 from bofhound.ad import ADDS
@@ -106,8 +105,10 @@ def main(
 
         case ParserType.OUTFLANKC2:
             logger.debug("Using OutflankC2 parser")
-            parser = OutflankC2JsonParser()
-            data_source = FileDataSource(str(input_files), "*.json")
+            parser = LdapSearchBofParser()
+            data_source = FileDataSource(
+                str(input_files), "*.json", stream_type=OutflankDataStream
+            )
 
         case ParserType.MYTHIC:
             logger.debug("Using Mythic parser")
