@@ -3,7 +3,7 @@ import sys
 import logging
 import typer
 from bofhound.parsers import (
-    LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, ParserType, OutflankC2JsonParser
+    LdapSearchBofParser, Brc4LdapSentinelParser, ParserType, OutflankC2JsonParser
 )
 from bofhound.parsers.data_sources import FileDataSource, MythicDataSource
 from bofhound.parsers.parsing_pipeline import ParsingPipeline
@@ -99,7 +99,7 @@ def main(
 
         case ParserType.HAVOC:
             logger.debug("Using Havoc parser")
-            parser = HavocParser()
+            parser = LdapSearchBofParser()
             if input_files == "/opt/cobaltstrike/logs":
                 input_files = "/opt/havoc/data/loot"
             data_source = FileDataSource(str(input_files), "Console_*.log")
