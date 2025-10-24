@@ -10,8 +10,12 @@ class MockMythicAPI:
         with open(test_data_file, 'r', encoding='utf-8') as f:
             self.test_data = json.load(f)
 
-    async def login(self):
+    async def login(self, **kwargs):
         """Mock mythic.login() - just return a fake instance."""
+        # Validate kwargs if needed
+        if not kwargs.get("apitoken") or not kwargs.get("server_ip"):
+            raise ValueError("Missing required login parameters")
+
         return "mock_mythic_instance"
 
     async def get_all_callbacks(self, instance):
