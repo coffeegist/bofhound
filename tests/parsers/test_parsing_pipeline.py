@@ -3,6 +3,7 @@ from bofhound.parsers import (
     ParsingPipeline, ParsingResult, BoundaryDetector, BoundaryResult,
     LdapSearchBofParser
 )
+from bofhound.parsers.data_sources import FileDataSource
 from tests.test_data import (
     ldapsearchpy_standard_file_516
 )
@@ -11,7 +12,8 @@ def test_parse_file_ldapsearchpy_normal_file(ldapsearchpy_standard_file_516):
     """Test parsing of a normal LDAP search file (pyldapsearch)."""
     pipeline = ParsingPipeline()
     pipeline.register_parser(LdapSearchBofParser())
-    parsed_objects: ParsingResult = pipeline.process_file(ldapsearchpy_standard_file_516)
+    data_source = FileDataSource(ldapsearchpy_standard_file_516)
+    parsed_objects: ParsingResult = pipeline.process_data_source(data_source)
     assert len(parsed_objects.get_ldap_objects()) == 451
 
 def test_boundary_detection():

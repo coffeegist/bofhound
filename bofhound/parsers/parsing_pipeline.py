@@ -1,6 +1,7 @@
 """Parsing pipeline to coordinate multiple tool parsers for C2 framework logs."""
 from typing import List, Dict, Any
 from .types import ObjectType, ToolParser
+from .data_sources import DataSource
 
 class ParsingResult:
     """Container for categorized parsing results"""
@@ -44,18 +45,41 @@ class ParsingPipeline:
         """Register a tool parser with the pipeline"""
         self.tool_parsers.append(parser)
 
+    def process_data_source(self, data_source: DataSource) -> ParsingResult:
+        """
+        Process a data source through all registered parsers.
+
+        Returns categorized results.
+        """
+        result = ParsingResult()
+
+        for data_stream in data_source.get_data_streams():
+            for line in data_stream.lines():
+                # Apply platform-specific filtering
+                filtered_line = line.rstrip('\n\r')
+
+                # Distribute line to all parsers that can handle it
+                for parser in self.tool_parsers:
+                    parser.process_line(filtered_line)
+
+        # Collect results from all parsers
+        for parser in self.tool_parsers:
+            parsed_objects = parser.get_results()
+            result.add_objects(parser.produces_object_type, parsed_objects)
+
+        return result
+
     def process_file(self, file_path: str) -> ParsingResult:
         """
         Process a file through all registered parsers.
 
-        Returns categorized results/
+        Returns categorized results.
         """
         result = ParsingResult()
 
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 # Apply platform-specific filtering
-                #filtered_line = self._apply_platform_filters(line.rstrip('\n\r'))
                 filtered_line = line.rstrip('\n\r')
 
                 # Distribute line to all parsers that can handle it
