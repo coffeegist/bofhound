@@ -1,10 +1,10 @@
 """Fixtures for test data files and parsed objects"""
 import os
 import pytest
-from bofhound.parsers import LdapSearchBofParser
-from bofhound.parsers.generic_parser import GenericParser
+from bofhound.parsers import LdapSearchBofParser, ParsingPipelineFactory
 from bofhound.ad import ADDS
 from bofhound.local import LocalBroker
+from bofhound.parsers.data_sources import FileDataSource
 
 TEST_DATA_DIR = os.path.abspath(
         os.path.join(
@@ -92,7 +92,8 @@ def testdata_marvel_local_objects():
         TEST_DATA_DIR,
         "ldapsearchbof_logs/beacon_marvel_ldap_sessions_localgroup.log"
     )
-    yield GenericParser.parse_file(log_file)
+    pipeline = ParsingPipelineFactory.create_pipeline()
+    yield pipeline.process_data_source(FileDataSource(log_file))
 
 
 @pytest.fixture
@@ -114,7 +115,8 @@ def netloggedon_redania_file():
 def netloggedon_redania_objects():
     """Parsed objects from NetLoggedOn BOF netloggedonbof_redania.log"""
     log_file = os.path.join(TEST_DATA_DIR, "netloggedonbof_logs/netloggedonbof_redania.log")
-    yield GenericParser.parse_file(log_file)
+    pipeline = ParsingPipelineFactory.create_pipeline()
+    yield pipeline.process_data_source(FileDataSource(log_file))
 
 
 @pytest.fixture
@@ -127,7 +129,8 @@ def netsession_redania_netapi_file():
 def netsession_redania_netapi_objects():
     """Parsed objects from NetSession BOF netsessionbof_redania_netapi.log"""
     log_file = os.path.join(TEST_DATA_DIR, "netsessionbof_logs/netsessionbof_redania_netapi.log")
-    yield GenericParser.parse_file(log_file)
+    pipeline = ParsingPipelineFactory.create_pipeline()
+    yield pipeline.process_data_source(FileDataSource(log_file))
 
 
 @pytest.fixture
@@ -140,7 +143,8 @@ def netsession_redania_dns_file():
 def netsession_redania_dns_objects():
     """Parsed objects from NetSession BOF netsessionbof_redania_dns.log"""
     log_file = os.path.join(TEST_DATA_DIR, "netsessionbof_logs/netsessionbof_redania_dns.log")
-    yield GenericParser.parse_file(log_file)
+    pipeline = ParsingPipelineFactory.create_pipeline()
+    yield pipeline.process_data_source(FileDataSource(log_file))
 
 
 @pytest.fixture
@@ -153,7 +157,8 @@ def netlocalgroup_redania_file():
 def netlocalgroup_redania_objects():
     """Parsed objects from NetLocalGroup BOF netlocalgroupbof_redania.log"""
     log_file = os.path.join(TEST_DATA_DIR, "netlocalgroupbof_logs/netlocalgroupbof_redania.log")
-    yield GenericParser.parse_file(log_file)
+    pipeline = ParsingPipelineFactory.create_pipeline()
+    yield pipeline.process_data_source(FileDataSource(log_file))
 
 
 @pytest.fixture
@@ -166,7 +171,8 @@ def regsession_redania_file():
 def regsession_redania_objects():
     """Parsed objects from RegSession BOF regsessionbof_redania.log"""
     log_file = os.path.join(TEST_DATA_DIR, "regsessionbof_logs/regsessionbof_redania.log")
-    yield GenericParser.parse_file(log_file)
+    pipeline = ParsingPipelineFactory.create_pipeline()
+    yield pipeline.process_data_source(FileDataSource(log_file))
 
 
 @pytest.fixture

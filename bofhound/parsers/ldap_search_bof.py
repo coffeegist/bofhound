@@ -12,6 +12,10 @@ class LdapSearchBofParser(BoundaryBasedParser):
     def __init__(self):
         super().__init__(start_boundary_pattern="-" * 20)
 
+        # TODO: These skippable patterns are unrelated to ldapsearch output and
+        # indicate noise lines in cobaltstrike's C2 framework logs that should be ignored.
+        # They should be moved to a more specific location as they aren't needed for all instances
+        # of ldapsearch BOF usage.
         self._skippable_patterns = [
             r'^\d{2}\/\d{2} \d{2}:\d{2}:\d{2} UTC \[output\]$',
             r'^received output:$'

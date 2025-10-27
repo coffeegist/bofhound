@@ -2,6 +2,10 @@
 from typing import List, Dict, Any
 from .types import ObjectType, ToolParser
 from .data_sources import DataSource
+from . import (
+    NetLocalGroupBofParser, NetLoggedOnBofParser, NetSessionBofParser, RegSessionBofParser,
+    LdapSearchBofParser
+)
 
 class ParsingResult:
     """Container for categorized parsing results"""
@@ -15,6 +19,10 @@ class ParsingResult:
         """Add objects of a specific type"""
         self.objects_by_type[obj_type].extend(objects)
 
+    def get_objects_by_type(self, obj_type: ObjectType) -> List[Dict[str, Any]]:
+        """Get all parsed objects of a specific type"""
+        return self.objects_by_type[obj_type]
+
     def get_ldap_objects(self) -> List[Dict[str, Any]]:
         """Get all parsed LDAP objects"""
         return self.objects_by_type[ObjectType.LDAP_OBJECT]
@@ -23,13 +31,17 @@ class ParsingResult:
         """Get all parsed session objects"""
         return self.objects_by_type[ObjectType.SESSION]
 
-    def get_local_groups(self) -> List[Dict[str, Any]]:
-        """Get all parsed local group objects"""
+    def get_local_group_memberships(self) -> List[Dict[str, Any]]:
+        """Get all parsed local group membership objects"""
         return self.objects_by_type[ObjectType.LOCAL_GROUP]
 
     def get_registry_sessions(self) -> List[Dict[str, Any]]:
         """Get all parsed registry session objects"""
         return self.objects_by_type[ObjectType.REGISTRY_SESSION]
+
+    def get_privileged_sessions(self) -> List[Dict[str, Any]]:
+        """Get all parsed privileged session objects"""
+        return self.objects_by_type[ObjectType.PRIVILEGED_SESSION]
 
 
 class ParsingPipeline:
@@ -64,8 +76,7 @@ class ParsingPipeline:
 
         # Collect results from all parsers
         for parser in self.tool_parsers:
-            parsed_objects = parser.get_results()
-            result.add_objects(parser.produces_object_type, parsed_objects)
+            result.add_objects(parser.produces_object_type, parser.get_results())
 
         return result
 
@@ -92,3 +103,19 @@ class ParsingPipeline:
             result.add_objects(parser.produces_object_type, parsed_objects)
 
         return result
+
+class ParsingPipelineFactory:
+    """Factory to create ParsingPipeline instances with registered parsers."""
+
+    @staticmethod
+    def create_pipeline() -> ParsingPipeline:
+        """Create a ParsingPipeline with all available parsers registered."""
+        pipeline = ParsingPipeline()
+
+        pipeline.register_parser(NetLoggedOnBofParser())
+        pipeline.register_parser(NetSessionBofParser())
+        pipeline.register_parser(NetLocalGroupBofParser())
+        pipeline.register_parser(RegSessionBofParser())
+        pipeline.register_parser(LdapSearchBofParser())
+
+        return pipeline
