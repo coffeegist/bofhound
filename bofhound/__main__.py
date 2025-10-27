@@ -3,7 +3,7 @@ import sys
 import logging
 import typer
 from bofhound.parsers import (
-    LdapSearchBofParser, Brc4LdapSentinelParser, ParserType, ParsingPipeline
+    LdapSearchBofParser, Brc4LdapSentinelParser, ParserType, ParsingPipelineFactory
 )
 from bofhound.parsers.data_sources import FileDataSource, MythicDataSource, OutflankDataStream
 from bofhound.writer import BloodHoundWriter
@@ -80,51 +80,44 @@ def main(
 
      # default to Cobalt logfile naming format
     data_source = None
-    parser = None
 
     match parser_type:
 
         case ParserType.LdapsearchBof:
             logger.debug("Using ldapsearch parser")
-            parser = LdapSearchBofParser()
             data_source = FileDataSource(str(input_files), "beacon*.log")
 
         case ParserType.BRC4:
             logger.debug("Using Brute Ratel parser")
-            parser = Brc4LdapSentinelParser()
             if input_files == "/opt/cobaltstrike/logs":
                 input_files = "/opt/bruteratel/logs"
             data_source = FileDataSource(str(input_files), "b-*.log")
 
         case ParserType.HAVOC:
             logger.debug("Using Havoc parser")
-            parser = LdapSearchBofParser()
             if input_files == "/opt/cobaltstrike/logs":
                 input_files = "/opt/havoc/data/loot"
             data_source = FileDataSource(str(input_files), "Console_*.log")
 
         case ParserType.OUTFLANKC2:
             logger.debug("Using OutflankC2 parser")
-            parser = LdapSearchBofParser()
             data_source = FileDataSource(
                 str(input_files), "*.json", stream_type=OutflankDataStream
             )
 
         case ParserType.MYTHIC:
             logger.debug("Using Mythic parser")
-            parser = LdapSearchBofParser()
             if mythic_token is None:
                 logger.error("Mythic server and API token must be provided")
                 sys.exit(-1)
             data_source = MythicDataSource(mythic_server, mythic_token)
 
         case _:
-            raise ValueError(f"Unknown parser type: {parser}")
+            raise ValueError(f"Unknown parser type: {parser_type}")
 
     ad = ADDS()
     broker = LocalBroker()
-    pipeline = ParsingPipeline()
-    pipeline.register_parser(parser)
+    pipeline = ParsingPipelineFactory.create_pipeline(parser_type=parser_type)
 
     with console.status("", spinner="aesthetic") as status:
         results = pipeline.process_data_source(data_source)

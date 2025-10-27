@@ -4,7 +4,7 @@ from .types import ObjectType, ToolParser
 from .data_sources import DataSource
 from . import (
     NetLocalGroupBofParser, NetLoggedOnBofParser, NetSessionBofParser, RegSessionBofParser,
-    LdapSearchBofParser
+    LdapSearchBofParser, ParserType, Brc4LdapSentinelParser
 )
 
 class ParsingResult:
@@ -108,7 +108,7 @@ class ParsingPipelineFactory:
     """Factory to create ParsingPipeline instances with registered parsers."""
 
     @staticmethod
-    def create_pipeline() -> ParsingPipeline:
+    def create_pipeline(parser_type: ParserType = ParserType.LdapsearchBof) -> ParsingPipeline:
         """Create a ParsingPipeline with all available parsers registered."""
         pipeline = ParsingPipeline()
 
@@ -116,6 +116,9 @@ class ParsingPipelineFactory:
         pipeline.register_parser(NetSessionBofParser())
         pipeline.register_parser(NetLocalGroupBofParser())
         pipeline.register_parser(RegSessionBofParser())
-        pipeline.register_parser(LdapSearchBofParser())
+        if parser_type == ParserType.LdapsearchBof:
+            pipeline.register_parser(LdapSearchBofParser())
+        elif parser_type == ParserType.BRC4:
+            pipeline.register_parser(Brc4LdapSentinelParser())
 
         return pipeline
