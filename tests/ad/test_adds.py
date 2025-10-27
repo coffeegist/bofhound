@@ -1,8 +1,9 @@
 import pytest
 from bofhound.ad import ADDS
 from bofhound.ad.models import BloodHoundObject, BloodHoundUser, BloodHoundComputer
-from tests.test_data import testdata_ldapsearchbof_beacon_257_objects
-
+from tests.test_data import (
+    testdata_ldapsearchbof_beacon_257_objects, ldapsearchbof_minimal_ou_gplink_results
+)
 
 @pytest.fixture
 def raw_user():
@@ -219,3 +220,14 @@ def test_import_duplicate_crossref(raw_crossref):
     adds.import_objects([raw_crossref, raw_crossref])
 
     assert len(adds.CROSSREF_MAP) == expected_crossref_count
+
+def test_import_gplink_parsing(ldapsearchbof_minimal_ou_gplink_results):
+    adds = ADDS()
+    adds.import_objects(ldapsearchbof_minimal_ou_gplink_results.get_ldap_objects())
+    adds.process()
+
+    assert len(adds.ous) == 1
+    ou = adds.ous[0]
+    assert len(ou.GPLinks) == 1
+    assert ou.GPLinks[0][0] == 'CN={6AC1786C-016F-11D2-945F-00C04FB984F9},CN=POLICIES,CN=SYSTEM,DC=EZ,DC=LAB'.upper()
+    assert ou.GPLinks[0][1] == '0'

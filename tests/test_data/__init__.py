@@ -43,6 +43,17 @@ def ldapsearchbof_standard_file_marvel():
     )
 
 @pytest.fixture
+def ldapsearchbof_minimal_ou_gplink_results():
+    """LdapSearchBOF minimal OU and GPO link log file fixture"""
+    log_file = os.path.join(
+        TEST_DATA_DIR,
+        "ldapsearchbof_logs/minimal-ou-gplink.log"
+    )
+    parser = ParsingPipelineFactory.create_pipeline()
+    results = parser.process_data_source(FileDataSource(log_file))
+    yield results
+
+@pytest.fixture
 def testdata_ldapsearchbof_beacon_257_objects():
     """Parsed objects from LdapSearchBOF beacon_257-objects.log"""
     log_file = os.path.join(TEST_DATA_DIR, "ldapsearchbof_logs/beacon_257-objects.log")
