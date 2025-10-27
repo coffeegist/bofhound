@@ -4,9 +4,9 @@ from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalPrivilegedSession:
-    PS_HOST     = "Host"
-    PS_USERNAME = "Username"
-    PS_DOMAIN   = "Domain"
+    PS_HOST     = "host"
+    PS_USERNAME = "username"
+    PS_DOMAIN   = "domain"
 
     def __init__(self, object):
         self.host_name      = None
@@ -24,7 +24,7 @@ class LocalPrivilegedSession:
             return
         except:
             pass
-        
+
         if LocalPrivilegedSession.PS_USERNAME in object.keys():
             self.user = object[LocalPrivilegedSession.PS_USERNAME]
 
@@ -44,25 +44,29 @@ class LocalPrivilegedSession:
         if self.host_name is None or self.host_domain is None \
             or self.user is None or self.user_domain is None:
             return False
-        
+
         # do not import computer accounts
         if self.user.endswith('$'):
             return False
-        
+
         # do not import local accounts
         if self.host_name.lower() == self.user_domain.lower():
             return False
-        
-        logger.debug(f"NetWkstaUserEnum session found for {ColorScheme.user}{self.user}@{self.user_domain}[/] on {ColorScheme.computer}{self.host_fqdn}[/]", extra=OBJ_EXTRA_FMT)
+
+        logger.debug("NetWkstaUserEnum session found for %s%s@%s[/] on %s%s[/]", ColorScheme.user,
+                     self.user, self.user_domain, ColorScheme.computer, self.host_fqdn,
+                     extra=OBJ_EXTRA_FMT)
         return True
 
 
+    # TODO: make object immutable
     # so that a set can be used to keep a unique list of objects
     def __eq__(self, other):
         return (self.host_name, self.host_domain, self.host_fqdn, self.user, self.user_domain) == \
                (other.host_name, other.host_domain, other.host_fqdn, other.user, other.user_domain)
 
 
+    # TODO: make object immutable
     # so that a set can be used to keep a unique list of objects
     def __hash__(self):
         return hash((self.host_name, self.host_domain, self.host_fqdn, self.user, self.user_domain))

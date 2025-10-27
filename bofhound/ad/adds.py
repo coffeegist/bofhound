@@ -1,13 +1,19 @@
 import re
 import base64
-import datetime
 from io import BytesIO
 from impacket.uuid import string_to_bin
 from bloodhound.ad.utils import ADUtils
-from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
-
+from bloodhound.enumeration.acls import (
+    SecurityDescriptor, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE,
+    has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
+)
 from bofhound.logger import logger
-from bofhound.ad.models import BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema, BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA, BloodHoundRootCA, BloodHoundNTAuthStore, BloodHoundIssuancePolicy, BloodHoundCertTemplate, BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
+from bofhound.ad.models import (
+    BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema,
+    BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA,
+    BloodHoundRootCA, BloodHoundNTAuthStore, BloodHoundIssuancePolicy, BloodHoundCertTemplate,
+    BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
+)
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
 
@@ -72,15 +78,15 @@ class ADDS():
                 new_schema = BloodHoundSchema(object)
                 if new_schema.SchemaIdGuid is not None:
                     self.schemas.append(new_schema)
-                    if new_schema.Name not in self.ObjectTypeGuidMap.keys():
+                    if new_schema.Name not in self.ObjectTypeGuidMap:
                         self.ObjectTypeGuidMap[new_schema.Name] = new_schema.SchemaIdGuid
                 continue
-            
+
             # check if object is a crossRef - exception for normally required attributes
             if 'top, crossRef' in object.get(ADDS.AT_OBJECTCLASS, ''):
                 new_crossref = BloodHoundCrossRef(object)
                 if new_crossref.netBiosName is not None:
-                    if new_crossref.netBiosName not in self.CROSSREF_MAP.keys():
+                    if new_crossref.netBiosName not in self.CROSSREF_MAP:
                         self.CROSSREF_MAP[new_crossref.netBiosName] = new_crossref
                 continue
 
@@ -92,7 +98,7 @@ class ADDS():
                 accountType = int(object.get(ADDS.AT_SAMACCOUNTTYPE, 0))
             except:
                 continue
-                
+
             target_list = None
 
             # objectClass: top, container
@@ -136,7 +142,7 @@ class ADDS():
                 object_class = object.get(ADDS.AT_OBJECTCLASS, '')
                 # if 'top, domain' in object_class or 'top, builtinDomain' in object_class:
                 if 'top, domain' in object_class:
-                    if 'objectsid' in object.keys():
+                    if 'objectsid' in object:
                         bhObject = BloodHoundDomain(object)
                         self.add_domain(bhObject)
                         target_list = self.domains
@@ -164,7 +170,7 @@ class ADDS():
                         target_list = self.ntauthstores
                 elif 'top, msPKI-Enterprise-Oid' in object_class:
                     # only want these if flags property is 2, ref: https://github.com/BloodHoundAD/SharpHoundCommon/blob/ea6b097927c5bb795adb8589e9a843293d36ae37/src/CommonLib/Extensions.cs#L402
-                    if 'flags' in object.keys():
+                    if 'flags' in object:
                         if object.get('flags') == '2':
                             bhObject = BloodHoundIssuancePolicy(object)
                             target_list = self.issuancepolicies
@@ -204,12 +210,12 @@ class ADDS():
         if object.ObjectIdentifier:
             self.SID_MAP[object.ObjectIdentifier] = object
 
-        if ADDS.AT_DISTINGUISHEDNAME in object.Properties.keys():
+        if ADDS.AT_DISTINGUISHEDNAME in object.Properties:
            self.DN_MAP[object.Properties[ADDS.AT_DISTINGUISHEDNAME]] = object
 
 
     def add_domain(self, object:BloodHoundObject):
-        if ADDS.AT_DISTINGUISHEDNAME in object.Properties.keys() and object.ObjectIdentifier:
+        if ADDS.AT_DISTINGUISHEDNAME in object.Properties and object.ObjectIdentifier:
             dn = object.Properties[ADDS.AT_DISTINGUISHEDNAME]
             dc = BloodHoundObject.get_domain_component(dn.upper())
             if dc not in self.DOMAIN_MAP:
@@ -218,18 +224,18 @@ class ADDS():
 
     def retrieve_object(self, dn=None, sid=None):
         if dn:
-            if dn in self.DN_MAP.keys():
+            if dn in self.DN_MAP:
                 return self.DN_MAP[dn]
 
         if sid:
-            if sid in self.SID_MAP.keys():
+            if sid in self.SID_MAP:
                 return self.SID_MAP[sid]
 
         return None
 
 
     def recalculate_sid(self, object:BloodHoundObject):
-        if 'distinguishedname' in object.Properties.keys():
+        if 'distinguishedname' in object.Properties:
             # check for wellknown sid
             if object.ObjectIdentifier in ADUtils.WELLKNOWN_SIDS:
                 object.Properties['domainsid'] = self.DOMAIN_MAP.get(
@@ -245,9 +251,9 @@ class ADDS():
 
         PrincipalSid = BloodHoundObject.get_sid(sid, object.Properties["distinguishedname"])
 
-        if sid in self.SID_MAP.keys():
+        if sid in self.SID_MAP:
             PrincipalType = self.SID_MAP[sid]._entry_type
-        elif sid in ADUtils.WELLKNOWN_SIDS.keys():
+        elif sid in ADUtils.WELLKNOWN_SIDS:
             PrincipalType = ADUtils.WELLKNOWN_SIDS[sid][1].title()
         else:
             PrincipalType = "Unknown"
@@ -255,17 +261,17 @@ class ADDS():
         return {'RightName': relation, 'PrincipalSID': PrincipalSid, 'IsInherited': inherited, 'PrincipalType': PrincipalType }
 
     def calculate_contained(self, object):
-        
+
         if object._entry_type == "Domain":
             return
-       
+
         dn = object.Properties['distinguishedname']
         start = dn.find(',') + 1
         contained_dn = dn[start:]
         start_contained = contained_dn[0:2]
         type_contained = ""
         id_contained = None
-        
+
         match start_contained:
             case "CN":
                 if contained_dn.startswith("CN=BUILTIN"):
@@ -299,11 +305,11 @@ class ADDS():
                         id_contained = domain.ObjectIdentifier
             case _:
                 return
-        
+
         if type_contained == "":
             return
         else:
-            # 
+            #
             # We've identified the containing object, set prop on the contained object
             #
             object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
@@ -313,11 +319,11 @@ class ADDS():
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers \
                         + self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies \
                         + self.ntauthstores
-        
+
         total_objects = len(all_objects)
 
         num_parsed_relations = 0
-            
+
         with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
             for i, object in enumerate(all_objects):
                 self.recalculate_sid(object)
@@ -547,7 +553,7 @@ class ADDS():
                     group.add_group_member(subgroup, "Group")
                     logger.debug(f"Resolved {ColorScheme.group}{subgroup.Properties['name']}[/] as nested member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
-    
+
     def resolve_ou_members(self):
         for user in self.users:
             ou = self._resolve_object_ou(user)
@@ -572,9 +578,9 @@ class ADDS():
             if ou is not None:
                 ou.add_ou_member(nested_ou, "OU")
                 logger.debug(f"Identified {ColorScheme.ou}{nested_ou.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
-        
+
         sorted_ous = sorted(self.ous, key=lambda x: len(x.Properties['distinguishedname']), reverse=True)
-        
+
         for ou in sorted_ous:
             affectedcomputers = []
             affectedusers = []
@@ -595,7 +601,7 @@ class ADDS():
             ou.AffectedUsers = affectedusers
 
         sorted_domains = sorted(self.domains, key=lambda x: len(x.Properties['distinguishedname']), reverse=True)
-        
+
         for domain in sorted_domains:
             affectedcomputers = []
             affectedusers = []
@@ -626,7 +632,7 @@ class ADDS():
                 self.add_domainsid_prop(object) # since OUs don't have a SID to get a domainsid from
 
             for gplink in object.GPLinks:
-                if gplink[0] in self.DN_MAP.keys():
+                if gplink[0] in self.DN_MAP:
                     gpo = self.DN_MAP[gplink[0]]
                     object.add_linked_gpo(gpo, gplink[1])
 
@@ -634,18 +640,18 @@ class ADDS():
                        logger.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to domain {ColorScheme.domain}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
                     else:
                         logger.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to OU {ColorScheme.ou}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
-    
+
 
     def resolve_domain_trusts(self):
         for trust in self.trusts:
             if trust.TrustProperties is not None:
                 # Start by trying to add the target domain's sid if we have it
                 target_domain_dn = ADUtils.domain2ldap(trust.TrustProperties['TargetDomainName'])
-                if target_domain_dn in self.DOMAIN_MAP.keys():
+                if target_domain_dn in self.DOMAIN_MAP:
                     trust.TrustProperties['TargetDomainSid'] = self.DOMAIN_MAP[target_domain_dn]
 
                 # Append the trust dict to the origin domain's trust list
-                if trust.LocalDomainDn in self.DOMAIN_MAP.keys():
+                if trust.LocalDomainDn in self.DOMAIN_MAP:
                     for domain in self.domains:
                         if trust.LocalDomainDn == domain.Properties['distinguishedname']:
                             # don't add trust relationships more than once!
@@ -656,7 +662,7 @@ class ADDS():
 
     def add_domainsid_prop(self, object):
         dc = BloodHoundObject.get_domain_component(object.Properties["distinguishedname"])
-        if dc in self.DOMAIN_MAP.keys():
+        if dc in self.DOMAIN_MAP:
             object.Properties["domainsid"] = self.DOMAIN_MAP[dc]
 
 
@@ -747,8 +753,8 @@ class ADDS():
 
                         if entry._entry_type.lower() == 'computer' and \
                         ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) and \
-                        'haslaps' in entry.Properties.keys() and \
-                        'ms-mcs-admpwd' in self.ObjectTypeGuidMap.keys():
+                        'haslaps' in entry.Properties and \
+                        'ms-mcs-admpwd' in self.ObjectTypeGuidMap:
                             if ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['ms-mcs-admpwd']:
                                 relations.append(self.build_relation(entry, sid, 'ReadLAPSPassword', inherited=is_inherited))
                         else:
@@ -800,7 +806,7 @@ class ADDS():
                     if entry._entry_type.lower() == 'pki template' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
                     and ace_object.acedata.get_object_type().lower() == 'ea1dddc4-60ff-416e-8cc0-17cee534bce7':
                         relations.append(self.build_relation(entry, sid, 'WritePKINameFlag', inherited=is_inherited))
-                    
+
                     if entry._entry_type.lower() == 'pki template' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
                     and ace_object.acedata.get_object_type().lower() == 'd15ef7d8-f226-46db-ae79-b34e560bd12c':
                         relations.append(self.build_relation(entry, sid, 'WritePKIEnrollmentFlag', inherited=is_inherited))
@@ -814,8 +820,8 @@ class ADDS():
                 if ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_READ_PROP):
                     if entry._entry_type.lower() == 'computer' and \
                     ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) and \
-                    'haslaps' in entry.Properties.keys() and \
-                    'ms-mcs-admpwd' in self.ObjectTypeGuidMap.keys():
+                    'haslaps' in entry.Properties and \
+                    'ms-mcs-admpwd' in self.ObjectTypeGuidMap:
                         if ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['ms-mcs-admpwd']:
                            relations.append(self.build_relation(entry, sid, 'ReadLAPSPassword', inherited=is_inherited))
 
@@ -881,13 +887,13 @@ class ADDS():
 
 
     def _is_member_of(self, member, group):
-        if ADDS.AT_DISTINGUISHEDNAME in member.Properties.keys():
+        if ADDS.AT_DISTINGUISHEDNAME in member.Properties:
             if member.Properties["distinguishedname"] in group.MemberDNs:
                 return True
-            
+
         # BRc4 does not use DN in groups' member attribute, so we have
         # to check membership from the other side of the relationship
-        if ADDS.AT_DISTINGUISHEDNAME in group.Properties.keys():
+        if ADDS.AT_DISTINGUISHEDNAME in group.Properties:
             if group.Properties["distinguishedname"] in member.MemberOfDNs:
                 return True
 
@@ -898,16 +904,16 @@ class ADDS():
 
 
     def _is_nested_group(self, subgroup, group):
-        if ADDS.AT_DISTINGUISHEDNAME in subgroup.Properties.keys():
+        if ADDS.AT_DISTINGUISHEDNAME in subgroup.Properties:
             if subgroup.Properties["distinguishedname"] in group.MemberDNs:
                 return True
 
-        if ADDS.AT_DISTINGUISHEDNAME in group.Properties.keys():    
+        if ADDS.AT_DISTINGUISHEDNAME in group.Properties:
             # BRc4 does not use DN in groups' member attribute, so we have
             # to check membership from the other side of the relationship
             if group.Properties["distinguishedname"] in subgroup.MemberOfDNs:
                 return True
-            
+
         return False
 
 
@@ -919,7 +925,7 @@ class ADDS():
                     return ou
         return None
 
-    
+
     def _resolve_nested_ou(self, nested_ou):
         dn = nested_ou.Properties["distinguishedname"]
         # else is top-level OU
@@ -949,12 +955,12 @@ class ADDS():
             target_list = self.groups
         bhObject.Properties["name"] = ADUtils.WELLKNOWN_SIDS[sid][0].upper()
         return bhObject, target_list
-    
+
 
     def _get_domain_sid_from_netbios_name(self, nbtns_domain):
-        if nbtns_domain in self.CROSSREF_MAP.keys():
+        if nbtns_domain in self.CROSSREF_MAP:
             dn = self.CROSSREF_MAP[nbtns_domain].distinguishedName
-            if dn in self.DOMAIN_MAP.keys():
+            if dn in self.DOMAIN_MAP:
                 return self.DOMAIN_MAP[dn]
         return None
 
@@ -984,7 +990,7 @@ class ADDS():
             # skip sessions that have already been matched to a computer object
             if session.matched:
                 continue
-            
+
             computer_found = False
 
             # first we'll try to directly match the session host's dns name to a
@@ -1000,7 +1006,7 @@ class ADDS():
                 domain_sid = self.DOMAIN_MAP.get(dc, None)
 
                 # if we have the domain, check for a computer with samaccountname host$
-                # and the domain's sid 
+                # and the domain's sid
                 if domain_sid is not None:
                     if computer_object.matches_samaccountname(session.host_name) and \
                         computer_object.ObjectIdentifier.startswith(domain_sid):
@@ -1021,14 +1027,14 @@ class ADDS():
                 computer_object.add_session(user_sid, "privileged")
                 logger.debug(f"Resolved privileged session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
-    
+
     # correlate registry sessions to BH Computer objects
     def process_registry_sessions(self, registry_sessions, computer_object):
         for session in registry_sessions:
             # skip sessions that have already been matched to a computer object
             if session.matched:
                 continue
-            
+
             # first we'll try to directly match the session host's dns name to a
             # computer object's dNSHostName attribute
             if session.host_fqdn is not None:
@@ -1045,7 +1051,7 @@ class ADDS():
                 domain_sid = self.DOMAIN_MAP.get(dc, None)
 
                 # if we have the domain, check for a computer with samaccountname host$
-                # and the domain's sid 
+                # and the domain's sid
                 if domain_sid is not None:
                     if computer_object.matches_samaccountname(session.host_name) and \
                         computer_object.ObjectIdentifier.startswith(domain_sid):
@@ -1069,7 +1075,7 @@ class ADDS():
             # skip sessions that have already been matched to a computer object
             if session.matched:
                 continue
-            
+
             computer_found = False
 
             # case 1: we have the host's DNS name
@@ -1085,7 +1091,7 @@ class ADDS():
                     domain_sid = self.DOMAIN_MAP.get(dc, None)
 
                     # if we have the domain, check for a computer with samaccountname host$
-                    # and the domain's sid 
+                    # and the domain's sid
                     if domain_sid is not None:
                         if computer_object.matches_samaccountname(session.computer_name) and \
                             computer_object.ObjectIdentifier.startswith(domain_sid):
@@ -1094,15 +1100,15 @@ class ADDS():
 
             # case 2: we have the NETBIOS host and domain name
             elif session.computer_netbios_domain is not None:
-                domain_sid = self._get_domain_sid_from_netbios_name(session.computer_netbios_domain) 
+                domain_sid = self._get_domain_sid_from_netbios_name(session.computer_netbios_domain)
                 if domain_sid is not None:
                     if computer_object.matches_samaccountname(session.computer_name) and computer_object.ObjectIdentifier.startswith(domain_sid):
                         computer_found = True
-            
+
             # if we've got the computer, then try to find the user's SID
             if not computer_found:
                 continue
-            
+
             match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.username.lower()]
             if len(match_users) > 1:
                 logger.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for session")
@@ -1120,7 +1126,7 @@ class ADDS():
             # skip memberships that have already been matched to a computer object
             if member.matched:
                 continue
-            
+
             computer_found = False
 
             # first we'll try to directly match the session host's dns name to a
@@ -1129,14 +1135,14 @@ class ADDS():
                 if computer_object.matches_dnshostname(member.host_fqdn):
                     computer_found = True
 
-            
+
             # second we'll check to see if the host's DNS domain is a known domain
             if member.host_domain is not None and not computer_found:
                 dc = BloodHoundObject.get_dn(member.host_domain.upper())
                 domain_sid = self.DOMAIN_MAP.get(dc, None)
 
                 # if we have the domain, check for a computer with samaccountname host$
-                # and the domain's sid 
+                # and the domain's sid
                 if domain_sid is not None:
                     if computer_object.matches_samaccountname(member.host_name) and \
                         computer_object.ObjectIdentifier.startswith(domain_sid):
@@ -1148,7 +1154,7 @@ class ADDS():
                 continue
 
             color = ColorScheme.user if member.member_sid_type == "User" else ColorScheme.group
-                
+
             computer_object.add_local_group_member(member.member_sid, member.member_sid_type, member.group)
             logger.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
 
@@ -1159,7 +1165,7 @@ class ADDS():
             if start_ca_obj.x509Certificate['issuer'] == potential_issuer.x509Certificate['subject']:
                 return potential_issuer
         return None
-    
+
 
     @staticmethod
     def build_certificate_chain(start_ca_obj, all_ca_obj):
@@ -1172,7 +1178,7 @@ class ADDS():
             if current_ca.x509Certificate['subject'] == current_ca.x509Certificate['issuer']:
                 # Found a self-signed certificate (root CA)
                 break
-            
+
             issuer_ca = ADDS.find_issuer_ca(start_ca_obj, all_ca_obj)
             if not issuer_ca:
                 break
@@ -1188,7 +1194,6 @@ class ADDS():
     def build_certificate_chains(self):
         for enterpriseca in self.enterprisecas:
             enterpriseca.Properties['certchain'] = ADDS.build_certificate_chain(enterpriseca, self.enterprisecas)
-        
+
         for aiaca in self.aiacas:
             aiaca.Properties['certchain'] = ADDS.build_certificate_chain(aiaca, self.aiacas)
-            

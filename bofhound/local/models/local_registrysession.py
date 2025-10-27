@@ -4,8 +4,8 @@ from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalRegistrySession:
-    REGSESSION_HOST     = "Host"
-    REGSESSION_USER_SID = "UserSid"
+    REGSESSION_HOST     = "host"
+    REGSESSION_USER_SID = "usersid"
 
 
     def __init__(self, object):
@@ -20,7 +20,7 @@ class LocalRegistrySession:
             return
         except:
             pass
-        
+
         # will be set to True if correlated to a computer object
         self.matched = False
 
@@ -41,7 +41,7 @@ class LocalRegistrySession:
         if self.user_sid is None or self.host_name is None:
             return False
 
-        # do not import local account sessions or 
+        # do not import local account sessions or
         # user sessions from unknown domains
         if self.user_sid.rsplit('-', 1)[0] not in known_domain_sids:
             logger.debug(f"Skipping session for {ColorScheme.user}{self.user_sid}[/] since domain SID is unfamiliar", extra=OBJ_EXTRA_FMT)
@@ -56,7 +56,7 @@ class LocalRegistrySession:
     def __eq__(self, other):
         return (self.user_sid, self.host_name, self.host_domain) == \
                (other.user_sid, other.host_name, other.host_domain)
-    
+
 
     # so that a set can be used to keep a unique list of objects
     def __hash__(self):

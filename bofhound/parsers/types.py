@@ -10,9 +10,10 @@ from typing_extensions import override
 class ObjectType(Enum):
     """Types of objects that parsers can produce"""
     LDAP_OBJECT = "ldap_object"
-    SESSION = "session"
-    LOCAL_GROUP = "local_group"
-    REGISTRY_SESSION = "registry_session"
+    SESSION = "Session"
+    LOCAL_GROUP = "LocalGroup"
+    REGISTRY_SESSION = "RegistrySession"
+    PRIVILEGED_SESSION = "PrivilegedSession"
 
 
 class ParsingState(Enum):
@@ -48,7 +49,7 @@ class BoundaryBasedParser(ToolParser):
 
     def __init__(self, start_boundary_pattern: str, end_boundary_pattern: str = None):
         self._current_record_lines: List[str] = []
-        self._ldap_records: List[Dict[str, Any]] = []
+        self._records: List[Dict[str, Any]] = []
         self._parsing_state = ParsingState.WAITING_FOR_OBJECT
         self._start_boundary_detector = BoundaryDetector(start_boundary_pattern)
         self._end_boundary_detector = (
@@ -62,6 +63,10 @@ class BoundaryBasedParser(ToolParser):
         Process a single line.
         """
         line = line.strip()
+
+        if self.should_skip_line(line):
+            return
+
         start_boundary = self._start_boundary_detector.process_line(line)
 
         # Handle start boundary results
@@ -83,14 +88,13 @@ class BoundaryBasedParser(ToolParser):
                 case BoundaryResult.PARTIAL_BOUNDARY:
                     return
 
-        if not self.should_skip_line(line):
-            self._handle_content_line(line)
+        self._handle_content_line(line)
 
     @override
     def get_results(self) -> list[dict[str, str]]:
         if self._current_record_lines:  # Complete any pending record
             self._save_current_record()
-        return self._ldap_records
+        return self._records
 
     def should_skip_line(self, line: str) -> bool:
         """Determine if a line should be skipped."""
@@ -115,7 +119,7 @@ class BoundaryBasedParser(ToolParser):
         """Build the current record from lines and save it"""
         attributes = self._parse_lines_to_attributes()
         if attributes: # If not empty object
-            self._ldap_records.append(attributes)
+            self._records.append(attributes)
         self._current_record_lines = []
 
     def _handle_content_line(self, line: str) -> None:
@@ -203,6 +207,7 @@ class BoundaryDetector:
             else:
                 return BoundaryResult.PARTIAL_BOUNDARY
         else:
+            self._reset()
             return BoundaryResult.NOT_BOUNDARY
 
     def _reset(self) -> None:

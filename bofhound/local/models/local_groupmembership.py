@@ -4,11 +4,11 @@ from bofhound.logger import logger, ColorScheme, OBJ_EXTRA_FMT
 
 
 class LocalGroupMembership:
-    LOCALGROUP_HOST              = "Host"
-    LOCALGROUP_GROUP             = "Group"
-    LOCALGROUP_MEMBER            = "Member"
-    LOCALGROUP_MEMBER_SID        = "MemberSid"
-    LOCALGROUP_MEMBER_SID_TYPE   = "MemberSidType"
+    LOCALGROUP_HOST              = "host"
+    LOCALGROUP_GROUP             = "group"
+    LOCALGROUP_MEMBER            = "member"
+    LOCALGROUP_MEMBER_SID        = "membersid"
+    LOCALGROUP_MEMBER_SID_TYPE   = "membersidtype"
     LOCALGROUP_NAMES             = [
         "administrators",
         "remote desktop users",
@@ -61,43 +61,43 @@ class LocalGroupMembership:
 
         if LocalGroupMembership.LOCALGROUP_MEMBER_SID_TYPE in object.keys():
             self.member_sid_type = object[LocalGroupMembership.LOCALGROUP_MEMBER_SID_TYPE]
-    
+
 
     def should_import(self, known_domain_sids):
         # missing required attributes
         if self.host_name is None or self.group is None \
             or self.member_sid is None or self.member_sid_type is None:
             return False
-        
+
         # filter out local groups we don't care about
         if self.group.lower() not in LocalGroupMembership.LOCALGROUP_NAMES:
             return False
-        
-        # do not import local account sessions or 
+
+        # do not import local account sessions or
         # user sessions from unknown domains
         if self.member_sid.rsplit('-', 1)[0] not in known_domain_sids:
             color = ColorScheme.user if self.member_sid_type == "User" else ColorScheme.group
             logger.debug(f"Skipping local group membership for {color}{self.member}[/] since domain SID is unfamiliar", extra=OBJ_EXTRA_FMT)
             return False
-        
+
         computer = f"{self.host_name}.{self.host_domain}" if self.host_domain else self.host_name
         user = f"{self.member}@{self.member_netbios_domain}" if self.member_netbios_domain else self.member
         logger.debug(f"Local group member found for {ColorScheme.user}{user}[/] on {ColorScheme.computer}{computer}[/]", extra=OBJ_EXTRA_FMT)
         return True
-    
+
 
     # so that a set can be used to keep a unique list of objects
     def __eq__(self, other):
         return (self.host_name, self.host_domain, self.group, self.member_sid) == \
                (other.host_name, other.host_domain, other.group, other.member_sid)
-    
+
 
     # so that a set can be used to keep a unique list of objects
     def __hash__(self):
         return hash((self.host_name, self.host_domain, self.group, self.member_sid))
-    
+
 
     # for debugging
     def __repr__(self):
         return f"LocalGroupMembership(host_name={self.host_name}, group={self.group}, member={self.member}, member_netbios_domain={self.member_netbios_domain}, member_sid={self.member_sid}, member_sid_type={self.member_sid_type})"
-    
+

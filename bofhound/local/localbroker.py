@@ -1,8 +1,10 @@
+"""""LocalBroker to store and manage local parsed objects."""
+from bofhound.parsers import ParsingResult
 from .models import LocalGroupMembership, LocalPrivilegedSession, LocalSession, LocalRegistrySession
-from bofhound.parsers.shared_parsers import NetSessionBofParser, NetLoggedOnBofParser, NetLocalGroupBofParser, RegSessionBofParser
 
 
 class LocalBroker:
+    """Broker to manage local parsed objects from various parsers."""
 
     def __init__(self):
         self.privileged_sessions        = set()
@@ -10,30 +12,27 @@ class LocalBroker:
         self.local_group_memberships    = set()
         self.registry_sessions          = set()
 
+    def import_objects(self, parsed_objects: ParsingResult, known_domain_sids):
+        """
+        Import parsed objects into the local broker. Take in known domain sids so we can filter out
+        local accounts and accounts with unknown domains
+        """
+        for item in parsed_objects.get_privileged_sessions():
+            priv_session = LocalPrivilegedSession(item)
+            if priv_session.should_import():
+                self.privileged_sessions.add(priv_session)
 
-    # take in known domain sids so we can filter out local accounts 
-    # and accounts with unknown domains
-    def import_objects(self, objects, known_domain_sids):
+        for item in parsed_objects.get_sessions():
+            session = LocalSession(item)
+            if session.should_import():
+                self.sessions.add(session)
 
-        for object in objects:
+        for item in parsed_objects.get_local_group_memberships():
+            local_group_membership = LocalGroupMembership(item)
+            if local_group_membership.should_import(known_domain_sids):
+                self.local_group_memberships.add(local_group_membership)
 
-            if object["ObjectType"] == NetLoggedOnBofParser.OBJECT_TYPE:
-                priv_session = LocalPrivilegedSession(object)
-                if priv_session.should_import():
-                    self.privileged_sessions.add(priv_session)
-
-            elif object["ObjectType"] == NetSessionBofParser.OBJECT_TYPE:
-                session = LocalSession(object)
-                if session.should_import():
-                    self.sessions.add(session)
-                    
-            elif object["ObjectType"] == NetLocalGroupBofParser.OBJECT_TYPE:
-                local_group_membership = LocalGroupMembership(object)
-                if local_group_membership.should_import(known_domain_sids):
-                    self.local_group_memberships.add(local_group_membership)
-
-            elif object["ObjectType"] == RegSessionBofParser.OBJECT_TYPE:
-                registry_session = LocalRegistrySession(object)
-                if registry_session.should_import(known_domain_sids):
-                    self.registry_sessions.add(registry_session)            
-        
+        for item in parsed_objects.get_registry_sessions():
+            registry_session = LocalRegistrySession(item)
+            if registry_session.should_import(known_domain_sids):
+                self.registry_sessions.add(registry_session)

@@ -129,8 +129,7 @@ def main(
     with console.status("", spinner="aesthetic") as status:
         results = pipeline.process_data_source(data_source)
 
-    new_local_objects = (results.get_local_groups()
-                         + results.get_sessions() + results.get_registry_sessions())
+    new_local_objects = (results, ad.DOMAIN_MAP.values())
     new_objects = results.get_ldap_objects()
     logger.info("Parsed %d LDAP objects", len(new_objects))
     logger.info("Parsed %d local group/session objects", len(new_local_objects))
