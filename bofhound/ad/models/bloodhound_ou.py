@@ -22,7 +22,7 @@ class BloodHoundOU(BloodHoundObject):
         self.GPLinks = []
         self.ContainedBy = {}
         self.Properties["blocksinheritance"] = False
-        
+
         if 'distinguishedname' in object.keys() and 'ou' in object.keys():
             self.Properties["domain"] = ADUtils.ldap2domain(object.get('distinguishedname').upper())
             self.Properties["name"] = f"{object.get('ou').upper()}@{self.Properties['domain']}"
@@ -39,7 +39,7 @@ class BloodHoundOU(BloodHoundObject):
 
         if 'gplink' in object.keys():
             # [['DN1', 'GPLinkOptions1'], ['DN2', 'GPLinkOptions2'], ...]
-            self.GPLinks = [link.upper()[:-1].split(';') for link in object.get('gplink').split('[LDAP//')][1:]
+            self.GPLinks = [link.upper()[:-1].split(';') for link in object.get('gplink').split('[LDAP://')][1:]
 
         if 'gpoptions' in object.keys():
             gpoptions = object.get('gpoptions')
