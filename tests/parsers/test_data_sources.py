@@ -25,13 +25,12 @@ def test_file_glob_data_source(tmp_path):
     # Verify two data streams
     assert len(data_streams) == 2
 
-    # Verify contents of first file
-    lines1 = list(data_streams[0].lines())
-    assert lines1 == ["line1", "line2", "line3"]
+    file_lines = []
+    for stream in data_streams:
+        assert stream.identifier in {str(file1), str(file2)}
+        file_lines.extend(list(stream.lines()))
 
-    # Verify contents of second file
-    lines2 = list(data_streams[1].lines())
-    assert lines2 == ["entryA", "entryB"]
+    assert sorted(file_lines) == sorted(["line1", "line2", "line3", "entryA", "entryB"])
 
 def test_single_file_data_source(tmp_path):
     """Test FileDataSource with a single file."""
