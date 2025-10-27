@@ -1,4 +1,11 @@
 # Changelog
+## [0.4.16] - 10/27/2025
+### Changed
+- Refactored parser pipeline to use streaming input architecture with generator-based file reading
+- Introduced DataStream abstraction (FileDataStream, OutflankDataStream, MythicDataStream)
+- Implemented BoundaryBasedParser pattern for consistent parser behavior
+- Streamlined parser registration in ParsingPipelineFactory
+
 ## [0.4.15] - 9/23/2025
 ### Fixed
 - Pinned Click to version 8.1.8 to prevent typer help menu crashes
