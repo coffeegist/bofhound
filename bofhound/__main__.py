@@ -129,14 +129,15 @@ def main(
     with console.status("", spinner="aesthetic") as status:
         results = pipeline.process_data_source(data_source)
 
-    new_local_objects = (results, ad.DOMAIN_MAP.values())
-    new_objects = results.get_ldap_objects()
-    logger.info("Parsed %d LDAP objects", len(new_objects))
-    logger.info("Parsed %d local group/session objects", len(new_local_objects))
+    ldap_objects = results.get_ldap_objects()
+    local_objects = results.get_local_group_memberships() + results.get_sessions() + \
+        results.get_privileged_sessions() + results.get_registry_sessions()
+    logger.info("Parsed %d LDAP objects", len(ldap_objects))
+    logger.info("Parsed %d local group/session objects", len(local_objects))
     logger.info("Sorting parsed objects by type...")
 
-    ad.import_objects(new_objects)
-    broker.import_objects(new_local_objects, ad.DOMAIN_MAP.values())
+    ad.import_objects(ldap_objects)
+    broker.import_objects(results, ad.DOMAIN_MAP.values())
 
     logger.info("Parsed %d Users", len(ad.users))
     logger.info("Parsed %d Groups", len(ad.groups))
