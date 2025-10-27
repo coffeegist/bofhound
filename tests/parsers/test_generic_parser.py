@@ -1,11 +1,9 @@
 """Tests for the specific BOF parsers."""
 import os
-# from bofhound.parsers.generic_parser import GenericParser
 from bofhound.parsers import (
     NetLocalGroupBofParser, NetLoggedOnBofParser, NetSessionBofParser, RegSessionBofParser
 )
 from bofhound.parsers.types import ObjectType
-# from bofhound.parsers.shared_parsers import NetLoggedOnBofParser, NetSessionBofParser, NetLocalGroupBofParser, RegSessionBofParser
 from tests.test_data import (
     netloggedon_redania_file,
     netsession_redania_netapi_file,

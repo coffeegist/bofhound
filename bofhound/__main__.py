@@ -2,9 +2,7 @@
 import sys
 import logging
 import typer
-from bofhound.parsers import (
-    LdapSearchBofParser, Brc4LdapSentinelParser, ParserType, ParsingPipelineFactory
-)
+from bofhound.parsers import ParserType, ParsingPipelineFactory
 from bofhound.parsers.data_sources import FileDataSource, MythicDataSource, OutflankDataStream
 from bofhound.writer import BloodHoundWriter
 from bofhound.uploader import BloodHoundUploader
