@@ -45,6 +45,9 @@ pylint = "^2.13"
 pytest = "^8.2"
 pylint-pytest = "^1.1.8"
 pytest-asyncio = "^1.2.0"
+memory-profiler = "^0.61.0"
+matplotlib = "^3.10.7"
+line-profiler = "^5.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -1,0 +1,11 @@
+Benchmarking: tests/test_data/ldapsearchpy_logs/ldapsearch_20220413.log
+--------------------------------------------------
+Run 1/3...
+Run 2/3...
+Run 3/3...
+
+Results:
+  Average: 3.15s
+  Min:     3.13s
+  Max:     3.19s
+  Times:   ['3.14s', '3.13s', '3.19s']
