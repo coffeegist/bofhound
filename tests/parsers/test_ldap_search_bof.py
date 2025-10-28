@@ -338,3 +338,37 @@ def test_streaming_ldap_parser_direct():
     parsed_objects = parser.get_results()
 
     assert len(parsed_objects) == 2
+
+def test_parse_midsearch_taskings():
+    data = """dSCorePropagationData: 16010101000000.0Z
+--------------------
+distinguishedName: CN=WIN10,OU=Workstations,DC=windomain,DC=local
+objectSid: S-1-5-21-3674311734-1768984491-1162443153-
+09/21 15:01:34 UTC [input] <user> ldapsearch "(&(objectClass=group)(name=Domain Users))" *,ntsecuritydescriptor 1 192.168.1.1 "DC=DOMAIN,DC=local"
+09/21 15:01:34 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:34 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:41 UTC [output]
+received output:
+1104
+sAMAccountType: 805306369
+nTSecurityDescriptor: B64ENCODEDBINARYDATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+09/21 15:01:34 UTC [input] <user> ldapsearch "(&(objectClass=group)(name=Domain Users))" *,ntsecuritydescriptor 1 192.168.1.1 "DC=DOMAIN,DC=local"
+09/21 15:01:34 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:34 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:41 UTC [output]
+received output:
+BACKHALFOFNTSECURITYDESCRIPTOR==
+name: Domain Admins
+--------------------
+    """
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+
+    assert len(parsed_objects) == 1
+    assert parsed_objects[0]['distinguishedname'] == 'CN=WIN10,OU=Workstations,DC=windomain,DC=local'
+    assert parsed_objects[0]['objectsid'] == 'S-1-5-21-3674311734-1768984491-1162443153-1104'
+    assert parsed_objects[0]['ntsecuritydescriptor'] == 'B64ENCODEDBINARYDATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABACKHALFOFNTSECURITYDESCRIPTOR=='

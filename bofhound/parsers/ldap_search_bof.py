@@ -17,8 +17,11 @@ class LdapSearchBofParser(BoundaryBasedParser):
         # They should be moved to a more specific location as they aren't needed for all instances
         # of ldapsearch BOF usage.
         self._skippable_patterns = [
-            r'^\d{2}\/\d{2} \d{2}:\d{2}:\d{2} UTC \[output\]$',
-            r'^received output:$'
+            r'^\d{2}\/\d{2} \d{2}:\d{2}:\d{2} UTC \[(output|input)\]$',
+            r'^received output:$',
+            r'^\d\d\/\d\d \d\d:\d\d:\d\d UTC \[.*$',
+            r'^Running [\w-] ?.*$',
+            r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n'
         ]
         self._end_of_tool_output_pattern = r'^(R|r)etr(e|i)(e|i)ved \d+ results?'
 

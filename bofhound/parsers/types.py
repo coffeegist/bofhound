@@ -47,6 +47,8 @@ class ToolParser(ABC):
 class BoundaryBasedParser(ToolParser):
     """Abstract base class for parsing records from tools with start/end boundaries."""
 
+    __skipped_marker = "<__NOISE_SKIPPED_LINE__>"
+
     def __init__(self, start_boundary_pattern: str, end_boundary_pattern: str = None):
         self._current_record_lines: List[str] = []
         self._records: List[Dict[str, Any]] = []
@@ -65,6 +67,7 @@ class BoundaryBasedParser(ToolParser):
         line = line.strip()
 
         if self.should_skip_line(line):
+            self._handle_skipped_line()
             return
 
         start_boundary = self._start_boundary_detector.process_line(line)
@@ -122,6 +125,12 @@ class BoundaryBasedParser(ToolParser):
             self._records.append(attributes)
         self._current_record_lines = []
 
+    def _handle_skipped_line(self) -> None:
+        """Handle a line that should be skipped."""
+        if self._parsing_state == ParsingState.IN_OBJECT:
+            # Keep a marker of a skipped line in the record's lines
+            self._current_record_lines.append(self.__skipped_marker)
+
     def _handle_content_line(self, line: str) -> None:
         if self._parsing_state == ParsingState.IN_OBJECT:
             self._current_record_lines.append(line)
@@ -133,7 +142,11 @@ class BoundaryBasedParser(ToolParser):
         attributes: Dict[str, Any] = {}
 
         for line in self._current_record_lines:
-            if line.strip() == "":
+            line = line.strip()
+            if (line == ""
+                or line == self.__skipped_marker):
+                # This line is blank or was skipped as noise;
+                #  treat as break in previous message
                 break_in_previous_message = True
             else:
                 key, value = self.get_key_value(line)
