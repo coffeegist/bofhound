@@ -105,7 +105,7 @@ class MythicDataSource(DataSource):
 
     def __init__(self, mythic_server: str, mythic_token: str):
         # suppress warning
-        warnings.filterwarnings("ignore", 
+        warnings.filterwarnings("ignore",
                        message=".*AIOHTTPTransport does not verify ssl certificates.*",
                        category=UserWarning)
         self.mythic_server = mythic_server
@@ -150,7 +150,7 @@ class MythicDataSource(DataSource):
         if self._mythic_instance is None:
             self._connect()
 
-        async_batch_iterator = mythic.get_all_task_output(self._mythic_instance, batch_size=1)
+        async_batch_iterator = mythic.get_all_task_output(self._mythic_instance, batch_size=100)
 
         for batch in self._async_iterable_to_sync_iterable(async_batch_iterator):
             yield from (MythicDataStream(output) for output in batch)
