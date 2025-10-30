@@ -7,6 +7,7 @@ import json
 import logging
 import base64
 import asyncio
+import warnings
 from abc import ABC, abstractmethod
 from typing import Iterator, AsyncIterator, TypeVar
 from typing_extensions import override
@@ -103,6 +104,10 @@ class MythicDataSource(DataSource):
     """Data source that fetches data from Mythic server."""
 
     def __init__(self, mythic_server: str, mythic_token: str):
+        # suppress warning
+        warnings.filterwarnings("ignore", 
+                       message=".*AIOHTTPTransport does not verify ssl certificates.*",
+                       category=UserWarning)
         self.mythic_server = mythic_server
         self.mythic_token = mythic_token
         self._mythic_instance = None
@@ -115,7 +120,7 @@ class MythicDataSource(DataSource):
                 server_ip=self.mythic_server,
                 server_port=7443,
                 timeout=-1,
-                logging_level=logging.CRITICAL,
+                logging_level=logging.CRITICAL
             ))
         except Exception as e:
             logger.error("Error logging into Mythic")
