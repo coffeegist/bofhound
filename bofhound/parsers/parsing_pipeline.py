@@ -57,7 +57,7 @@ class ParsingPipeline:
         """Register a tool parser with the pipeline"""
         self.tool_parsers.append(parser)
 
-    def process_data_source(self, data_source: DataSource) -> ParsingResult:
+    def process_data_source(self, data_source: DataSource, progress_callback=None) -> ParsingResult:
         """
         Process a data source through all registered parsers.
 
@@ -66,6 +66,8 @@ class ParsingPipeline:
         result = ParsingResult()
 
         for data_stream in data_source.get_data_streams():
+            if progress_callback:
+                progress_callback(data_stream.identifier)
             for line in data_stream.lines():
                 # Apply platform-specific filtering
                 filtered_line = line.rstrip('\n\r')
@@ -116,9 +118,9 @@ class ParsingPipelineFactory:
         pipeline.register_parser(NetSessionBofParser())
         pipeline.register_parser(NetLocalGroupBofParser())
         pipeline.register_parser(RegSessionBofParser())
-        if parser_type == ParserType.LdapsearchBof:
-            pipeline.register_parser(LdapSearchBofParser())
-        elif parser_type == ParserType.BRC4:
+        if parser_type == ParserType.BRC4:
             pipeline.register_parser(Brc4LdapSentinelParser())
+        else:
+            pipeline.register_parser(LdapSearchBofParser())
 
         return pipeline

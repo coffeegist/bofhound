@@ -118,7 +118,10 @@ def main(
     pipeline = ParsingPipelineFactory.create_pipeline(parser_type=parser_type)
 
     with console.status("", spinner="aesthetic") as status:
-        results = pipeline.process_data_source(data_source)
+        results = pipeline.process_data_source(
+            data_source,
+            progress_callback=lambda id: status.update(f"Processing {id}")
+        )
 
     ldap_objects = results.get_ldap_objects()
     local_objects = results.get_local_group_memberships() + results.get_sessions() + \
