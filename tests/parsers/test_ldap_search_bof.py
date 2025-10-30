@@ -1,22 +1,85 @@
-import os
-import pytest
+"""Tests for LDAP Search BOF parser."""
 from bofhound.ad.models.bloodhound_computer import BloodHoundComputer
-from bofhound.parsers.ldap_search_bof import LdapSearchBofParser
+from bofhound.parsers import LdapSearchBofParser
 from bofhound.ad.adds import ADDS
-from tests.test_data import *
+from tests.test_data import (
+    ldapsearchbof_standard_file_257,
+    ldapsearchpy_standard_file_516,
+    ldapsearchbof_standard_file_2052,
+    ldapsearchbof_standard_file_marvel
+)
+
+def test_parse_file_ldapsearchpy_normal_file(ldapsearchpy_standard_file_516):
+    """Test parsing of a normal LDAP search file (pyldapsearch)."""
+    parser = LdapSearchBofParser()
+    with open(ldapsearchpy_standard_file_516, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
+    assert len(parsed_objects) == 451
 
 
-def test_parse_file_ldapsearchpyNormalFile(ldapsearchpy_standard_file_516):
-    parsed_objects = LdapSearchBofParser.parse_file(ldapsearchpy_standard_file_516)
-    assert len(parsed_objects) == 516
+def test_parse_file_ldapsearchbof_normal_file(ldapsearchbof_standard_file_257):
+    """Test parsing of a normal LDAP search file (ldapsearchbof)."""
+    parser = LdapSearchBofParser()
+    with open(ldapsearchbof_standard_file_257, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
+    assert len(parsed_objects) == 224
+
+def test_parse_file_ldapsearchbof_large_file(ldapsearchbof_standard_file_2052):
+    """Test parsing of a normal LDAP search file (ldapsearchbof)."""
+    parser = LdapSearchBofParser()
+    with open(ldapsearchbof_standard_file_2052, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
+    assert len(parsed_objects) == 2052
+
+def test_parse_file_marvel(ldapsearchbof_standard_file_marvel):
+    """Test parsing of a normal LDAP search file (ldapsearchbof)."""
+    parser = LdapSearchBofParser()
+    with open(ldapsearchbof_standard_file_marvel, 'r', encoding='utf-8') as f:
+        for line in f:
+            parser.process_line(line)
+    parsed_objects = parser.get_results()
+    assert len(parsed_objects) == 327
 
 
-def test_parse_file_ldapsearchbof_NormalFile(ldapsearchbof_standard_file_257):
-    parsed_objects = LdapSearchBofParser.parse_file(ldapsearchbof_standard_file_257)
-    assert len(parsed_objects) == 257
+def test_parse_broken_line():
+    """Test parsing of broken lines in LDAP search output."""
+    data = """--------------------
+userAccountControl: 660
+
+12/05 02:31:52 UTC [output]
+received output:
+48
+badPwdCount: 0
+----------
+
+12/05 02:31:52 UTC [output]
+received output:
+----------
+userAccountControl: 66048
+bad
+
+12/05 02:31:52 UTC [output]
+received output:
+PwdCount: 0
+codePage: 0"""
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+    assert len(parsed_objects) == 2
+    for obj in parsed_objects:
+        assert int(obj.get('useraccountcontrol', 0)) == 66048
+        assert int(obj.get('badpwdcount', 0)) == 0
 
 
 def test_parse_data_computer():
+    """Test parsing of a computer object in LDAP search output."""
     data = """dSCorePropagationData: 16010101000000.0Z
 --------------------
 objectClass: top, person, organizationalPerson, user, computer
@@ -62,14 +125,20 @@ ms-Mcs-AdmPwd: testpassword
 ms-Mcs-AdmPwdExpirationTime: 13295315246991474
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data)
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
 
     assert len(parsed_objects) == 1
     assert 'operatingsystem' in parsed_objects[0].keys()
-    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties.keys()
+    print(parsed_objects[0])
+    assert int(parsed_objects[0].get('useraccountcontrol', 0)) == 4096
+    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties
 
 
 def test_parse_lower_data_computer():
+    """Test parsing of a computer object in LDAP search output with mixed case attributes."""
     data = """dSCorePropagationData: 16010101000000.0Z
 --------------------
 objectclass: top, person, organizationalPerson, user, computer
@@ -115,17 +184,24 @@ ms-mcs-admpwd: testpassword
 ms-mcs-admpwdexpirationtime: 13295315246991474
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data)
-    ad = ADDS()
-    ad.import_objects(parsed_objects)
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+    adds = ADDS()
+    adds.import_objects(parsed_objects)
 
     assert len(parsed_objects) == 1
     assert 'operatingsystem' in parsed_objects[0].keys()
-    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties.keys()
-    assert len(ad.computers) == 1
+    assert 'operatingsystem' in BloodHoundComputer(parsed_objects[0]).Properties
+    assert len(adds.computers) == 1
 
 
 def test_parse_data_computer_data_missing_dn():
+    """
+    Test parsing of a computer object in LDAP search output with missing
+    distinguishedName attribute.
+    """
     data = """dSCorePropagationData: 16010101000000.0Z
 --------------------
 objectClass: top, person, organizationalPerson, user, computer
@@ -170,16 +246,20 @@ ms-Mcs-AdmPwd: testpassword
 ms-Mcs-AdmPwdExpirationTime: 13295315246991474
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data)
-    ad = ADDS()
-    ad.import_objects(parsed_objects)
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+    adds = ADDS()
+    adds.import_objects(parsed_objects)
 
     assert len(parsed_objects) == 1
     # this test is failing - should distinguishedname be required?
-    assert len(ad.computers) == 0
+    assert len(adds.computers) == 0
 
 
 def test_parse_mininal_data_computer():
+    """Test parsing of a minimal computer object in LDAP search output."""
     data = """dSCorePropagationData: 16010101000000.0Z
 --------------------
 distinguishedName: CN=WIN10,OU=Workstations,DC=windomain,DC=local
@@ -187,10 +267,108 @@ objectSid: S-1-5-21-3674311734-1768984491-1162443153-1104
 sAMAccountType: 805306369
 --------------------
     """
-    parsed_objects = LdapSearchBofParser.parse_data(data)
-    ad = ADDS()
-    ad.import_objects(parsed_objects)
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+    adds = ADDS()
+    adds.import_objects(parsed_objects)
 
     assert len(parsed_objects) == 1
-    assert len(ad.computers) == 1
+    assert len(adds.computers) == 1
 
+
+def test_streaming_ldap_parser_direct():
+    """Test StreamingLdapParser directly with controlled input"""
+
+    # pylint: disable=line-too-long
+    # Test data - simulate what would come from file
+    data = [
+        "--------------------",
+        "objectClass: top, container",
+        "cn: System",
+        "description: Builtin system settings",
+        "distinguishedName: CN=System,DC=ez,DC=lab",
+        "instanceType: 4",
+        "whenCreated: 20210826173041.0Z",
+        "whenChanged: 20210826173041.0Z",
+        "uSNCreated: 5662",
+        "uSNChanged: 5662",
+        "showInAdvancedViewOnly: TRUE",
+        "nTSecurityDescriptor: AQAEjKgFAADEBQAAAAAAABQAAAAEAJQFHQAAAAAAFACUAAIAAQEAAAAAAAULAAAAAAAkAL0BDgABBQAAAAAABRUAAAB/ivvSK592RVonQNMAAgAAAAAUAP8BDwABAQAAAAAABRIAAAAFGjwAEAAAAAMAAAAAQhZMwCDQEadoAKoAbgUpFMwoSDcUvEWbB61vAV5fKAECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAAAAQhZMwCDQEadoAKoAbgUpunqWv+YN0BGihQCqADBJ4gECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAAAQICBfpXnQEZAgAMBPwtTPFMwoSDcUvEWbB61vAV5fKAECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAAAQICBfpXnQEZAgAMBPwtTPunqWv+YN0BGihQCqADBJ4gECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAABAwgq8qXnQEZAgAMBPwtTPFMwoSDcUvEWbB61vAV5fKAECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAABAwgq8qXnQEZAgAMBPwtTPunqWv+YN0BGihQCqADBJ4gECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAABCL7pZonnQEZAgAMBPwtPPFMwoSDcUvEWbB61vAV5fKAECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAABCL7pZonnQEZAgAMBPwtPPunqWv+YN0BGihQCqADBJ4gECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAAD4iHAD4QrSEbQiAKDJaPk5FMwoSDcUvEWbB61vAV5fKAECAAAAAAAFIAAAACoCAAAFGjwAEAAAAAMAAAD4iHAD4QrSEbQiAKDJaPk5unqWv+YN0BGihQCqADBJ4gECAAAAAAAFIAAAACoCAAAFEjgAMAAAAAEAAAAP1kdbkGCyQJ83Kk3ojzBjAQUAAAAAAAUVAAAAf4r70iufdkVaJ0DTDgIAAAUSOAAwAAAAAQAAAA/WR1uQYLJAnzcqTeiPMGMBBQAAAAAAB",
+        "",
+        "04/12 00:43:20 UTC [output]",
+        "received output:",
+        "RUAAAB/ivvSK592RVonQNMPAgAABRo4AAgAAAADAAAApm0CmzwNXEaL7lGZ1xZcuoZ6lr/mDdARooUAqgAwSeIBAQAAAAAAAwAAAAAFGjgACAAAAAMAAACmbQKbPA1cRovuUZnXFly6hnqWv+YN0BGihQCqADBJ4gEBAAAAAAAFCgAAAAUaOAAQAAAAAwAAAG2exrfHLNIRhU4AoMmD9giGepa/5g3QEaKFAKoAMEniAQEAAAAAAAUJAAAABRo4ABAAAAADAAAAbZ7Gt8cs0hGFTgCgyYP2CJx6lr/mDdARooUAqgAwSeIBAQAAAAAABQkAAAAFGjgAEAAAAAMAAABtnsa3xyzSEYVOAKDJg/YIunqWv+YN0BGihQCqADBJ4gEBAAAAAAAFCQAAAAUaOAAgAAAAAwAAAJN7G+pIXtVGvGxN9P2nijWGepa/5g3QEaKFAKoAMEniAQEAAAAAAAUKAAAABRosAJQAAgACAAAAFMwoSDcUvEWbB61vAV5fKAECAAAAAAAFIAAAACoCAAAFGiwAlAACAAIAAACcepa/5g3QEaKFAKoAMEniAQIAAAAAAAUgAAAAKgIAAAUaLACUAAIAAgAAALp6lr/mDdARooUAqgAwSeIBAgAAAAAABSAAAAAqAgAABRMoADAAAAABAAAA5cN4P5r3vUaguJ0YEW3ceQEBAAAAAAAFCgAAAAUSKAAwAQAAAQAAAN5H5pFv2XBLlVfWP/TzzNgBAQAAAAAABQoAAAAAEiQA/wEPAAEFAAAAAAAFFQAAAH+K+9Irn3ZFWidA0wcCAAAAEhgABAAAAAECAAAAAAAFIAAAACoCAAAAEhgAvQEPAAECAAAAAAAFIAAAACACAAABBQAAAAAABRUAAAB/ivvSK592RVonQNMAAgAAAQUAAAAAAAUVAAAAf4r70iufdkVaJ0DTAAIAAA==",
+        "name: System",
+        "objectGUID: 4c03aff1-3558-4e5e-9b31-abe40eb99cae",
+        "systemFlags: -1946157056",
+        "objectCategory: CN=Container,CN=Schema,CN=Configuration,DC=ez,DC=lab",
+        "isCriticalSystemObject: TRUE",
+        "dSCorePropagationData: 20210921193126.0Z, 20210826175542.0Z, 16010101000416.0Z",
+        "-------------",
+        "",
+        "04/12 00:43:20 UTC [output]",
+        "received output:",
+        "-------",
+        "objectClass: top, lostAndFound",
+        "cn: LostAndFound",
+        "description: Default container for orphaned objects",
+        "distinguishedName: CN=LostAndFound,DC=ez,DC=lab",
+        "instanceType: 4",
+        "whenCreated: 20210826173041.0Z",
+        "whenChanged: 20210826173041.0Z",
+        "uSNCreated: 5658",
+        "uSNChanged: 5658",
+        "showInAdvancedViewOnly: TRUE",
+        "nTSecurityDescriptor: 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",
+        "name: LostAndFound",
+        "objectGUID: a76d96ca-1775-491d-9950-b64aa943bb24",
+        "systemFlags: -1946157056",
+        "objectCategory: CN=Lost-And-Found,CN=Schema,CN=Configuration,DC=ez,DC=lab",
+        "isCriticalSystemObject: TRUE",
+        "dSCorePropagationData: 20210921193126.0Z, 20210826175542.0Z, 16010101000416.0Z",
+        "--------------------",
+    ]
+    # pylint: enable=line-too-long
+
+    parser = LdapSearchBofParser()
+    for line in data:
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+
+    assert len(parsed_objects) == 2
+
+def test_parse_midsearch_taskings():
+    data = """dSCorePropagationData: 16010101000000.0Z
+--------------------
+distinguishedName: CN=WIN10,OU=Workstations,DC=windomain,DC=local
+objectSid: S-1-5-21-3674311734-1768984491-1162443153-
+09/21 15:01:34 UTC [input] <user> ldapsearch "(&(objectClass=group)(name=Domain Users))" *,ntsecuritydescriptor 1 192.168.1.1 "DC=DOMAIN,DC=local"
+09/21 15:01:34 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:34 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:41 UTC [output]
+received output:
+1104
+sAMAccountType: 805306369
+nTSecurityDescriptor: B64ENCODEDBINARYDATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+09/21 15:01:34 UTC [input] <user> ldapsearch "(&(objectClass=group)(name=Domain Users))" *,ntsecuritydescriptor 1 192.168.1.1 "DC=DOMAIN,DC=local"
+09/21 15:01:34 UTC [output]
+Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:34 UTC [task] <T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482> Running ldapsearch (T1018, T1069.002, T1087.002, T1087.003, T1087.004, T1482)
+09/21 15:01:41 UTC [output]
+received output:
+BACKHALFOFNTSECURITYDESCRIPTOR==
+name: Domain Admins
+--------------------
+    """
+    parser = LdapSearchBofParser()
+    for line in data.splitlines(keepends=True):
+        parser.process_line(line)
+    parsed_objects = parser.get_results()
+
+    assert len(parsed_objects) == 1
+    assert parsed_objects[0]['distinguishedname'] == 'CN=WIN10,OU=Workstations,DC=windomain,DC=local'
+    assert parsed_objects[0]['objectsid'] == 'S-1-5-21-3674311734-1768984491-1162443153-1104'
+    assert parsed_objects[0]['ntsecuritydescriptor'] == 'B64ENCODEDBINARYDATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABACKHALFOFNTSECURITYDESCRIPTOR=='

@@ -50,14 +50,10 @@ class BloodHoundDomain(BloodHoundObject):
 
         if 'ntsecuritydescriptor' in object.keys():
             self.RawAces = object['ntsecuritydescriptor']
-        
+
         if 'gplink' in object.keys():
-            # this is gross - not sure why gplink is coming in without a colon
-            # (even from logs in test folder) but will hunt down later if it's a problem
-            links = object.get('gplink').replace('LDAP//', 'LDAP://')
-            
             # [['DN1', 'GPLinkOptions1'], ['DN2', 'GPLinkOptions2'], ...]
-            self.GPLinks = [link.upper()[:-1].split(';') for link in links.split('[LDAP://')][1:]
+            self.GPLinks = [link.upper()[:-1].split(';') for link in object.get('gplink').split('[LDAP://')][1:]
 
         self.Properties["highvalue"] = True
 
@@ -89,7 +85,7 @@ class BloodHoundDomain(BloodHoundObject):
         domain["Aces"] = self.Aces
         domain["Links"] = self.Links
         domain["ChildObjects"] = self.ChildObjects
-        
+
         self.GPOChanges["AffectedComputers"] = self.AffectedComputers
         self.GPOChanges["AffectedUsers"] = self.AffectedUsers
         domain["GPOChanges"] = self.GPOChanges

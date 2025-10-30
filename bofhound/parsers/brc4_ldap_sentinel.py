@@ -1,132 +1,116 @@
-import re
-import codecs
+"""BRC4 LDAP Sentinel Parser Module."""
 from datetime import datetime as dt
+from typing import Dict, Any
 
 from bofhound.logger import logger
-from bofhound.parsers import LdapSearchBofParser
+from .types import ObjectType, BoundaryBasedParser
 
 
-class Brc4LdapSentinelParser(LdapSearchBofParser):
-    # BRC4 LDAP Sentinel currently only queries attributes=["*"] and objectClass 
-    # is always the top result. May need to be updated in the future.
-    START_BOUNDARY = '[+] objectclass                        :'
-    END_BOUNDARY = '+-------------------------------------------------------------------+'
-
-    FORMATTED_TS_ATTRS = ['lastlogontimestamp', 'lastlogon', 'lastlogoff', 'pwdlastset', 'accountexpires']
+class Brc4LdapSentinelParser(BoundaryBasedParser):
+    """
+    BRC4 LDAP Sentinel currently only queries attributes=["*"] and objectClass
+    is always the top result. May need to be updated in the future.
+    """
+    FORMATTED_TS_ATTRS = [
+        'lastlogontimestamp', 'lastlogon', 'lastlogoff', 'pwdlastset', 'accountexpires'
+    ]
     ISO_8601_TS_ATTRS = ['dscorepropagationdata', 'whenchanged', 'whencreated']
     BRACKETED_ATTRS = ['objectguid']
-    SEMICOLON_DELIMITED_ATTRS = ['serviceprincipalname', 'memberof', 'member', 'objectclass', 'msds-allowedtodelegateto']
+    SEMICOLON_DELIMITED_ATTRS = [
+        'serviceprincipalname', 'memberof', 'member', 'objectclass', 'msds-allowedtodelegateto'
+    ]
 
     def __init__(self):
-        pass #self.objects = []
+        super().__init__(start_boundary_pattern=f'+{"-" * 67}+')
 
-    #
-    # Legacy, used by test cases for 1 liner
-    #   Removed from __main__.py to avoid duplicating file reads and formatting
-    #
-    @staticmethod
-    def parse_file(file):
-        with codecs.open(file, 'r', 'utf-8', errors='ignore') as f:
-            return Brc4LdapSentinelParser.parse_data(f.read())
+        self._skippable_patterns = [
+            r'^\[\*\] Task-\d+ \[Thread: \d+\]$',
+            r'^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3} \[input\] .+$',
+            r'^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3} \[sent \d+ bytes\]$'
+        ]
 
+    @property
+    def tool_name(self) -> str:
+        return "brc4_ldap_sentinel"
 
-    #
-    # Replaces parse_file() usage in __main__.py to avoid duplicate file reads
-    #
-    @staticmethod
-    def prep_file(file):
-        with codecs.open(file, 'r', 'utf-8', errors='ignore') as f:
-            return f.read()
+    @property
+    def produces_object_type(self) -> ObjectType:
+        return ObjectType.LDAP_OBJECT
 
-
-    @staticmethod
-    def parse_data(contents):
-        parsed_objects = []
-        current_object = None
-        in_result_region = False
-
-        in_result_region = False
-
-        lines = contents.splitlines()
-        for line in lines:
-
-            if len(line) == 0:
-                continue
-
-            is_start_boundary_line = Brc4LdapSentinelParser._is_start_boundary_line(line)
-            is_end_boundary_line = Brc4LdapSentinelParser._is_end_boundary_line(line)
-
-            if not in_result_region and not is_start_boundary_line:
-                continue
-
-            if is_start_boundary_line:
-                if not in_result_region:
-                    in_result_region = True
-
-                current_object = {}
-
-            elif is_end_boundary_line:
-                parsed_objects.append(current_object)
-                in_result_region = False
-                current_object = None
-                continue
-
-            data = line.split(': ')
-
+    def _post_process_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
+        processed_attributes = {}
+        for key, value in attributes.items():
             try:
-                data = line.split(':', 1)
-                attr = data[0].replace('[+]', '').strip().lower()
-                value = data[1].strip()
-
                 # BRc4 formats some timestamps for us that we need to revert to raw values
-                if attr in Brc4LdapSentinelParser.FORMATTED_TS_ATTRS:
+                if key in Brc4LdapSentinelParser.FORMATTED_TS_ATTRS:
                     if value.lower() in ['never expires', 'value not set', '0']:
                         continue
                     timestamp_obj = dt.strptime(value, '%m/%d/%Y %I:%M:%S %p')
                     value = int((timestamp_obj - dt(1601, 1, 1)).total_seconds() * 10000000)
 
-                if attr in Brc4LdapSentinelParser.ISO_8601_TS_ATTRS:
+                if key in Brc4LdapSentinelParser.ISO_8601_TS_ATTRS:
                     formatted_ts = []
                     for ts in value.split(';'):
                         timestamp_obj = dt.strptime(ts.strip(), "%m/%d/%Y %I:%M:%S %p")
                         timestamp_str = timestamp_obj.strftime("%Y%m%d%H%M%S.0Z")
                         formatted_ts.append(timestamp_str)
                     value = ', '.join(formatted_ts)
-                
+
                 # BRc4 formats some attributes with surroudning {} we need to remove
-                if attr in Brc4LdapSentinelParser.BRACKETED_ATTRS:
+                if key in Brc4LdapSentinelParser.BRACKETED_ATTRS:
                     value = value[1:-1]
 
                 # BRc4 delimits some list-esque attributes with semicolons
                 # when our BH models expect commas
-                if attr in Brc4LdapSentinelParser.SEMICOLON_DELIMITED_ATTRS:
+                if key in Brc4LdapSentinelParser.SEMICOLON_DELIMITED_ATTRS:
                     value = value.replace('; ', ', ')
 
                 # BRc4 puts the trustDirection attribute within securityidentifier
-                if attr == 'securityidentifier' and 'trustdirection' in value.lower():
+                if key == 'securityidentifier' and 'trustdirection' in value.lower():
                     trust_direction = value.lower().split('trustdirection ')[1]
-                    current_object['trustdirection'] = trust_direction
+                    processed_attributes['trustdirection'] = trust_direction
                     value = value.split('trustdirection: ')[0]
                     continue
 
-                current_object[attr] = value
+                processed_attributes[key] = value
 
+            except ValueError as e:
+                # Handle timestamp parsing errors specifically
+                if (key in
+                    Brc4LdapSentinelParser.FORMATTED_TS_ATTRS
+                    + Brc4LdapSentinelParser.ISO_8601_TS_ATTRS
+                ):
+                    logger.warning('Failed to parse timestamp for %s: %s. Error: %s', key, value, e)
+                    # Keep original value or set to None based on requirements
+                    processed_attributes[key] = value
+                else:
+                    logger.warning('Value error processing %s: %s', key, e)
+                    processed_attributes[key] = value
+            except IndexError as e:
+                # Handle list access errors (bracket removal, string splitting)
+                logger.warning('Index error processing %s: %s. Error: %s', key, value, e)
+                processed_attributes[key] = value
+            except AttributeError as e:
+                # Handle cases where value might be None
+                logger.warning('Attribute error processing %s: %s. Error: %s', key, value, e)
+                # Skip this attribute or set default
+                continue
             except Exception as e:
-                logger.debug(f'Error - {str(e)}')
+                # Catch-all for unexpected errors, but log more context
+                logger.error(
+                    'Unexpected error processing attribute %s with value %s: %s: %s',
+                    key, value, type(e).__name__, e
+                )
+                # Decide whether to skip or keep original value
+                processed_attributes[key] = value
 
-        return parsed_objects
+        return processed_attributes
 
-
-    @staticmethod
-    def _is_start_boundary_line(line):
-        # BRc4 seems to always have objectClass camelcased, but we'll use lower() just in case
-        if line.lower().startswith(Brc4LdapSentinelParser.START_BOUNDARY):
-            return True
-        return False
-
-
-    @staticmethod
-    def _is_end_boundary_line(line):
-        if line == Brc4LdapSentinelParser.END_BOUNDARY:
-            return True
-        return False
+    def get_key_value(self, line:str) -> tuple[str, str]:
+        """Split line into key and value at the first colon"""
+        parts = line.split(":", 1)
+        key = parts[0].split(']')[1].strip().lower()
+        value = None
+        if len(parts) > 1:
+            value = parts[1].strip()
+        return key, value

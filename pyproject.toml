@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bofhound"
-version = "0.4.15"
+version = "0.4.16"
 description = "Parse output from common sources and transform it into BloodHound-ingestible data"
 authors = [
 	"Adam Brown",
@@ -42,7 +42,9 @@ requests = "^2.32.3"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^2.13"
-pytest = "^7.1.2"
+pytest = "^8.2"
+pylint-pytest = "^1.1.8"
+pytest-asyncio = "^1.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -50,3 +52,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 bofhound = "bofhound.__main__:app"
+
+[tool.pylint.MASTER]
+load-plugins = ["pylint_pytest"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
