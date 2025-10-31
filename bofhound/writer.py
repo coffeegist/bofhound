@@ -16,7 +16,7 @@ class BloodHoundWriter():
     @staticmethod
     def write(out_dir='.', domains=None, computers=None, users=None,
           groups=None, ous=None, containers=None, gpos=None, enterprisecas=None, aiacas=None,
-          rootcas=None, ntauthstores=None, issuancepolicies=None, certtemplates=None, 
+          rootcas=None, ntauthstores=None, issuancepolicies=None, certtemplates=None,
           trusts=None, trustaccounts=None, properties_level=2, zip_files=False):
 
         os.makedirs(out_dir, exist_ok=True)
@@ -54,7 +54,7 @@ class BloodHoundWriter():
                 outfiles.append(
                     BloodHoundWriter.write_ous_file(out_dir, ous, properties_level)
                 )
-        
+
         if containers is not None:
             with console.status(" [bold] Writing Containers to JSON...\n", spinner="aesthetic"):
                 outfiles.append(
@@ -96,7 +96,7 @@ class BloodHoundWriter():
                 outfiles.append(
                     BloodHoundWriter.write_issuancepolicies_file(out_dir, issuancepolicies, properties_level)
                 )
-        
+
         if certtemplates is not None:
             with console.status(" [bold] Writing Cert Templates to JSON...\n", spinner="aesthetic"):
                 outfiles.append(
@@ -135,7 +135,7 @@ class BloodHoundWriter():
 
         # remove any 'None' entries from the outfiles list
         return [f for f in outfiles if f is not None]
-    
+
 
     @staticmethod
     def write_domain_file(out_dir, domains, properties_level):
@@ -160,9 +160,9 @@ class BloodHoundWriter():
         BloodHoundWriter.files.append(out_file)
         with codecs.open(out_file, 'w', 'utf-8') as f:
             json.dump(datastruct, f, ensure_ascii=False)
-        
+
         return out_file
-    
+
 
     @staticmethod
     def write_computers_file(out_dir, computers, properties_level):
@@ -244,7 +244,7 @@ class BloodHoundWriter():
 
         return out_file
 
-    
+
     @staticmethod
     def write_ous_file(out_dir, ous, properties_level):
         if len(ous) == 0:
@@ -324,7 +324,7 @@ class BloodHoundWriter():
             json.dump(datastruct, f, ensure_ascii=False)
 
         return out_file
-    
+
 
     @staticmethod
     def write_enterprisecas_file(out_dir, enterprisecas, properties_level):
@@ -379,7 +379,7 @@ class BloodHoundWriter():
 
         return out_file
 
-    
+
     @staticmethod
     def write_rootcas_file(out_dir, rootcas, properties_level):
         if len(rootcas) == 0:
@@ -406,7 +406,7 @@ class BloodHoundWriter():
 
         return out_file
 
-    
+
     @staticmethod
     def write_ntauthstores_file(out_dir, ntauthstores, properties_level):
         if len(ntauthstores) == 0:
@@ -460,7 +460,7 @@ class BloodHoundWriter():
 
         return out_file
 
-    
+
     @staticmethod
     def write_certtemplates_file(out_dir, certtemplates, properties_level):
         if len(certtemplates) == 0:

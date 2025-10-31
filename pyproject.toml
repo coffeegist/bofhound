@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bofhound"
-version = "0.4.16"
+version = "0.4.17"
 description = "Parse output from common sources and transform it into BloodHound-ingestible data"
 authors = [
 	"Adam Brown",
@@ -45,6 +45,9 @@ pylint = "^2.13"
 pytest = "^8.2"
 pylint-pytest = "^1.1.8"
 pytest-asyncio = "^1.2.0"
+memory-profiler = "^0.61.0"
+matplotlib = "^3.10.7"
+line-profiler = "^5.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

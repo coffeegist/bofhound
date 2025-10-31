@@ -1,6 +1,7 @@
 import re
 import base64
 from io import BytesIO
+from typing import Dict, List
 from impacket.uuid import string_to_bin
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import (
@@ -45,24 +46,23 @@ class ADDS():
         self.DOMAIN_MAP = {} # {dc: ObjectIdentifier}
         self.CROSSREF_MAP = {} # { netBiosName: BofHoundModel }
         self.ObjectTypeGuidMap = {} # { Name : schemaIdGuid }
-        self.domains = []
-        self.users = []
-        self.computers = []
-        self.groups = []
-        self.ous = []
-        self.gpos = []
-        self.enterprisecas = []
-        self.aiacas = []
-        self.rootcas = []
-        self.ntauthstores = []
-        self.issuancepolicies = []
-        self.certtemplates = []
-        self.containers = []
-        self.schemas = []
-        self.trusts = []
-        self.trustaccounts = []
-        self.unknown_objects = []
-
+        self.domains: list[BloodHoundDomain] = []
+        self.users: list[BloodHoundUser] = []
+        self.computers: list[BloodHoundComputer] = []
+        self.groups: list[BloodHoundGroup] = []
+        self.ous: list[BloodHoundOU] = []
+        self.gpos: list[BloodHoundGPO] = []
+        self.enterprisecas: list[BloodHoundEnterpriseCA] = []
+        self.aiacas: list[BloodHoundAIACA] = []
+        self.rootcas: list[BloodHoundRootCA] = []
+        self.ntauthstores: list[BloodHoundNTAuthStore] = []
+        self.issuancepolicies: list[BloodHoundIssuancePolicy] = []
+        self.certtemplates: list[BloodHoundCertTemplate] = []
+        self.containers: list[BloodHoundContainer] = []
+        self.schemas: list[BloodHoundSchema] = []
+        self.trusts: list[BloodHoundDomainTrust] = []
+        self.trustaccounts: list[BloodHoundUser] = []
+        self.unknown_objects: list[dict] = []
 
     def import_objects(self, objects):
         """Parse a list of dictionaries representing attributes of an AD object
@@ -314,7 +314,6 @@ class ADDS():
             #
             object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
 
-
     def process(self):
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers \
                         + self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies \
@@ -338,7 +337,7 @@ class ADDS():
                     #
                     continue
 
-        logger.info(f"Parsed {num_parsed_relations} ACL relationships")
+        logger.info("Parsed %d ACL relationships", num_parsed_relations)
 
         with console.status(" [bold] Creating default users", spinner="aesthetic"):
             self.write_default_users()
@@ -402,7 +401,7 @@ class ADDS():
                     (sid, object_type) = self.get_sid_from_name(target.lower())
                     if sid and object_type:
                         delegation_entry = {"ObjectIdentifier": sid, "ObjectType": object_type}
-                        logger.debug(f"Resolved delegation Host: {host}, target: {target}, {delegation_entry}")
+                        logger.debug("Resolved delegation Host: %s, target: %s, %s", host, target, delegation_entry)
                         resolved_delegation_list.append(delegation_entry)
                     else:
                         continue
@@ -422,16 +421,19 @@ class ADDS():
         for domain in self.domains:
             domainsid = domain.ObjectIdentifier
             domainname = domain.Properties.get('name', 'UNKNOWN').upper()
-            logger.debug(f"Adding default groups for {ColorScheme.domain}{domainname}[/] ({domainsid})", extra=OBJ_EXTRA_FMT)
+            logger.debug(
+                "Adding default groups for %s%s[/] (%s)", ColorScheme.domain, domainname, domainsid,
+                extra=OBJ_EXTRA_FMT
+            )
 
             user = BloodHoundUser()
             user.AllowedToDelegate = []
-            user.ObjectIdentifier = "%s-S-1-5-20" % domainname
+            user.ObjectIdentifier = f"{domainname}-S-1-5-20"
             user.PrimaryGroupSID = None
             user.Properties = {
                 "domain": domainname,
                 "domainsid": domainsid,
-                "name": "NT AUTHORITY@%s" % domainname,
+                "name": f"NT AUTHORITY@{domainname}",
                 ADDS.AT_DISTINGUISHEDNAME: f"CN=S-1-5-20,CN=FOREIGNSECURITYPRINCIPALS,{BloodHoundObject.get_dn(domainname)}"
             }
             user.Aces = []
@@ -441,7 +443,6 @@ class ADDS():
             user.IsACLProtected = False
 
             self.users.append(user)
-
 
     def write_default_groups(self):
         """
@@ -456,17 +457,20 @@ class ADDS():
         for domain in self.domains:
             domainsid = domain.ObjectIdentifier
             domainname = domain.Properties.get('name', 'UNKNOWN').upper()
-            logger.debug(f"Adding default groups for {ColorScheme.domain}{domainname}[/] ({domainsid})", extra=OBJ_EXTRA_FMT)
+            logger.debug(
+                "Adding default groups for %s%s[/] (%s)", ColorScheme.domain, domainname, domainsid,
+                extra=OBJ_EXTRA_FMT
+            )
 
             domain_controllers = [ computer for computer in self.computers if computer.PrimaryGroupSid.endswith('-516') ]
 
             group = BloodHoundGroup({})
             group.IsDeleted = False
             group.IsACLProtected = False
-            group.ObjectIdentifier = "%s-S-1-5-9" % domainname
+            group.ObjectIdentifier = f"{domainname}-S-1-5-9"
             group.Properties = {
                 "domain": domainname.upper(),
-                "name": "ENTERPRISE DOMAIN CONTROLLERS@%s" % domainname,
+                "name": f"ENTERPRISE DOMAIN CONTROLLERS@{domainname}",
                 ADDS.AT_DISTINGUISHEDNAME: f"CN=S-1-5-9,CN=FOREIGNSECURITYPRINCIPALS,{BloodHoundObject.get_dn(domainname)}"
             }
             group.Members = []
@@ -486,11 +490,11 @@ class ADDS():
 
             evgroup.IsDeleted = False
             evgroup.IsACLProtected = False
-            evgroup.ObjectIdentifier = "%s-S-1-1-0" % domainname
+            evgroup.ObjectIdentifier = f"{domainname}-S-1-1-0"
             evgroup.Properties = {
                 "domain": domainname,
                 "domainsid": domainsid,
-                "name": "EVERYONE@%s" % domainname,
+                "name": f"EVERYONE@{domainname}",
                 ADDS.AT_DISTINGUISHEDNAME: f"CN=S-1-5-0,CN=FOREIGNSECURITYPRINCIPALS,{BloodHoundObject.get_dn(domainname)}"
             }
             evgroup.Members = []
@@ -503,12 +507,12 @@ class ADDS():
 
             augroup.IsDeleted = False
             augroup.IsACLProtected = False
-            augroup.ObjectIdentifier = "%s-S-1-5-11" % domainname
+            augroup.ObjectIdentifier = f"{domainname}-S-1-5-11"
             # Was this a mistake? augroup.ObjectIdentifier = "S-1-5-11"
             augroup.Properties = {
                     "domain": domainname,
                     "domainsid": domainsid,
-                    "name": "AUTHENTICATED USERS@%s" % domainname,
+                    "name": f"AUTHENTICATED USERS@{domainname}",
                     ADDS.AT_DISTINGUISHEDNAME: f"CN=S-1-5-11,CN=FOREIGNSECURITYPRINCIPALS,{BloodHoundObject.get_dn(domainname)}"
                 }
             augroup.Members = []
@@ -521,11 +525,11 @@ class ADDS():
 
             iugroup.IsDeleted = False
             iugroup.IsACLProtected = False
-            iugroup.ObjectIdentifier = "%s-S-1-5-4" % domainname
+            iugroup.ObjectIdentifier = f"{domainname}-S-1-5-4"
             iugroup.Properties = {
                     "domain": domainname,
                     "domainsid": domainsid,
-                    "name": "INTERACTIVE@%s" % domainname,
+                    "name": f"INTERACTIVE@{domainname}",
                     ADDS.AT_DISTINGUISHEDNAME: f"CN=S-1-5-4,CN=FOREIGNSECURITYPRINCIPALS,{BloodHoundObject.get_dn(domainname)}"
                 }
             iugroup.Members = []
@@ -533,51 +537,111 @@ class ADDS():
 
             self.groups.append(iugroup)
 
-
     def resolve_group_members(self):
+        """Resolve group memberships for users, groups, and computers"""
+
+        # Build reverse map to reduce algorithmic complexity
+        dn_to_groups: Dict[str, List[BloodHoundGroup]] = {}
+
         for group in self.groups:
-            for user in self.users:
-                if self._is_member_of(user, group):
+            group_dn = group.Properties.get(ADDS.AT_DISTINGUISHEDNAME, None)
+            if group_dn is None:
+                continue
+            for member in group.MemberDNs:
+                if member not in dn_to_groups:
+                    dn_to_groups[member] = []
+                dn_to_groups[member].append(group)
+
+        # Single pass to resolve memberships for users, computers, subgroups
+        for user in self.users:
+            user_dn = user.Properties.get(ADDS.AT_DISTINGUISHEDNAME, None)
+            if user_dn is None:
+                continue
+            if user_dn in dn_to_groups:
+                for group in dn_to_groups[user_dn]:
                     group.add_group_member(user, "User")
-                    logger.debug(f"Resolved {ColorScheme.user}{user.Properties['name']}[/] as member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                    logger.debug(
+                        "Resolved %s%s[/] as member of %s%s[/]",
+                        ColorScheme.user, user.Properties['name'],
+                        ColorScheme.group, group.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
 
-
-            for computer in self.computers:
-                if self._is_member_of(computer, group):
+        for computer in self.computers:
+            computer_dn = computer.Properties.get(ADDS.AT_DISTINGUISHEDNAME, None)
+            if computer_dn is None:
+                continue
+            if computer_dn in dn_to_groups:
+                for group in dn_to_groups[computer_dn]:
                     group.add_group_member(computer, "Computer")
-                    logger.debug(f"Resolved {ColorScheme.computer}{computer.Properties['name']}[/] as member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                    logger.debug(
+                        "Resolved %s%s[/] as member of %s%s[/]",
+                        ColorScheme.computer, computer.Properties['name'],
+                        ColorScheme.group, group.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
 
 
-            for subgroup in self.groups:
-                if self._is_nested_group(subgroup, group):
+        for subgroup in self.groups:
+            subgroup_dn = subgroup.Properties.get(ADDS.AT_DISTINGUISHEDNAME, None)
+            if subgroup_dn is None:
+                continue
+            if subgroup_dn in dn_to_groups:
+                for group in dn_to_groups[subgroup_dn]:
                     group.add_group_member(subgroup, "Group")
-                    logger.debug(f"Resolved {ColorScheme.group}{subgroup.Properties['name']}[/] as nested member of {ColorScheme.group}{group.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                    logger.debug(
+                        "Resolved %s%s[/] as nested member of %s%s[/]",
+                        ColorScheme.group, subgroup.Properties['name'],
+                        ColorScheme.group, group.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
 
-
+    # TODO: Algorithm can be optimized
     def resolve_ou_members(self):
+        """Resolve OU memberships for users, groups, computers, and nested OUs"""
         for user in self.users:
             ou = self._resolve_object_ou(user)
             if ou is not None:
                 ou.add_ou_member(user, "User")
-                logger.debug(f"Identified {ColorScheme.user}{user.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Identified %s%s[/] as within OU %s%s[/]",
+                    ColorScheme.user, user.Properties['name'],
+                    ColorScheme.ou, ou.Properties['name'],
+                    extra=OBJ_EXTRA_FMT
+                )
 
         for group in self.groups:
             ou = self._resolve_object_ou(group)
             if ou is not None:
                 ou.add_ou_member(group, "Group")
-                logger.debug(f"Identified {ColorScheme.group}{group.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Identified %s%s[/] as within OU %s%s[/]",
+                    ColorScheme.group, group.Properties['name'],
+                    ColorScheme.ou, ou.Properties['name'],
+                    extra=OBJ_EXTRA_FMT
+                )
 
         for computer in self.computers:
             ou = self._resolve_object_ou(computer)
             if ou is not None:
                 ou.add_ou_member(computer, "Computer")
-                logger.debug(f"Identified {ColorScheme.computer}{computer.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Identified %s%s[/] as within OU %s%s[/]",
+                    ColorScheme.computer, computer.Properties['name'],
+                    ColorScheme.ou, ou.Properties['name'],
+                    extra=OBJ_EXTRA_FMT
+                )
 
         for nested_ou in self.ous:
             ou = self._resolve_nested_ou(nested_ou)
             if ou is not None:
                 ou.add_ou_member(nested_ou, "OU")
-                logger.debug(f"Identified {ColorScheme.ou}{nested_ou.Properties['name']}[/] as within OU {ColorScheme.ou}{ou.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Identified %s%s[/] as within OU %s%s[/]",
+                    ColorScheme.ou, nested_ou.Properties['name'],
+                    ColorScheme.ou, ou.Properties['name'],
+                    extra=OBJ_EXTRA_FMT
+                )
 
         sorted_ous = sorted(self.ous, key=lambda x: len(x.Properties['distinguishedname']), reverse=True)
 
@@ -637,12 +701,22 @@ class ADDS():
                     object.add_linked_gpo(gpo, gplink[1])
 
                     if object._entry_type == 'Domain':
-                       logger.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to domain {ColorScheme.domain}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                       logger.debug(
+                           "Linked %s%s[/] to domain %s%s[/]",
+                           ColorScheme.gpo, gpo.Properties['name'],
+                           ColorScheme.domain, object.Properties['name'],
+                           extra=OBJ_EXTRA_FMT
+                       )
                     else:
-                        logger.debug(f"Linked {ColorScheme.gpo}{gpo.Properties['name']}[/] to OU {ColorScheme.ou}{object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
-
+                        logger.debug(
+                            "Linked %s%s[/] to OU %s%s[/]",
+                            ColorScheme.gpo, gpo.Properties['name'],
+                            ColorScheme.ou, object.Properties['name'],
+                            extra=OBJ_EXTRA_FMT
+                        )
 
     def resolve_domain_trusts(self):
+        """Resolve trust relationships between domains"""
         for trust in self.trusts:
             if trust.TrustProperties is not None:
                 # Start by trying to add the target domain's sid if we have it
@@ -655,20 +729,22 @@ class ADDS():
                     for domain in self.domains:
                         if trust.LocalDomainDn == domain.Properties['distinguishedname']:
                             # don't add trust relationships more than once!
-                            if not any(prior['TargetDomainName'] == trust.TrustProperties['TargetDomainName'] for prior in domain.Trusts):
+                            if (not any(
+                                prior['TargetDomainName'] == trust.TrustProperties['TargetDomainName']
+                                for prior in domain.Trusts)
+                            ):
                                 domain.Trusts.append(trust.TrustProperties)
                             break
 
 
-    def add_domainsid_prop(self, object):
-        dc = BloodHoundObject.get_domain_component(object.Properties["distinguishedname"])
+    def add_domainsid_prop(self, item):
+        """Add the domain SID property to the object. Assumes DOMAIN_MAP is populated."""
+        dc = BloodHoundObject.get_domain_component(item.Properties["distinguishedname"])
         if dc in self.DOMAIN_MAP:
-            object.Properties["domainsid"] = self.DOMAIN_MAP[dc]
-
+            item.Properties["domainsid"] = self.DOMAIN_MAP[dc]
 
     def resolve_trust_relationships(self):
         pass
-
 
     def resolve_published_templates(self, entry:BloodHoundEnterpriseCA):
         if hasattr(entry, 'CertTemplates') and entry.CertTemplates:
@@ -678,16 +754,23 @@ class ADDS():
                     and template.Properties['domain'] == entry.Properties['domain']:
                         entry.EnabledCertTemplates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
 
-
-    # Returns int: number of relations parsed
     def parse_acl(self, entry:BloodHoundObject):
+        """
+        Parse the nTSecurityDescriptor attribute of an AD object and extract BloodHound
+        relationships
+
+        Returns int: number of relations parsed
+        """
         if not entry.RawAces:
             return 0
 
         try:
             value = base64.b64decode(entry.RawAces)
-        except:
-            logger.warning(f'Error base64 decoding nTSecurityDescriptor attribute on {entry._entry_type} {entry.Properties["name"]}')
+        except Exception as e:
+            logger.warning(
+                "Error base64 decoding nTSecurityDescriptor attribute on %s %s: %s",
+                entry._entry_type, entry.Properties.get('name', 'UNKNOWN'), e
+            )
             return 0
 
         if not value:
@@ -886,7 +969,7 @@ class ADDS():
         return len(relations)
 
 
-    def _is_member_of(self, member, group):
+    def _is_member_of(self, member: BloodHoundObject, group: BloodHoundGroup):
         if ADDS.AT_DISTINGUISHEDNAME in member.Properties:
             if member.Properties["distinguishedname"] in group.MemberDNs:
                 return True
@@ -917,9 +1000,9 @@ class ADDS():
         return False
 
 
-    def _resolve_object_ou(self, object):
-        if "OU=" in object.Properties["distinguishedname"]:
-            target_ou = "OU=" + object.Properties["distinguishedname"].split("OU=", 1)[1]
+    def _resolve_object_ou(self, item):
+        if "OU=" in item.Properties["distinguishedname"]:
+            target_ou = "OU=" + item.Properties["distinguishedname"].split("OU=", 1)[1]
             for ou in self.ous:
                 if ou.Properties["distinguishedname"] == target_ou:
                     return ou
@@ -975,13 +1058,13 @@ class ADDS():
 
 
         if len(broker.local_group_memberships) > 0:
-            logger.info(f"Resolved local group memberships")
+            logger.info("Resolved local group memberships")
 
         if len(broker.privileged_sessions) > 0 \
             or len(broker.registry_sessions) > 0 \
             or len(broker.sessions) > 0:
 
-            logger.info(f"Resolved sessions")
+            logger.info("Resolved sessions")
 
 
     # correlate privileged sessions to BH Computer objects
@@ -1019,17 +1102,21 @@ class ADDS():
 
             match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.user.lower()]
             if len(match_users) > 1:
-                logger.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for privileged session")
+                logger.warning("Multiple users with sAMAccountName %s found for privileged session",
+                               ColorScheme.user + session.user + "[/]")
                 # TODO: implement NetBIOS domain name handling
                 continue
             elif len(match_users) == 1:
                 user_sid = match_users[0].ObjectIdentifier
                 computer_object.add_session(user_sid, "privileged")
-                logger.debug(f"Resolved privileged session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Resolved privileged session on %s",
+                    ColorScheme.computer + computer_object.Properties['name'] + "[/]",
+                    extra=OBJ_EXTRA_FMT
+                )
 
-
-    # correlate registry sessions to BH Computer objects
     def process_registry_sessions(self, registry_sessions, computer_object):
+        """Correlate registry sessions to a computer object."""
         for session in registry_sessions:
             # skip sessions that have already been matched to a computer object
             if session.matched:
@@ -1041,7 +1128,11 @@ class ADDS():
                 if computer_object.matches_dnshostname(session.host_name):
                     session.matched = True
                     computer_object.add_session(session.user_sid, "registry")
-                    logger.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via dNSHostName match", extra=OBJ_EXTRA_FMT)
+                    logger.debug(
+                        "Resolved registry session on %s via dNSHostName match",
+                        ColorScheme.computer + computer_object.Properties['name'] + "[/]",
+                        extra=OBJ_EXTRA_FMT
+                    )
                     continue
 
             # second we'll check to see if the host's DNS domain is a known domain
@@ -1058,7 +1149,11 @@ class ADDS():
 
                         session.matched = True
                         computer_object.add_session(session.user_sid, "registry")
-                        logger.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via domain + sAMAccountName match", extra=OBJ_EXTRA_FMT)
+                        logger.debug(
+                            "Resolved registry session on %s via domain + sAMAccountName match",
+                            ColorScheme.computer + computer_object.Properties['name'] + "[/]",
+                            extra=OBJ_EXTRA_FMT
+                        )
                         continue
 
             # if we don't have the host domain/FQDN from the session, we just try to match samaccountname
@@ -1066,11 +1161,16 @@ class ADDS():
             elif computer_object.matches_samaccountname(session.host_name):
                 session.matched = True
                 computer_object.add_session(session.user_sid, "registry")
-                logger.debug(f"Resolved registry session on {ColorScheme.computer}{computer_object.Properties['name']}[/] via fuzzy sAMAccountName match", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Resolved registry session on %s via fuzzy sAMAccountName match",
+                    ColorScheme.computer + computer_object.Properties['name'] + "[/]",
+                    extra=OBJ_EXTRA_FMT
+                )
 
 
-    # correlate sessions to BH Computer objects
+    # TODO: Algorithm can be optimized
     def process_sessions(self, sessions, computer_object):
+        """Correlate sessions to a computer object."""
         for session in sessions:
             # skip sessions that have already been matched to a computer object
             if session.matched:
@@ -1111,13 +1211,20 @@ class ADDS():
 
             match_users = [user for user in self.users if user.Properties.get('samaccountname', '').lower() == session.username.lower()]
             if len(match_users) > 1:
-                logger.warning(f"Multiple users with sAMAccountName {ColorScheme.user}{session.user}[/] found for session")
+                logger.warning(
+                    "Multiple users with sAMAccountName %s found for session",
+                    ColorScheme.user + session.user + "[/]"
+                )
                 # TODO: implement NetBIOS domain name handling
                 continue
             elif len(match_users) == 1:
                 user_sid = match_users[0].ObjectIdentifier
                 computer_object.add_session(user_sid, "session")
-                logger.debug(f"Resolved session on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(
+                    "Resolved session on %s",
+                    ColorScheme.computer + computer_object.Properties['name'] + "[/]",
+                    extra=OBJ_EXTRA_FMT
+                )
 
 
     # correlate local group memberships to BH Computer objects
@@ -1156,7 +1263,13 @@ class ADDS():
             color = ColorScheme.user if member.member_sid_type == "User" else ColorScheme.group
 
             computer_object.add_local_group_member(member.member_sid, member.member_sid_type, member.group)
-            logger.debug(f"Resolved {color}{member.member}[/] as member of {ColorScheme.group}{member.group}[/] on {ColorScheme.computer}{computer_object.Properties['name']}[/]", extra=OBJ_EXTRA_FMT)
+            logger.debug(
+                "Resolved %s as member of %s on %s",
+                color + member.member + "[/]",
+                ColorScheme.group + member.group + "[/]",
+                ColorScheme.computer + computer_object.Properties['name'] + "[/]",
+                extra=OBJ_EXTRA_FMT
+            )
 
 
     @staticmethod
