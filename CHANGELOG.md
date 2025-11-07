@@ -1,4 +1,18 @@
 # Changelog
+## [0.4.17] - 10/30/2025
+### Performance
+- Optimized group membership resolution algorithm from polynomial to linear complexity using reverse index lookups
+- Reduced computational operations in `resolve_group_members` method significantly, especially for larger domains
+
+### Added
+- Benchmarking utilities for performance testing (benchmark.py)
+- Development dependencies: memory-profiler, matplotlib, line-profiler
+
+### Changed
+- Improved type hints in ADDS class for better code clarity
+- Enhanced debug logging messages for object properties
+- Code formatting improvements in BloodHoundWriter methods
+
 ## [0.4.16] - 10/27/2025
 ### Changed
 - Refactored parser pipeline to use streaming input architecture with generator-based file reading
@@ -53,8 +67,8 @@
 
 ## [0.4.6] - 04/07/2025
 #### Fixed
-- Removed log statement clogging debug output [#19](https://github.com/coffeegist/bofhound/issues/19) 
-- Update deprecated pyproject.toml syntax [#20](https://github.com/coffeegist/bofhound/issues/20) 
+- Removed log statement clogging debug output [#19](https://github.com/coffeegist/bofhound/issues/19)
+- Update deprecated pyproject.toml syntax [#20](https://github.com/coffeegist/bofhound/issues/20)
 
 ## [0.4.5] - 12/17/2024
 #### Added
@@ -63,7 +77,7 @@
 ## [0.4.4] - 12/13/2024
 ### Fixed
 - Addressed [#13](https://github.com/coffeegist/bofhound/issues/13)
-- Catch error is ACL paring fails for an object 
+- Catch error is ACL paring fails for an object
 
 ## [0.4.3] - 10/30/2024
 ### Added
@@ -105,7 +119,7 @@
 ## [0.3.0] - 12/27/2023
 ### Added
 - ADDS model for AD crossRef objects (referrals)
-- Models for Local objects (sessions and local group memberships) 
+- Models for Local objects (sessions and local group memberships)
 - Parsers for registry sessions, privileged sessions, sessions and local group memberships
 - ADDS processing logic to tie local group/session data to a computer object
 
