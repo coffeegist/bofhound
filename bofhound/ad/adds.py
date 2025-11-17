@@ -379,6 +379,10 @@ class ADDS():
                     self.resolve_published_templates(ca)
             logger.info("Resolved enabled templates per CA")
 
+            with console.status(" [bold] Resolving hosting computers of CAs", spinner="aesthetic"):
+                for ca in self.enterprisecas:
+                    self.resolve_hosting_computer(ca)
+            logger.info("Resolved hosting computers of CAs")
 
     def get_sid_from_name(self, name):
         for entry in self.SID_MAP:
@@ -753,6 +757,16 @@ class ADDS():
                     if template.Properties['name'].split('@')[0].lower() == template_name.lower() \
                     and template.Properties['domain'] == entry.Properties['domain']:
                         entry.EnabledCertTemplates.append({"ObjectIdentifier": template.ObjectIdentifier.upper(), "ObjectType": "CertTemplate"})
+
+    def resolve_hosting_computer(self, ca:BloodHoundEnterpriseCA):
+        if 'dnshostname' in ca.Properties:
+            hostname = ca.Properties['dnshostname']
+            for comp in self.computers:
+                if comp.matches_dnshostname(hostname):
+                    ca.HostingComputer = comp.ObjectIdentifier
+                    logger.debug(f"Resolved CA hosting computer: {hostname} to {ca.HostingComputer}")
+                    return
+            logger.warning(f"Could not resolve CA hosting computer: {hostname}")
 
     def parse_acl(self, entry:BloodHoundObject):
         """
