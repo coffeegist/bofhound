@@ -1306,7 +1306,7 @@ class ADDS():
 
     def build_certificate_chains(self):
         for enterpriseca in self.enterprisecas:
-            enterpriseca.Properties['certchain'] = ADDS.build_certificate_chain(enterpriseca, self.enterprisecas)
+            enterpriseca.Properties['certchain'] = ADDS.build_certificate_chain(enterpriseca, self.enterprisecas+self.rootcas)
 
         for aiaca in self.aiacas:
             aiaca.Properties['certchain'] = ADDS.build_certificate_chain(aiaca, self.aiacas)
