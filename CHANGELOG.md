@@ -1,4 +1,9 @@
 # Changelog
+## [0.4.18] - 11/22/2025
+### Fixes
+- Fix ADCSESC1 edge creation
+- Fix [#44](https://github.com/coffeegist/bofhound/issues/44)
+
 ## [0.4.17] - 10/30/2025
 ### Performance
 - Optimized group membership resolution algorithm from polynomial to linear complexity using reverse index lookups
