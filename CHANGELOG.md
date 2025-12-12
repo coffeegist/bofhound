@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.19] - 12/12/2025
+### Fixes
+- Fix [#47](https://github.com/coffeegist/bofhound/issues/47)
+
 ## [0.4.18] - 11/22/2025
 ### Fixes
 - Fix ADCSESC1 edge creation
