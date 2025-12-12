@@ -85,6 +85,10 @@ def main(
             logger.debug("Using ldapsearch parser")
             data_source = FileDataSource(str(input_files), "beacon*.log")
 
+            # if no CS logs were found, search for pyldapsearch logs or SoaPy logs
+            if len(list(data_source.get_data_streams())) == 0:
+                data_source = FileDataSource(str(input_files), "*.log")
+
         case ParserType.BRC4:
             logger.debug("Using Brute Ratel parser")
             if input_files == "/opt/cobaltstrike/logs":
