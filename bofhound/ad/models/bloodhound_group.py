@@ -37,11 +37,9 @@ class BloodHoundGroup(BloodHoundObject):
             logger.debug(f"Reading Group object {ColorScheme.group}{name}[/]", extra=OBJ_EXTRA_FMT)
 
         if 'objectsid' in object.keys():
-            #objectid = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))
             objectid = object.get('objectsid')
-            self.ObjectIdentifier = objectid
-            self.Properties["domainsid"] = objectid.rsplit('-',1)[0]
-
+            if objectid not in ADUtils.WELLKNOWN_SIDS:
+                self.Properties["domainsid"] = objectid.rsplit('-',1)[0]
 
         if 'distinguishedname' in object.keys():
             self.Properties["distinguishedname"] = object.get('distinguishedname', None).upper()
