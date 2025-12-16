@@ -1,5 +1,5 @@
 # Changelog
-## [0.4.19] - 12/12/2025
+## [0.4.20] - 12/16/2025
 ### Fixes
 - Fix [#46](https://github.com/coffeegist/bofhound/issues/46) which caused well-known SIDs (groups) to be mising from bofhound output
 
