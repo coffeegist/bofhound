@@ -314,7 +314,14 @@ class ADDS():
             #
             object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
 
-    def process(self):
+    def process(self, num_workers=None):
+        """
+        Process imported objects to build relationships and parse ACLs.
+        
+        Args:
+            num_workers: Number of worker processes for parallel ACL parsing.
+                        If None, uses cpu_count() - 1. Set to 1 to disable multiprocessing.
+        """
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers \
                         + self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies \
                         + self.ntauthstores
@@ -323,19 +330,55 @@ class ADDS():
 
         num_parsed_relations = 0
 
-        with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
-            for i, object in enumerate(all_objects):
-                self.recalculate_sid(object)
-                self.calculate_contained(object)
-                self.add_domainsid_prop(object)
-                try:
-                    num_parsed_relations += self.parse_acl(object)
-                    status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
-                except:
-                    #
-                    # Catch the occasional error parinsing ACLs
-                    #
-                    continue
+        # Allow parallel ACL parsing while keeping existing logic intact.
+        # We use threads (not processes) to avoid pickling the ADDS instance;
+        # this still helps on multi-core hosts when underlying libraries drop the GIL.
+        if num_workers is None:
+            try:
+                import os
+                cpu_count = os.cpu_count() or 4
+                num_workers = max(1, cpu_count - 1)
+            except Exception:
+                num_workers = 1
+        if num_workers < 1:
+            num_workers = 1
+
+        def _process_single(obj):
+            # Wrap parse_acl to avoid failing the whole run on a single bad entry
+            try:
+                return self.parse_acl(obj)
+            except Exception:
+                return 0
+
+        # Precompute SID/containment/domain props before ACL parsing (needed for both modes)
+        for obj in all_objects:
+            self.recalculate_sid(obj)
+            self.calculate_contained(obj)
+            self.add_domainsid_prop(obj)
+
+        if total_objects >= 200 and num_workers > 1:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with console.status(" [bold] Processing ACLs in parallel", spinner="aesthetic") as status:
+                with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                    futures = {executor.submit(_process_single, obj): idx for idx, obj in enumerate(all_objects)}
+                    for count, future in enumerate(as_completed(futures), start=1):
+                        num_parsed_relations += future.result()
+                        if count % 50 == 0:
+                            status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {count}/{total_objects} objects parsed")
+        else:
+            with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
+                for i, object in enumerate(all_objects):
+                    self.recalculate_sid(object)
+                    self.calculate_contained(object)
+                    self.add_domainsid_prop(object)
+                    try:
+                        num_parsed_relations += self.parse_acl(object)
+                        status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
+                    except:
+                        #
+                        # Catch the occasional error parinsing ACLs
+                        #
+                        continue
 
         logger.info("Parsed %d ACL relationships", num_parsed_relations)
 

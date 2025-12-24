@@ -156,3 +156,6 @@ cython_debug/
 utilities/benchmarks/*.txt
 *.lprof
 *.mprof
+
+# Local databases
+*.db

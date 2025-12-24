@@ -32,16 +32,19 @@ class BloodHoundObject():
         self.Properties = {}
 
         if isinstance(object, dict):
-            # Ensure all keys are lowercase
-            for item in object.keys():
-                self.Properties[item.lower()] = object[item]
+            # Optimize: Use dict comprehension for lowercasing keys (faster than loop)
+            self.Properties = {k.lower(): v for k, v in object.items()}
 
-            self.ObjectIdentifier = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))
+            self.ObjectIdentifier = BloodHoundObject.get_sid(
+                self.Properties.get('objectsid'), 
+                self.Properties.get('distinguishedname')
+            )
 
-            if 'distinguishedname' in object.keys():
-                self.Properties["distinguishedname"] = object.get('distinguishedname', None).upper()
+            # Uppercase DN once if it exists
+            if 'distinguishedname' in self.Properties:
+                self.Properties["distinguishedname"] = self.Properties["distinguishedname"].upper()
 
-            self.__parse_whencreated(object)
+            self.__parse_whencreated(self.Properties)
 
 
     def get_primary_membership(self, object):

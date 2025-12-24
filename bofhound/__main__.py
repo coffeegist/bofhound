@@ -11,6 +11,7 @@ from bofhound.local import LocalBroker
 from bofhound import console
 from bofhound.ad.helpers import PropertiesLevel
 from bofhound.logger import logger
+from bofhound.cache import ObjectCache
 
 app = typer.Typer(
     add_completion=False,
@@ -44,6 +45,26 @@ def main(
         help="Compress the JSON output files into a zip archive"
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress banner"),
+    no_cache: bool = typer.Option(
+        False, "--no-cache",
+        help="Disable object caching (cache is enabled by default)",
+        rich_help_panel="Performance Options"
+    ),
+    cache_file: str = typer.Option(
+        None, "--cache-file",
+        help="Custom path to cache database (default: bofhound_cache.db in output folder)",
+        rich_help_panel="Performance Options"
+    ),
+    workers: int = typer.Option(
+        None, "--workers",
+        help="Number of worker processes for parallel ACL parsing (default: auto-detect)",
+        rich_help_panel="Performance Options"
+    ),
+    cache_stats: bool = typer.Option(
+        False, "--cache-stats",
+        help="Display cache statistics and exit",
+        rich_help_panel="Performance Options"
+    ),
     mythic_server: str = typer.Option(
         "127.0.0.1", "--mythic-server", help="IP or hostname of Mythic server to connect to",
         rich_help_panel="Mythic Options"
@@ -73,8 +94,78 @@ def main(
     else:
         logging.getLogger().setLevel(logging.INFO)
 
+    # Handle cache stats display
+    if cache_stats:
+        # Determine cache file path
+        if not cache_file:
+            cache_file = f"{output_folder}/bofhound_cache.db"
+        
+        import os
+        if not os.path.exists(cache_file):
+            console.print(f"[yellow]Cache file not found: {cache_file}[/yellow]")
+            console.print("Run bofhound first to create the cache.")
+            sys.exit(0)
+        
+        try:
+            with ObjectCache(cache_file) as cache:
+                stats = cache.get_statistics()
+                console.print("\n[bold cyan]Cache Statistics[/bold cyan]")
+                console.print(f"Cache file: {cache_file}")
+                console.print(f"Version: {stats['cache_version']}")
+                console.print(f"Total objects: {stats['total_objects']:,}")
+                console.print("\n[bold]Objects by type:[/bold]")
+                for obj_type, count in sorted(stats['by_type'].items(), key=lambda x: x[1], reverse=True):
+                    console.print(f"  {obj_type}: {count:,}")
+                console.print(f"\nCache size: {stats['file_size_mb']} MB")
+                console.print(f"Created: {stats.get('created_at', 'Unknown')}")
+                console.print(f"Last accessed: {stats.get('last_accessed', 'Unknown')}")
+        except Exception as e:
+            console.print(f"[red]Error reading cache: {e}[/red]")
+            sys.exit(1)
+        return
+
     if not quiet:
         banner()
+
+    # Auto-detect worker count if not specified
+    import os
+    if workers is None:
+        cpu_count = os.cpu_count() or 4
+        workers = max(1, cpu_count - 1)  # Leave one core for main process
+        logger.debug(f"Auto-detected {cpu_count} CPU cores, using {workers} workers")
+    elif workers < 1:
+        console.print("[red]Error: --workers must be at least 1[/red]")
+        sys.exit(1)
+    elif workers > (os.cpu_count() or 4) * 2:
+        console.print(f"[yellow]Warning: {workers} workers is more than 2x CPU count ({os.cpu_count()})[/yellow]")
+        console.print("This may reduce performance due to context switching overhead.")
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Initialize cache (enabled by default unless --no-cache)
+    cache = None
+    if not no_cache:
+        # Determine cache file path
+        if not cache_file:
+            cache_file = f"{output_folder}/bofhound_cache.db"
+        
+        cache_exists = os.path.exists(cache_file)
+        
+        try:
+            cache = ObjectCache(cache_file)
+            if cache_exists:
+                stats = cache.get_statistics()
+                logger.info(f"Found existing cache: {cache_file} ({stats['total_objects']:,} objects)")
+                logger.info("Only new/changed objects will be processed (incremental mode)")
+                logger.info("To disable caching, use --no-cache or delete/rename the cache file")
+            else:
+                logger.info(f"Creating new cache: {cache_file}")
+        except Exception as e:
+            logger.error(f"Failed to initialize cache: {e}")
+            sys.exit(1)
+    else:
+        logger.info("Caching disabled (--no-cache)")
 
      # default to Cobalt logfile naming format
     data_source = None
@@ -132,6 +223,19 @@ def main(
         results.get_privileged_sessions() + results.get_registry_sessions()
     logger.info("Parsed %d LDAP objects", len(ldap_objects))
     logger.info("Parsed %d local group/session objects", len(local_objects))
+    
+    # Apply cache filtering (automatic when cache exists)
+    if cache and ldap_objects:
+        original_count = len(ldap_objects)
+        stats = cache.get_statistics()
+        if stats['total_objects'] > 0:
+            logger.info("Filtering against cache (%d existing objects)...", stats['total_objects'])
+            ldap_objects = cache.get_changed_objects(ldap_objects)
+            logger.info("After cache filter: %d new/changed, %d skipped", 
+                       len(ldap_objects), original_count - len(ldap_objects))
+        else:
+            logger.info("Cache is empty - all objects will be processed")
+    
     logger.info("Sorting parsed objects by type...")
 
     ad.import_objects(ldap_objects)
@@ -159,8 +263,28 @@ def main(
     logger.info("Parsed %d Registry Sessions", len(broker.registry_sessions))
     logger.info("Parsed %d Local Group Memberships", len(broker.local_group_memberships))
 
-    ad.process()
+    ad.process(num_workers=workers)
     ad.process_local_objects(broker)
+
+    # Store processed objects in cache
+    if cache:
+        logger.info("Updating cache with processed objects...")
+        all_objects = (ad.users + ad.groups + ad.computers + ad.domains + 
+                      ad.ous + ad.gpos + ad.containers + ad.aiacas + ad.rootcas +
+                      ad.enterprisecas + ad.certtemplates + ad.issuancepolicies + 
+                      ad.ntauthstores + ad.trustaccounts + ad.schemas)
+        # Note: ad.unknown_objects are raw dicts, not BloodHoundObject instances, so they can't be cached
+        
+        stored_count = 0
+        for obj in all_objects:
+            try:
+                cache.store_object(obj)
+                stored_count += 1
+            except Exception as e:
+                logger.debug(f"Failed to cache object {getattr(obj, 'ObjectIdentifier', 'unknown')}: {e}")
+        
+        cache.commit()
+        logger.info(f"Cache updated successfully ({stored_count:,} objects stored)")
 
     #
     # Write out the BloodHound JSON files
@@ -200,6 +324,11 @@ def main(
 
             uploader.close_upload_job()
         logger.info("Files uploaded to BloodHound server")
+
+    # Close cache
+    if cache:
+        cache.close()
+        logger.info("Cache closed")
 
 
 def banner():
