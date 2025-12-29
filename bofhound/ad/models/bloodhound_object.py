@@ -216,7 +216,18 @@ class BloodHoundObject():
         # certname
         #
         certificate_byte_array = base64.b64decode(certificate_b64)
-        ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
+        try:
+            ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
+        except (ValueError, TypeError) as e:
+            # Malformed certificate data - use CN as certname and skip certificate parsing
+            from bofhound.logger import logger
+            logger.debug(f"Could not parse certificate for {object.get('cn', 'unknown')}: {e}")
+            self.Properties['certname'] = object.get('cn', thumbprint)
+            self.Properties['certchain'] = []
+            self.Properties['hasbasicconstraints'] = False
+            self.Properties['basicconstraintpathlength'] = 0
+            self.x509Certificate = None
+            return
         self.x509Certificate = ca_cert # set for post-processing
         self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
         

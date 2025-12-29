@@ -55,9 +55,14 @@ def main(
         help="Custom path to cache database (default: bofhound_cache.db in output folder)",
         rich_help_panel="Performance Options"
     ),
+    context_from: str = typer.Option(
+        None, "--context-from",
+        help="Load SID/domain context from a previous run's cache file for ACL resolution. Use when processing late data (e.g., certificates) separately.",
+        rich_help_panel="Performance Options"
+    ),
     workers: int = typer.Option(
         None, "--workers",
-        help="Number of worker processes for parallel ACL parsing (default: auto-detect)",
+        help="Number of worker processes for parallel ACL parsing. Default: ~90%% of CPU cores (auto-detected). Check your system: python -c 'import os; print(f\"CPU cores: {os.cpu_count()}\")'",
         rich_help_panel="Performance Options"
     ),
     cache_stats: bool = typer.Option(
@@ -129,16 +134,21 @@ def main(
 
     # Auto-detect worker count if not specified
     import os
+    cpu_count = os.cpu_count() or 4
+    
     if workers is None:
-        cpu_count = os.cpu_count() or 4
-        workers = max(1, cpu_count - 1)  # Leave one core for main process
-        logger.debug(f"Auto-detected {cpu_count} CPU cores, using {workers} workers")
+        # Use ~90% of cores by default - leave headroom for OS and other processes
+        workers = max(1, int(cpu_count * 0.9))
     elif workers < 1:
         console.print("[red]Error: --workers must be at least 1[/red]")
         sys.exit(1)
-    elif workers > (os.cpu_count() or 4) * 2:
-        console.print(f"[yellow]Warning: {workers} workers is more than 2x CPU count ({os.cpu_count()})[/yellow]")
-        console.print("This may reduce performance due to context switching overhead.")
+    elif workers > cpu_count:
+        console.print(f"[yellow]Warning: {workers} workers exceeds CPU count ({cpu_count})[/yellow]")
+        console.print("This may reduce performance. Recommended: --workers {}".format(int(cpu_count * 0.9)))
+    
+    # Log worker and CPU info in one line
+    worker_pct = int((workers / cpu_count) * 100)
+    logger.info(f"Using {workers}/{cpu_count} CPU cores ({worker_pct}%)")
 
     # Create output directory if it doesn't exist
     os.makedirs(output_folder, exist_ok=True)
@@ -211,6 +221,31 @@ def main(
     ad = ADDS()
     broker = LocalBroker()
     pipeline = ParsingPipelineFactory.create_pipeline(parser_type=parser_type)
+    
+    # Load context from external cache if specified
+    if context_from:
+        import os
+        context_cache_path = context_from
+        
+        # If directory, look for cache file inside it
+        if os.path.isdir(context_from):
+            context_cache_path = os.path.join(context_from, 'bofhound_cache.db')
+        
+        if not os.path.exists(context_cache_path):
+            logger.error(f"Context cache file not found: {context_cache_path}")
+            sys.exit(1)
+        
+        try:
+            logger.info(f"Loading context from: {context_cache_path}")
+            with ObjectCache(context_cache_path) as context_cache:
+                ctx_stats = context_cache.get_context_statistics()
+                if ctx_stats['sid_mappings'] == 0:
+                    logger.warning("Context cache has no SID mappings - ACL resolution may be incomplete")
+                else:
+                    ad.load_context_from_cache(context_cache)
+        except Exception as e:
+            logger.error(f"Failed to load context: {e}")
+            sys.exit(1)
 
     with console.status("", spinner="aesthetic") as status:
         results = pipeline.process_data_source(
@@ -283,8 +318,41 @@ def main(
             except Exception as e:
                 logger.debug(f"Failed to cache object {getattr(obj, 'ObjectIdentifier', 'unknown')}: {e}")
         
+        # Store SID mappings for context in future runs
+        logger.debug("Storing SID mappings in cache...")
+        sid_mappings = []
+        dn_mappings = []
+        for sid, obj in ad.SID_MAP.items():
+            if hasattr(obj, '_entry_type') and hasattr(obj, 'Properties'):
+                name = obj.Properties.get('name', '')
+                dn = obj.Properties.get('distinguishedname', '')
+                domain = obj.Properties.get('domain', '')
+                obj_type = obj._entry_type
+                sid_mappings.append((sid, name, obj_type, domain))
+                if dn:
+                    dn_mappings.append((dn, sid, obj_type))
+        
+        if sid_mappings:
+            cache.store_sid_mappings_bulk(sid_mappings)
+        if dn_mappings:
+            cache.store_dn_mappings_bulk(dn_mappings)
+        
+        # Store domain mappings
+        for dc, domain_sid in ad.DOMAIN_MAP.items():
+            cache.store_domain_mapping(dc, domain_sid)
+        
+        # Store schema GUIDs
+        if ad.ObjectTypeGuidMap:
+            cache.store_schema_guids_bulk(ad.ObjectTypeGuidMap)
+        
         cache.commit()
+        
+        # Log context statistics
+        ctx_stats = cache.get_context_statistics()
         logger.info(f"Cache updated successfully ({stored_count:,} objects stored)")
+        logger.debug(f"Context stored: {ctx_stats['sid_mappings']} SID mappings, "
+                    f"{ctx_stats['domain_mappings']} domain mappings, "
+                    f"{ctx_stats['schema_guids']} schema GUIDs")
 
     #
     # Write out the BloodHound JSON files
