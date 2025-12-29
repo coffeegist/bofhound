@@ -62,7 +62,7 @@ def main(
     ),
     workers: int = typer.Option(
         None, "--workers",
-        help="Number of worker processes for parallel ACL parsing. Default: ~90%% of CPU cores (auto-detected). Check your system: python -c 'import os; print(f\"CPU cores: {os.cpu_count()}\")'",
+        help='Number of worker processes for parallel ACL parsing. Default: ~90%% of CPU cores (auto-detected). Check your system: python -c "import os; print(f\'CPU cores: {os.cpu_count()}\')"',
         rich_help_panel="Performance Options"
     ),
     cache_stats: bool = typer.Option(
