@@ -32,16 +32,19 @@ class BloodHoundObject():
         self.Properties = {}
 
         if isinstance(object, dict):
-            # Ensure all keys are lowercase
-            for item in object.keys():
-                self.Properties[item.lower()] = object[item]
+            # Optimize: Use dict comprehension for lowercasing keys (faster than loop)
+            self.Properties = {k.lower(): v for k, v in object.items()}
 
-            self.ObjectIdentifier = BloodHoundObject.get_sid(object.get('objectsid', None), object.get('distinguishedname', None))
+            self.ObjectIdentifier = BloodHoundObject.get_sid(
+                self.Properties.get('objectsid'), 
+                self.Properties.get('distinguishedname')
+            )
 
-            if 'distinguishedname' in object.keys():
-                self.Properties["distinguishedname"] = object.get('distinguishedname', None).upper()
+            # Uppercase DN once if it exists
+            if 'distinguishedname' in self.Properties:
+                self.Properties["distinguishedname"] = self.Properties["distinguishedname"].upper()
 
-            self.__parse_whencreated(object)
+            self.__parse_whencreated(self.Properties)
 
 
     def get_primary_membership(self, object):
@@ -213,7 +216,18 @@ class BloodHoundObject():
         # certname
         #
         certificate_byte_array = base64.b64decode(certificate_b64)
-        ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
+        try:
+            ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
+        except (ValueError, TypeError) as e:
+            # Malformed certificate data - use CN as certname and skip certificate parsing
+            from bofhound.logger import logger
+            logger.debug(f"Could not parse certificate for {object.get('cn', 'unknown')}: {e}")
+            self.Properties['certname'] = object.get('cn', thumbprint)
+            self.Properties['certchain'] = []
+            self.Properties['hasbasicconstraints'] = False
+            self.Properties['basicconstraintpathlength'] = 0
+            self.x509Certificate = None
+            return
         self.x509Certificate = ca_cert # set for post-processing
         self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
         

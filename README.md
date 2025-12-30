@@ -108,6 +108,39 @@ Parse Havoc loot logs (will change default input path to `/opt/havoc/data/loot`)
 bofhound --parser havoc --zip
 ```
 
+## Performance & Cache
+
+This branch introduces a SQLite-backed object cache and parallel-ready ACL processing to speed up repeated runs on large datasets.
+
+- Caching is enabled by default. When a cache exists, incremental filtering is automatic: objects already seen (by SID/DN) are skipped.
+- To disable caching (and incremental behavior), pass `--no-cache` or remove the cache file.
+- Cache location defaults to `bofhound_cache.db` in the output folder; override with `--cache-file PATH`.
+- ACL processing accepts a worker count via `--workers` (auto-detected if unspecified).
+- Inspect cache with `--cache-stats`.
+
+Examples (Windows PowerShell):
+
+```
+# First run: build cache and output JSON
+.\n+venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out
+
+# Incremental run: skip unchanged objects (automatic when cache exists)
+.
+\venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out
+
+# Disable cache entirely
+.
+\venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out --no-cache
+
+# Use a specific cache file and workers
+.
+\venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out --cache-file out\my_cache.db --workers 6
+
+# Show cache stats and exit
+.
+\venv\Scripts\bofhound.exe -i samples/ --parser ldapsearch --output out --cache-stats
+```
+
 # ldapsearch
 Specify `*,ntsecuritydescriptor` as the attributes to return to be able to parse ACL edges. You are missing a ton of data if you don't include this in your `ldapsearch` queries!
 
