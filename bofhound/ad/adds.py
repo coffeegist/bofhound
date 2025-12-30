@@ -427,6 +427,10 @@ class ADDS():
             create_worker_context, prepare_entry_for_worker, _worker_init, _worker_process
         )
         
+        # Build lookup tables for algorithmic optimization
+        logger.debug("Building lookup tables for performance optimization...")
+        self._build_lookup_tables()
+        
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers \
                         + self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies \
                         + self.ntauthstores
@@ -601,10 +605,8 @@ class ADDS():
             logger.info("Resolved hosting computers of CAs")
 
     def get_sid_from_name(self, name):
-        for entry in self.SID_MAP:
-            if(self.SID_MAP[entry].Properties["name"].lower() == name):
-                return (entry, self.SID_MAP[entry]._entry_type)
-        return (None,None)
+        # Use lookup table for O(1) performance instead of O(n) linear search
+        return self._name_to_sid_map.get(name, (None, None))
 
 
     def resolve_delegation_targets(self):
@@ -1230,12 +1232,35 @@ class ADDS():
         return False
 
 
+    def _build_lookup_tables(self):
+        """
+        Build lookup tables for algorithmic optimization.
+        Converts O(n) linear searches to O(1) dictionary lookups.
+        """
+        # Build name -> (SID, type) lookup for delegation resolution
+        self._name_to_sid_map = {}
+        for sid, obj in self.SID_MAP.items():
+            if hasattr(obj, 'Properties') and 'name' in obj.Properties:
+                name_lower = obj.Properties['name'].lower()
+                self._name_to_sid_map[name_lower] = (sid, obj._entry_type)
+        
+        logger.debug(f"Built name->SID lookup table with {len(self._name_to_sid_map)} entries")
+        
+        # Build DN -> OU lookup for OU membership resolution
+        self._dn_to_ou_map = {}
+        for ou in self.ous:
+            if 'distinguishedname' in ou.Properties:
+                dn = ou.Properties['distinguishedname']
+                self._dn_to_ou_map[dn] = ou
+        
+        logger.debug(f"Built DN->OU lookup table with {len(self._dn_to_ou_map)} entries")
+
+
     def _resolve_object_ou(self, item):
         if "OU=" in item.Properties["distinguishedname"]:
             target_ou = "OU=" + item.Properties["distinguishedname"].split("OU=", 1)[1]
-            for ou in self.ous:
-                if ou.Properties["distinguishedname"] == target_ou:
-                    return ou
+            # Use lookup table for O(1) performance instead of O(n) linear search
+            return self._dn_to_ou_map.get(target_ou, None)
         return None
 
 
@@ -1244,9 +1269,8 @@ class ADDS():
         # else is top-level OU
         if len(dn.split("OU=")) > 2:
             target_ou = "OU=" + dn.split("OU=", 2)[2]
-            for ou in self.ous:
-                if ou.Properties["distinguishedname"] == target_ou:
-                    return ou
+            # Use lookup table for O(1) performance instead of O(n) linear search
+            return self._dn_to_ou_map.get(target_ou, None)
         else:
             dc = BloodHoundObject.get_domain_component(dn)
             for domain in self.domains:
