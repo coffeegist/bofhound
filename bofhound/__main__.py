@@ -250,7 +250,8 @@ def main(
     with console.status("", spinner="aesthetic") as status:
         results = pipeline.process_data_source(
             data_source,
-            progress_callback=lambda id: status.update(f"Processing {id}")
+            progress_callback=lambda id: status.update(f"Processing {id}"),
+            num_workers=workers
         )
 
     ldap_objects = results.get_ldap_objects()
