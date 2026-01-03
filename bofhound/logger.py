@@ -14,6 +14,7 @@ class ColorScheme:
     ou = "[dark_orange]"
     containers = "[orange]"
     gpo = "[purple]"
+    dns = "[dark_magenta]"
 
 OBJ_EXTRA_FMT = {
     "markup": True,

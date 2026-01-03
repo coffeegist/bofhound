@@ -13,7 +13,7 @@ from bofhound.ad.models import (
     BloodHoundComputer, BloodHoundDomain, BloodHoundGroup, BloodHoundObject, BloodHoundSchema,
     BloodHoundUser, BloodHoundOU, BloodHoundGPO, BloodHoundEnterpriseCA, BloodHoundAIACA,
     BloodHoundRootCA, BloodHoundNTAuthStore, BloodHoundIssuancePolicy, BloodHoundCertTemplate,
-    BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef
+    BloodHoundContainer, BloodHoundDomainTrust, BloodHoundCrossRef, BloodHoundDnsNode
 )
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
@@ -45,6 +45,7 @@ class ADDS():
         self.DN_MAP = {} # {dn: BofHoundModel}
         self.DOMAIN_MAP = {} # {dc: ObjectIdentifier}
         self.CROSSREF_MAP = {} # { netBiosName: BofHoundModel }
+        self.DNSNODE_MAP = {} # { dnsHostname: set(ipaddress) }
         self.ObjectTypeGuidMap = {} # { Name : schemaIdGuid }
         self.domains: list[BloodHoundDomain] = []
         self.users: list[BloodHoundUser] = []
@@ -88,6 +89,15 @@ class ADDS():
                 if new_crossref.netBiosName is not None:
                     if new_crossref.netBiosName not in self.CROSSREF_MAP:
                         self.CROSSREF_MAP[new_crossref.netBiosName] = new_crossref
+                continue
+
+            # check if object is a dnsNode - exception for normally required attributes
+            if 'top, dnsNode' in object.get(ADDS.AT_OBJECTCLASS, ''):
+                new_dnsnode = BloodHoundDnsNode(object)
+                if new_dnsnode.name is not None and new_dnsnode.ipaddresses:
+                    if new_dnsnode.name not in self.DNSNODE_MAP:
+                        self.DNSNODE_MAP[new_dnsnode.name] = set()
+                    self.DNSNODE_MAP[new_dnsnode.name].update(new_dnsnode.ipaddresses)
                 continue
 
             #
@@ -383,6 +393,37 @@ class ADDS():
                 for ca in self.enterprisecas:
                     self.resolve_hosting_computer(ca)
             logger.info("Resolved hosting computers of CAs")
+
+        with console.status(" [bold] Assigning IP addresses to computers", spinner="aesthetic"):
+            for host_fqdn in self.DNSNODE_MAP:
+                computer_found = False
+
+                # try to find computer object based on its dNSHostName attribute
+                for computer in self.computers:
+                    if computer.matches_dnshostname(host_fqdn):
+                        computer_found = True
+                        break
+
+                # look for a computer with samaccountname host$ and the domain's sid
+                if not computer_found:
+                    host_parts = host_fqdn.split(".")
+                    host_name = host_parts[0]
+                    host_domain = ".".join(host_parts[1:])
+                    dc = BloodHoundObject.get_dn(host_domain.upper())
+                    domain_sid = self.DOMAIN_MAP.get(dc, None)
+
+                    if domain_sid is not None:
+                        for computer in self.computers:
+                            if computer.matches_samaccountname(host_name) and computer.ObjectIdentifier.startswith(domain_sid):
+                                computer_found = True
+                                break
+
+                if not computer_found:
+                    continue
+
+                computer.ipaddresses = list(self.DNSNODE_MAP[host_fqdn])
+
+        logger.info("Assigned IP addresses to computers")
 
     def get_sid_from_name(self, name):
         for entry in self.SID_MAP:
