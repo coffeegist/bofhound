@@ -153,6 +153,7 @@ def main(
     logger.info("Parsed %d Cert Templates", len(ad.certtemplates))
     logger.info("Parsed %d Schemas", len(ad.schemas))
     logger.info("Parsed %d Referrals", len(ad.CROSSREF_MAP))
+    logger.info("Parsed %d DNS nodes", len(ad.DNSNODE_MAP))
     logger.info("Parsed %d Unknown Objects", len(ad.unknown_objects))
     logger.info("Parsed %d Sessions", len(broker.sessions))
     logger.info("Parsed %d Privileged Sessions", len(broker.privileged_sessions))

@@ -15,3 +15,4 @@ from .bloodhound_issuancepolicy import BloodHoundIssuancePolicy
 from .bloodhound_certtemplate import BloodHoundCertTemplate
 from .bloodhound_domaintrust import BloodHoundDomainTrust
 from .bloodhound_crossref import BloodHoundCrossRef
+from .bloodhound_dnsnode import BloodHoundDnsNode

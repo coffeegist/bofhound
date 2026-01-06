@@ -51,6 +51,7 @@ class BloodHoundComputer(BloodHoundObject):
         self.privileged_sessions = []
         self.registry_sessions = []
         self.local_group_members = {} # {group_name: [{member_sid, member_type}]}
+        self.ipaddresses = []
 
         if 'dnshostname' in object.keys():
             self.hostname = object.get('dnshostname', None)
@@ -146,6 +147,7 @@ class BloodHoundComputer(BloodHoundObject):
     def to_json(self, properties_level):
         self.Properties['isaclprotected'] = self.IsACLProtected
         data = super().to_json(properties_level)
+        data["Properties"]["ipaddresses"] = self.ipaddresses
         data["Sessions"] = self.format_session_json(self.sessions)
         data["PrivilegedSessions"] = self.format_session_json(self.privileged_sessions)
         data["RegistrySessions"] = self.format_session_json(self.registry_sessions)
