@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bofhound"
-version = "0.4.20"
+version = "0.4.21"
 description = "Parse output from common sources and transform it into BloodHound-ingestible data"
 authors = [
 	"Adam Brown",
@@ -39,6 +39,7 @@ cffi = "^1.17.1"
 mythic = "^0.2.5"
 syncer = "^2.0.3"
 requests = "^2.32.3"
+adidnsdump = "^1.4.0"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^2.13"
