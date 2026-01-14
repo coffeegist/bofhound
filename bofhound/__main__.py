@@ -250,7 +250,8 @@ def main(
     with console.status("", spinner="aesthetic") as status:
         results = pipeline.process_data_source(
             data_source,
-            progress_callback=lambda id: status.update(f"Processing {id}")
+            progress_callback=lambda id: status.update(f"Processing {id}"),
+            num_workers=workers
         )
 
     ldap_objects = results.get_ldap_objects()
@@ -345,15 +346,6 @@ def main(
         if ad.ObjectTypeGuidMap:
             cache.store_schema_guids_bulk(ad.ObjectTypeGuidMap)
         
-        cache.commit()
-        
-        # Log context statistics
-        ctx_stats = cache.get_context_statistics()
-        logger.info(f"Cache updated successfully ({stored_count:,} objects stored)")
-        logger.debug(f"Context stored: {ctx_stats['sid_mappings']} SID mappings, "
-                    f"{ctx_stats['domain_mappings']} domain mappings, "
-                    f"{ctx_stats['schema_guids']} schema GUIDs")
-
     #
     # Write out the BloodHound JSON files
     #
@@ -375,6 +367,16 @@ def main(
         properties_level=properties_level,
         zip_files=zip_files
     )
+
+    if cache:
+        cache.commit()
+        
+        # Log context statistics
+        ctx_stats = cache.get_context_statistics()
+        logger.info(f"Cache updated successfully ({stored_count:,} objects stored)")
+        logger.debug(f"Context stored: {ctx_stats['sid_mappings']} SID mappings, "
+                    f"{ctx_stats['domain_mappings']} domain mappings, "
+                    f"{ctx_stats['schema_guids']} schema GUIDs")
 
     #
     # Upload files to BloodHound CE
