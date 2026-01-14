@@ -139,7 +139,8 @@ def test_import_objects_expectedValuesFromStandardDataSet(testdata_ldapsearchbof
     assert len(adds.ous) == 1
     assert len(adds.gpos) == 4
     assert len(adds.containers) == 24
-    assert len(adds.unknown_objects) == 36
+    assert len(adds.DNSNODE_MAP) == 0 # 14 dnsNode objects exist, but are tossed due to missing dnsRecond attr
+    assert len(adds.unknown_objects) == 22
 
 
 def test_import_objects_MinimalObject(raw_user):
