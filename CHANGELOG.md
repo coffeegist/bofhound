@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.21] - 1/14/2026
+### Added
+- Add ability to parse dnsNode objects and add IP addresses to computer properties by matching on dNSHostName [#51](https://github.com/coffeegist/bofhound/pull/51)
+
 ## [0.4.20] - 12/16/2025
 ### Fixes
 - Fix [#46](https://github.com/coffeegist/bofhound/issues/46) which caused well-known SIDs (groups) to be mising from bofhound output
