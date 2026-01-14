@@ -24,6 +24,33 @@ from bofhound import console
 EXTRIGHTS_GUID_MAPPING["Enroll"] = string_to_bin("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 
 
+class _SIDPlaceholder:
+    """
+    Minimal placeholder object for SID -> Type resolution during ACL parsing.
+    
+    This allows us to resolve ACL principal types without loading full
+    BloodHound objects from a previous run's cache.
+    """
+    
+    _is_placeholder = True  # Flag to identify placeholders
+    
+    def __init__(self, sid: str, name: str, object_type: str, domain: str = ''):
+        self.ObjectIdentifier = sid
+        self._entry_type = object_type
+        self.Properties = {
+            'name': name,
+            'distinguishedname': '',
+            'domain': domain
+        }
+    
+    def merge_entry(self, other):
+        """
+        Placeholders don't actually merge - they get replaced.
+        This method exists for compatibility but does nothing.
+        """
+        pass
+
+
 class ADDS():
 
     AT_SCHEMAIDGUID = "schemaidguid"
@@ -64,6 +91,69 @@ class ADDS():
         self.trusts: list[BloodHoundDomainTrust] = []
         self.trustaccounts: list[BloodHoundUser] = []
         self.unknown_objects: list[dict] = []
+        
+        # Track whether context was loaded from external source
+        self._context_loaded = False
+        self._context_source = None
+
+    def load_context_from_cache(self, cache) -> int:
+        """
+        Load SID/DN/Domain context from a cache for ACL resolution.
+        
+        This allows processing new data (like certificates) while having
+        full ACL resolution context from a previous run.
+        
+        Args:
+            cache: ObjectCache instance with stored context
+            
+        Returns:
+            Number of SID mappings loaded
+        """
+        # Load domain mappings
+        domain_map = cache.get_all_domain_mappings()
+        for dc, domain_sid in domain_map.items():
+            if dc not in self.DOMAIN_MAP:
+                self.DOMAIN_MAP[dc] = domain_sid
+        
+        # Load schema GUIDs
+        schema_guids = cache.get_all_schema_guids()
+        for name, guid in schema_guids.items():
+            if name not in self.ObjectTypeGuidMap:
+                self.ObjectTypeGuidMap[name] = guid
+        
+        # Load SID mappings as lightweight placeholder objects
+        # These are used for ACL type resolution but don't create full objects
+        sid_mappings = cache.get_all_sid_mappings()
+        loaded_count = 0
+        
+        for sid, data in sid_mappings.items():
+            if sid not in self.SID_MAP:
+                # Create a minimal placeholder object for ACL type resolution
+                placeholder = _SIDPlaceholder(
+                    sid=sid,
+                    name=data['name'],
+                    object_type=data['object_type'],
+                    domain=data['domain']
+                )
+                self.SID_MAP[sid] = placeholder
+                loaded_count += 1
+        
+        # Load DN mappings
+        dn_mappings = cache.get_all_dn_mappings()
+        for dn, data in dn_mappings.items():
+            if dn not in self.DN_MAP:
+                # Check if we have this SID in our map
+                sid = data['sid']
+                if sid in self.SID_MAP:
+                    self.DN_MAP[dn] = self.SID_MAP[sid]
+        
+        self._context_loaded = True
+        self._context_source = cache.cache_path
+        
+        logger.info(f"Loaded context: {loaded_count} SID mappings, "
+                   f"{len(domain_map)} domains, {len(schema_guids)} schema GUIDs")
+        
+        return loaded_count
 
     def import_objects(self, objects):
         """Parse a list of dictionaries representing attributes of an AD object
@@ -205,7 +295,15 @@ class ADDS():
 
 
             if originalObject:
-                if bhObject:
+                # Check if originalObject is a placeholder from context loading
+                is_placeholder = getattr(originalObject, '_is_placeholder', False)
+                
+                if is_placeholder:
+                    # Replace placeholder with real object
+                    if bhObject:
+                        target_list.append(bhObject)
+                        self.add_object_to_maps(bhObject)
+                elif bhObject:
                     originalObject.merge_entry(bhObject)
                 else:
                     bhObject = BloodHoundObject(object)
@@ -324,30 +422,152 @@ class ADDS():
             #
             object.ContainedBy = {"ObjectIdentifier":id_contained, "ObjectType":type_contained}
 
-    def process(self):
+    def process(self, num_workers=None):
+        """
+        Process imported objects to build relationships and parse ACLs.
+        
+        Args:
+            num_workers: Number of worker processes for parallel ACL parsing.
+                        If None, uses cpu_count() - 1. Set to 1 to disable multiprocessing.
+        """
+        import os
+        import time
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        from bofhound.ad.acl_worker import (
+            create_worker_context, prepare_entry_for_worker, _worker_init, _worker_process
+        )
+        
+        # Build lookup tables for algorithmic optimization
+        logger.debug("Building lookup tables for performance optimization...")
+        self._build_lookup_tables()
+        
         all_objects = self.users + self.groups + self.computers + self.domains + self.ous + self.gpos + self.containers \
                         + self.aiacas + self.rootcas + self.enterprisecas + self.certtemplates + self.issuancepolicies \
                         + self.ntauthstores
 
         total_objects = len(all_objects)
+        logger.info(f"Processing {total_objects:,} objects for ACL relationships...")
 
         num_parsed_relations = 0
 
-        with console.status(f" [bold] Processed {num_parsed_relations} ACLs", spinner="aesthetic") as status:
-            for i, object in enumerate(all_objects):
-                self.recalculate_sid(object)
-                self.calculate_contained(object)
-                self.add_domainsid_prop(object)
-                try:
-                    num_parsed_relations += self.parse_acl(object)
-                    status.update(f" [bold] Processing {num_parsed_relations} ACLs --- {i}/{total_objects} objects parsed")
-                except:
-                    #
-                    # Catch the occasional error parinsing ACLs
-                    #
-                    continue
+        # Determine worker count
+        if num_workers is None:
+            try:
+                cpu_count = os.cpu_count() or 4
+                num_workers = max(1, cpu_count - 1)
+            except Exception:
+                num_workers = 1
+        if num_workers < 1:
+            num_workers = 1
 
-        logger.info("Parsed %d ACL relationships", num_parsed_relations)
+        # Precompute SID/containment/domain props before ACL parsing
+        with console.status(" [bold] Preparing objects for ACL parsing...", spinner="aesthetic"):
+            for obj in all_objects:
+                self.recalculate_sid(obj)
+                self.calculate_contained(obj)
+                self.add_domainsid_prop(obj)
+        logger.info("Object preparation complete")
+
+        # Count objects with ACLs to parse
+        objects_with_acls = [obj for obj in all_objects if obj.RawAces]
+        acl_count = len(objects_with_acls)
+        logger.info(f"Found {acl_count:,} objects with ACLs to parse (using {num_workers} worker(s))")
+
+        if acl_count == 0:
+            logger.info("No ACLs to parse")
+        elif num_workers == 1:
+            # Single-threaded mode (for debugging or small datasets)
+            start_time = time.time()
+            progress_interval = max(1000, acl_count // 100)
+            
+            with console.status(" [bold] Parsing ACLs (single-threaded)...", spinner="aesthetic") as status:
+                for i, obj in enumerate(objects_with_acls):
+                    try:
+                        num_parsed_relations += self.parse_acl(obj)
+                    except Exception as e:
+                        logger.debug(f"Error parsing ACL for {obj.Properties.get('name', 'UNKNOWN')}: {e}")
+                        continue
+                    
+                    if (i + 1) % progress_interval == 0 or i == acl_count - 1:
+                        elapsed = time.time() - start_time
+                        rate = (i + 1) / elapsed if elapsed > 0 else 0
+                        eta = (acl_count - i - 1) / rate if rate > 0 else 0
+                        pct = ((i + 1) / acl_count) * 100
+                        status.update(
+                            f" [bold] ACL Progress: {i+1:,}/{acl_count:,} ({pct:.1f}%) | "
+                            f"{num_parsed_relations:,} relationships | "
+                            f"{rate:.0f} obj/s | ETA: {eta/60:.1f}min"
+                        )
+            
+            elapsed_total = time.time() - start_time
+            logger.info(f"Parsed {num_parsed_relations:,} ACL relationships in {elapsed_total/60:.1f} minutes")
+            logger.info(f"Average rate: {acl_count/elapsed_total:.0f} objects/second")
+        else:
+            # Multiprocessing mode - true parallel ACL parsing
+            start_time = time.time()
+            
+            # Create worker context with lookup data
+            worker_context = create_worker_context(
+                self.SID_MAP, 
+                self.DOMAIN_MAP, 
+                self.ObjectTypeGuidMap
+            )
+            
+            # Prepare entries for workers
+            logger.info("Preparing entries for parallel processing...")
+            entries = [prepare_entry_for_worker(obj) for obj in objects_with_acls]
+            
+            # Create a mapping from object_id -> object for result application
+            object_map = {obj.ObjectIdentifier: obj for obj in objects_with_acls}
+            
+            # Process with multiprocessing
+            completed = 0
+            progress_interval = max(1000, acl_count // 100)
+            
+            with console.status(" [bold] Parsing ACLs (multiprocessing)...", spinner="aesthetic") as status:
+                # Use spawn start method on Windows for safety
+                import multiprocessing
+                mp_context = multiprocessing.get_context('spawn')
+                
+                with ProcessPoolExecutor(
+                    max_workers=num_workers,
+                    initializer=_worker_init,
+                    initargs=(worker_context,),
+                    mp_context=mp_context
+                ) as executor:
+                    # Submit all tasks
+                    futures = {executor.submit(_worker_process, entry): entry for entry in entries}
+                    
+                    # Process results as they complete
+                    for future in as_completed(futures):
+                        try:
+                            object_id, relations, is_acl_protected = future.result()
+                            num_parsed_relations += len(relations)
+                            
+                            # Apply results back to object
+                            if object_id in object_map:
+                                obj = object_map[object_id]
+                                obj.Aces = relations
+                                obj.IsACLProtected = is_acl_protected
+                        except Exception as e:
+                            entry = futures[future]
+                            logger.debug(f"Error parsing ACL for {entry.get('object_id', 'UNKNOWN')}: {e}")
+                        
+                        completed += 1
+                        if completed % progress_interval == 0 or completed == acl_count:
+                            elapsed = time.time() - start_time
+                            rate = completed / elapsed if elapsed > 0 else 0
+                            eta = (acl_count - completed) / rate if rate > 0 else 0
+                            pct = (completed / acl_count) * 100
+                            status.update(
+                                f" [bold] ACL Progress: {completed:,}/{acl_count:,} ({pct:.1f}%) | "
+                                f"{num_parsed_relations:,} relationships | "
+                                f"{rate:.0f} obj/s | ETA: {eta/60:.1f}min"
+                            )
+            
+            elapsed_total = time.time() - start_time
+            logger.info(f"Parsed {num_parsed_relations:,} ACL relationships in {elapsed_total/60:.1f} minutes")
+            logger.info(f"Average rate: {acl_count/elapsed_total:.0f} objects/second")
 
         with console.status(" [bold] Creating default users", spinner="aesthetic"):
             self.write_default_users()
@@ -426,10 +646,8 @@ class ADDS():
         logger.info("Assigned IP addresses to computers")
 
     def get_sid_from_name(self, name):
-        for entry in self.SID_MAP:
-            if(self.SID_MAP[entry].Properties["name"].lower() == name):
-                return (entry, self.SID_MAP[entry]._entry_type)
-        return (None,None)
+        # Use lookup table for O(1) performance instead of O(n) linear search
+        return self._name_to_sid_map.get(name, (None, None))
 
 
     def resolve_delegation_targets(self):
@@ -1055,12 +1273,35 @@ class ADDS():
         return False
 
 
+    def _build_lookup_tables(self):
+        """
+        Build lookup tables for algorithmic optimization.
+        Converts O(n) linear searches to O(1) dictionary lookups.
+        """
+        # Build name -> (SID, type) lookup for delegation resolution
+        self._name_to_sid_map = {}
+        for sid, obj in self.SID_MAP.items():
+            if hasattr(obj, 'Properties') and 'name' in obj.Properties:
+                name_lower = obj.Properties['name'].lower()
+                self._name_to_sid_map[name_lower] = (sid, obj._entry_type)
+        
+        logger.debug(f"Built name->SID lookup table with {len(self._name_to_sid_map)} entries")
+        
+        # Build DN -> OU lookup for OU membership resolution
+        self._dn_to_ou_map = {}
+        for ou in self.ous:
+            if 'distinguishedname' in ou.Properties:
+                dn = ou.Properties['distinguishedname']
+                self._dn_to_ou_map[dn] = ou
+        
+        logger.debug(f"Built DN->OU lookup table with {len(self._dn_to_ou_map)} entries")
+
+
     def _resolve_object_ou(self, item):
         if "OU=" in item.Properties["distinguishedname"]:
             target_ou = "OU=" + item.Properties["distinguishedname"].split("OU=", 1)[1]
-            for ou in self.ous:
-                if ou.Properties["distinguishedname"] == target_ou:
-                    return ou
+            # Use lookup table for O(1) performance instead of O(n) linear search
+            return self._dn_to_ou_map.get(target_ou, None)
         return None
 
 
@@ -1069,9 +1310,8 @@ class ADDS():
         # else is top-level OU
         if len(dn.split("OU=")) > 2:
             target_ou = "OU=" + dn.split("OU=", 2)[2]
-            for ou in self.ous:
-                if ou.Properties["distinguishedname"] == target_ou:
-                    return ou
+            # Use lookup table for O(1) performance instead of O(n) linear search
+            return self._dn_to_ou_map.get(target_ou, None)
         else:
             dc = BloodHoundObject.get_domain_component(dn)
             for domain in self.domains:
@@ -1329,7 +1569,13 @@ class ADDS():
 
     @staticmethod
     def find_issuer_ca(start_ca_obj, all_ca_obj):
+        # Skip if start_ca_obj has no valid certificate
+        if start_ca_obj.x509Certificate is None:
+            return None
         for potential_issuer in all_ca_obj:
+            # Skip potential issuers with no valid certificate
+            if potential_issuer.x509Certificate is None:
+                continue
             if start_ca_obj.x509Certificate['issuer'] == potential_issuer.x509Certificate['subject']:
                 return potential_issuer
         return None
