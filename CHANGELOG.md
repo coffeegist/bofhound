@@ -1,7 +1,10 @@
 # Changelog
 
 ## [Unreleased]
+### Performance
+- Parallel ACL and file parsing, SQLite caching, and lookup tables for large datasets (#50).
 ### Added
+- Performance options: `--workers`, `--no-cache`, `--cache-file`, `--cache-stats`, and `--context-from` (#50).
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
 - Preserve inherited ACL edges for standard AD classes when schema objects are missing, honoring collected mappings and class restrictions (#65).

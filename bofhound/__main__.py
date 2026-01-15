@@ -416,6 +416,11 @@ def main(
     if uploader:
         upload_files(bh_server, bh_token_id, bh_token_key, outfiles, uploader=uploader)
 
+    # Close cache
+    if cache:
+        cache.close()
+        logger.info("Cache closed")
+
 
 def upload_files(server, token_id, token_key, files, uploader=None):
     """Upload a set of already-generated BloodHound JSON/zip files to a BloodHound CE server."""
@@ -443,10 +448,6 @@ def upload_files(server, token_id, token_key, files, uploader=None):
         sys.exit(1)
     logger.info("Files uploaded to BloodHound server")
 
-    # Close cache
-    if cache:
-        cache.close()
-        logger.info("Cache closed")
 
 
 def banner():
