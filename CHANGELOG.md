@@ -1,4 +1,31 @@
 # Changelog
+## [Unreleased]
+### Performance
+- Parallel ACL processing using multiprocessing
+- SQLite-based object cache for incremental processing - only processes new/changed objects on subsequent runs
+- Optimized group membership resolution algorithm from polynomial to linear complexity using reverse index lookups
+
+### Added
+- `--workers N` option to control number of parallel workers (default: ~90% of CPU cores)
+- `--no-cache` flag to disable caching for a run
+- `--cache-file` option for custom cache database path
+- `--cache-stats` to display cache statistics and exit
+- `--context-from` to load SID/domain context from previous run's cache for ACL resolution
+- Real-time progress indicators with ETA and objects/second processing rate
+- CPU core utilization info in logs
+- Benchmarking utilities for performance testing
+
+### Fixed
+- Crash on malformed certificate data (invalid base64 in `cacertificate` attribute)
+- Crash when certificate chain building encounters null certificates
+- Cache operations now properly check for null when `--no-cache` flag is used
+
+### Changed
+- Refactored parser pipeline to use streaming input architecture with generator-based file reading
+- Cache storage and commit operations now happen after JSON writing (doesn't block output)
+- Improved type hints in ADDS class for better code clarity
+- Enhanced debug logging messages for object properties
+
 ## [0.4.20] - 12/16/2025
 ### Fixes
 - Fix [#46](https://github.com/coffeegist/bofhound/issues/46) which caused well-known SIDs (groups) to be mising from bofhound output
