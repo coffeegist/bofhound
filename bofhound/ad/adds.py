@@ -861,12 +861,13 @@ class ADDS():
                 # Check if the ACE has restrictions on object type (inherited case)
                 if ace_object.has_flag(ACE.INHERITED_ACE) \
                     and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_INHERITED_OBJECT_TYPE_PRESENT):
-                    # Verify if the ACE applies to this object typ
+                    # Verify if the ACE applies to this object type
                     try:
                         if not ace_applies(ace_object.acedata.get_inherited_object_type().lower(), entry._entry_type, self.ObjectTypeGuidMap):
                             continue
                     except KeyError:
-                        pass
+                        # If we can't validate the GUID, skip this ACE to avoid false positives
+                        continue
                 mask = ace_object.acedata.mask
                 # Now the magic, we have to check all the rights BloodHound cares about
 
@@ -874,15 +875,15 @@ class ADDS():
                 if mask.has_priv(ACCESS_MASK.GENERIC_ALL) or mask.has_priv(ACCESS_MASK.WRITE_DACL) \
                     or mask.has_priv(ACCESS_MASK.WRITE_OWNER) or mask.has_priv(ACCESS_MASK.GENERIC_WRITE):
                     # For all generic rights we should check if it applies to our object type
-
-                    try:
-                        if ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
-                            and not ace_applies(ace_object.acedata.get_object_type().lower(), entry._entry_type, self.ObjectTypeGuidMap):
-                            # If it does not apply, break out of the loop here in order to
-                            # avoid individual rights firing later on
+                    if ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
+                        try:
+                            if not ace_applies(ace_object.acedata.get_object_type().lower(), entry._entry_type, self.ObjectTypeGuidMap):
+                                # If it does not apply, break out of the loop here in order to
+                                # avoid individual rights firing later on
+                                continue
+                        except KeyError:
+                            # If we can't validate the GUID, skip this ACE to avoid false positives
                             continue
-                    except KeyError:
-                        pass
 
                     # Check from high to low, ignore lower privs which may also match the bitmask,
                     # even though this shouldn't happen since we check for exact matches currently
@@ -917,15 +918,17 @@ class ADDS():
                 writeprivs = ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_WRITE_PROP)
                 if writeprivs:
                     # GenericWrite
-                    if entry._entry_type.lower() in ['user', 'group', 'computer', 'gpo'] and not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
+                    if entry._entry_type.lower() in ['user', 'group', 'computer', 'gpo', 'ou'] and not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
                         relations.append(self.build_relation(entry, sid, 'GenericWrite', inherited=is_inherited))
                     if entry._entry_type.lower() == 'group' and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['WriteMember']):
                         relations.append(self.build_relation(entry, sid, 'AddMember', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'computer' and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['AllowedToAct']):
                         relations.append(self.build_relation(entry, sid, 'AddAllowedToAct', '', inherited=is_inherited))
                     # Property set, but ignore Domain Admins since they already have enough privileges anyway
-                    if entry._entry_type.lower() == 'computer' and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['UserAccountRestrictionsSet']) and not sid.endswith('-512'):
+                    if entry._entry_type.lower() in ['computer', 'user'] and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['UserAccountRestrictionsSet']) and not sid.endswith('-512'):
                         relations.append(self.build_relation(entry, sid, 'WriteAccountRestrictions', '', inherited=is_inherited))
+                    if entry._entry_type.lower() == 'ou' and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['WriteGPLink']):
+                        relations.append(self.build_relation(entry, sid, 'WriteGPLink', '', inherited=is_inherited))
 
                     # Since 4.0
                     # Key credential link property write rights
@@ -934,8 +937,8 @@ class ADDS():
                         relations.append(self.build_relation(entry, sid, 'AddKeyCredentialLink', inherited=is_inherited))
 
                     # ServicePrincipalName property write rights (exclude generic rights)
-                    if entry._entry_type.lower() == 'user' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
-                    and ace_object.acedata.get_object_type().lower() == 'f3a64788-5306-11d1-a9c5-0000f80367c1':
+                    if entry._entry_type.lower() in ['user', 'computer'] and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    and 'service-principal-name' in self.ObjectTypeGuidMap and ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['service-principal-name']:
                         relations.append(self.build_relation(entry, sid, 'WriteSPN', inherited=is_inherited))
 
                     #
@@ -955,13 +958,18 @@ class ADDS():
                         relations.append(self.build_relation(entry, sid, 'AddSelf', '', inherited=is_inherited))
 
                 # Property read privileges
-                if ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_READ_PROP):
+                if ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_READ_PROP) and \
+                    ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_CONTROL_ACCESS):
                     if entry._entry_type.lower() == 'computer' and \
                     ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) and \
-                    'haslaps' in entry.Properties and \
-                    'ms-mcs-admpwd' in self.ObjectTypeGuidMap:
-                        if ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['ms-mcs-admpwd']:
-                           relations.append(self.build_relation(entry, sid, 'ReadLAPSPassword', inherited=is_inherited))
+                    'haslaps' in entry.Properties:
+                        obj_type = ace_object.acedata.get_object_type().lower()
+                        if obj_type in (
+                            self.ObjectTypeGuidMap.get('ms-mcs-admpwd'),
+                            self.ObjectTypeGuidMap.get('ms-laps-password'),
+                            self.ObjectTypeGuidMap.get('ms-laps-encryptedpassword'),
+                        ):
+                            relations.append(self.build_relation(entry, sid, 'ReadLAPSPassword', inherited=is_inherited))
 
                 # Extended rights
                 control_access = ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_CONTROL_ACCESS)
@@ -977,7 +985,7 @@ class ADDS():
                         relations.append(self.build_relation(entry, sid, 'GetChangesAll', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'domain' and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesInFilteredSet']):
                         relations.append(self.build_relation(entry, sid, 'GetChangesInFilteredSet', '', inherited=is_inherited))
-                    if entry._entry_type.lower() == 'user' and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']):
+                    if entry._entry_type.lower() in ['user', 'computer'] and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']):
                         relations.append(self.build_relation(entry, sid, 'ForceChangePassword', '', inherited=is_inherited))
 
                     #
@@ -1002,7 +1010,7 @@ class ADDS():
 
                 if mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_WRITE_PROP):
                     # Genericwrite is only for properties, don't skip after
-                    if entry._entry_type.lower() in ['user', 'group', 'computer', 'gpo']:
+                    if entry._entry_type.lower() in ['user', 'group', 'computer', 'gpo', 'ou']:
                         relations.append(self.build_relation(entry, sid, 'GenericWrite', inherited=is_inherited))
 
                 if mask.has_priv(ACCESS_MASK.WRITE_OWNER):
