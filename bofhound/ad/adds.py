@@ -938,7 +938,7 @@ class ADDS():
 
                     # ServicePrincipalName property write rights (exclude generic rights)
                     if entry._entry_type.lower() in ['user', 'computer'] and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
-                    and 'service-principal-name' in self.ObjectTypeGuidMap and ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['service-principal-name']:
+                    and ace_object.acedata.get_object_type().lower() == 'f3a64788-5306-11d1-a9c5-0000f80367c1':
                         relations.append(self.build_relation(entry, sid, 'WriteSPN', inherited=is_inherited))
 
                     #
