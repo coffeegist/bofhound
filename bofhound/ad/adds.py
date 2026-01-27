@@ -863,7 +863,7 @@ class ADDS():
                     and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_INHERITED_OBJECT_TYPE_PRESENT):
                     # Verify if the ACE applies to this object type
                     try:
-                        if not ace_applies(ace_object.acedata.get_inherited_object_type().lower(), entry._entry_type, self.ObjectTypeGuidMap):
+                        if not ace_applies(ace_object.acedata.get_inherited_object_type().lower(), entry._entry_type.lower(), self.ObjectTypeGuidMap):
                             continue
                     except KeyError:
                         # If we can't validate the GUID, skip this ACE to avoid false positives
@@ -877,7 +877,7 @@ class ADDS():
                     # For all generic rights we should check if it applies to our object type
                     if ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
                         try:
-                            if not ace_applies(ace_object.acedata.get_object_type().lower(), entry._entry_type, self.ObjectTypeGuidMap):
+                            if not ace_applies(ace_object.acedata.get_object_type().lower(), entry._entry_type.lower(), self.ObjectTypeGuidMap):
                                 # If it does not apply, break out of the loop here in order to
                                 # avoid individual rights firing later on
                                 continue
