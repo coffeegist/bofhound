@@ -18,32 +18,27 @@ from bofhound.ad.models import (
 from bofhound.logger import OBJ_EXTRA_FMT, ColorScheme
 from bofhound import console
 
-ALL_GUID_STR = "00000000-0000-0000-0000-000000000000"
-
 #
 # Add a GUID for enroll to the bloodhound-python mapping we imported
 #
 EXTRIGHTS_GUID_MAPPING["Enroll"] = string_to_bin("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 EXTRIGHTS_GUID_MAPPING["MembershipPropertySet"] = string_to_bin("bc0ac240-79a9-11d0-9020-00c04fc2d4cf")
 
-
-def can_write_specific_property(ace_object, binproperty) -> bool:
+def can_write_property_scoped(ace_object, binproperty) -> bool:
     """
-    SharpHoundCommon-style check: only True when the ACE explicitly contains an ObjectType GUID matching
-    the requested property. This avoids treating "write any property" (no ObjectType GUID) as permission
-    to a specific attribute like 'member' / 'gPLink'.
+    Returns True only when the ACE grants write to this and objecttype is present and matches.
     """
-    try:
-        if not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
-            return False
-        if ace_object.acedata.data.ObjectType != binproperty:
-            return False
-        mask = ace_object.acedata.mask
-        return mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_WRITE_PROP) or \
-            mask.has_priv(ACCESS_MASK.GENERIC_WRITE) or \
-            mask.has_priv(ACCESS_MASK.GENERIC_ALL)
-    except Exception:
+    if not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
         return False
+    return can_write_property(ace_object, binproperty)
+
+def has_extended_right_scoped(ace_object, binright) -> bool:
+    """
+    Returns True only when the ACE grants this extended right and objecttype is present and matches.
+    """
+    if not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
+        return False
+    return has_extended_right(ace_object, binright)
 
 
 class ADDS():
@@ -891,9 +886,12 @@ class ADDS():
                         # If we can't validate the GUID, skip this ACE to avoid false positives
                         continue
                 mask = ace_object.acedata.mask
+
                 # ObjectType helpers (computed once per ACE)
                 obj_type_present = ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT)
-                obj_type_str = ace_object.acedata.get_object_type().lower() if obj_type_present else ""
+                obj_type_is_allguid = obj_type_present and ace_object.acedata.data.ObjectType == string_to_bin("00000000-0000-0000-0000-000000000000")
+                generic_edge_applicable = (not obj_type_present) or obj_type_is_allguid
+
                 # Now the magic, we have to check all the rights BloodHound cares about
 
                 # Check generic access masks first
@@ -903,7 +901,6 @@ class ADDS():
                     # - Only treat GenericAll/GenericWrite/WriteDacl/WriteOwner as *generic edges* if the ACE ObjectType
                     #   is empty or AllGuid. If ObjectType is set to a specific GUID (property / extended right),
                     #   do NOT skip this ACE, because GenericAll/GenericWrite may still imply specific edges later.
-                    generic_edge_applicable = (obj_type_str == "" or obj_type_str == ALL_GUID_STR)
                     if not generic_edge_applicable:
                         # Don't emit generic edges here; fall through so specific checks can run.
                         pass
@@ -931,107 +928,99 @@ class ADDS():
                             relations.append(self.build_relation(entry, sid, 'WriteOwner', inherited=is_inherited))
 
                 # Property write privileges
-                writeprivs = mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_WRITE_PROP) or \
-                    mask.has_priv(ACCESS_MASK.GENERIC_WRITE) or \
-                    mask.has_priv(ACCESS_MASK.GENERIC_ALL)
+                writeprivs = mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_WRITE_PROP)
                 if writeprivs:
                     # GenericWrite
                     if entry._entry_type.lower() in ['user', 'group', 'computer', 'gpo', 'ou', 'domain', 'pki template', 'enterpriseca', 'rootca', 'aiaca', 'ntauthstore', 'issuancepolicy'] \
-                        and (not obj_type_present or obj_type_str == ALL_GUID_STR):
+                        and generic_edge_applicable:
                         relations.append(self.build_relation(entry, sid, 'GenericWrite', inherited=is_inherited))
                     # AddMember should only fire for the member GUID or the MembershipPropertySet GUID (SharpHound semantics)
                     if entry._entry_type.lower() == 'group' and (
-                        can_write_specific_property(ace_object, EXTRIGHTS_GUID_MAPPING['WriteMember']) or
-                        can_write_specific_property(ace_object, EXTRIGHTS_GUID_MAPPING['MembershipPropertySet'])
+                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['WriteMember']) or
+                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['MembershipPropertySet'])
                     ):
                         relations.append(self.build_relation(entry, sid, 'AddMember', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'computer' and \
-                        can_write_specific_property(ace_object, EXTRIGHTS_GUID_MAPPING['AllowedToAct']):
+                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['AllowedToAct']):
                         relations.append(self.build_relation(entry, sid, 'AddAllowedToAct', '', inherited=is_inherited))
                     # Property set, but ignore Domain Admins since they already have enough privileges anyway
                     if entry._entry_type.lower() in ['computer', 'user'] and \
-                        can_write_specific_property(ace_object, EXTRIGHTS_GUID_MAPPING['UserAccountRestrictionsSet']) and \
+                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['UserAccountRestrictionsSet']) and \
                         not sid.endswith('-512'):
                         relations.append(self.build_relation(entry, sid, 'WriteAccountRestrictions', '', inherited=is_inherited))
                     if entry._entry_type.lower() in ['ou', 'domain'] and \
-                        can_write_specific_property(ace_object, EXTRIGHTS_GUID_MAPPING['WriteGPLink']):
+                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['WriteGPLink']):
                         relations.append(self.build_relation(entry, sid, 'WriteGPLink', '', inherited=is_inherited))
 
                     # Since 4.0
                     # Key credential link property write rights
-                    if entry._entry_type.lower() in ['user', 'computer'] and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    if entry._entry_type.lower() in ['user', 'computer']  and obj_type_present \
                     and 'ms-ds-key-credential-link' in self.ObjectTypeGuidMap and ace_object.acedata.get_object_type().lower() == self.ObjectTypeGuidMap['ms-ds-key-credential-link']:
                         relations.append(self.build_relation(entry, sid, 'AddKeyCredentialLink', inherited=is_inherited))
 
                     # ServicePrincipalName property write rights (exclude generic rights)
-                    if entry._entry_type.lower() in ['user', 'computer'] and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    if entry._entry_type.lower() in ['user', 'computer'] and obj_type_present \
                     and ace_object.acedata.get_object_type().lower() == 'f3a64788-5306-11d1-a9c5-0000f80367c1':
                         relations.append(self.build_relation(entry, sid, 'WriteSPN', inherited=is_inherited))
 
                     #
                     # Rights for certificate templates
                     #
-                    if entry._entry_type.lower() == 'pki template' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    if entry._entry_type.lower() == 'pki template' and obj_type_present \
                     and ace_object.acedata.get_object_type().lower() == 'ea1dddc4-60ff-416e-8cc0-17cee534bce7':
                         relations.append(self.build_relation(entry, sid, 'WritePKINameFlag', inherited=is_inherited))
 
-                    if entry._entry_type.lower() == 'pki template' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) \
+                    if entry._entry_type.lower() == 'pki template' and obj_type_present \
                     and ace_object.acedata.get_object_type().lower() == 'd15ef7d8-f226-46db-ae79-b34e560bd12c':
                         relations.append(self.build_relation(entry, sid, 'WritePKIEnrollmentFlag', inherited=is_inherited))
 
                 elif ace_object.acedata.mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_SELF):
                     # Self add - since 4.0
-                    if entry._entry_type.lower() == 'group' and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) and \
-                        ace_object.acedata.data.ObjectType in (EXTRIGHTS_GUID_MAPPING['WriteMember'], EXTRIGHTS_GUID_MAPPING['MembershipPropertySet']):
+                    # SharpHoundCommon accepts WriteMember, MembershipPropertySet, or AllGuid
+                    if entry._entry_type.lower() == 'group' and obj_type_present and \
+                        (obj_type_is_allguid or ace_object.acedata.data.ObjectType in (
+                            EXTRIGHTS_GUID_MAPPING['WriteMember'],
+                            EXTRIGHTS_GUID_MAPPING['MembershipPropertySet'],
+                        )):
                         relations.append(self.build_relation(entry, sid, 'AddSelf', '', inherited=is_inherited))
 
-                # Property read privileges
-                if (mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_READ_PROP) and \
-                    mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_CONTROL_ACCESS)) or mask.has_priv(ACCESS_MASK.GENERIC_ALL):
-                    if entry._entry_type.lower() == 'computer' and \
-                    ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT) and \
-                    'haslaps' in entry.Properties:
-                        obj_type = ace_object.acedata.get_object_type().lower()
-                        if obj_type in (
+                # Extended rights
+                control_access = mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_CONTROL_ACCESS)
+                if control_access:
+                    has_laps = bool(entry.Properties.get('haslaps'))
+                    # All Extended
+                    if entry._entry_type.lower() in ['user', 'domain'] and generic_edge_applicable:
+                        relations.append(self.build_relation(entry, sid, 'AllExtendedRights', '', inherited=is_inherited))
+                    # SharpHoundCommon only emits AllExtendedRights for computers in the LAPS case
+                    if entry._entry_type.lower() == 'computer' and has_laps and generic_edge_applicable:
+                        relations.append(self.build_relation(entry, sid, 'AllExtendedRights', '', inherited=is_inherited))
+                    # SharpHoundCommon-style LAPS edge: treat LAPS attribute GUIDs as the relevant "extended right"
+                    if entry._entry_type.lower() == 'computer' and has_laps and obj_type_present:
+                        laps_guid = ace_object.acedata.get_object_type().lower()
+                        if laps_guid in (
                             self.ObjectTypeGuidMap.get('ms-mcs-admpwd'),
                             self.ObjectTypeGuidMap.get('ms-laps-password'),
                             self.ObjectTypeGuidMap.get('ms-laps-encryptedpassword'),
                         ):
                             relations.append(self.build_relation(entry, sid, 'ReadLAPSPassword', inherited=is_inherited))
-
-                # Extended rights
-                control_access = mask.has_priv(ACCESS_MASK.ADS_RIGHT_DS_CONTROL_ACCESS) or mask.has_priv(ACCESS_MASK.GENERIC_ALL)
-                if control_access:
-                    # All Extended
-                    if entry._entry_type.lower() in ['user', 'domain'] and (not obj_type_present or obj_type_str == ALL_GUID_STR):
-                        relations.append(self.build_relation(entry, sid, 'AllExtendedRights', '', inherited=is_inherited))
-                    if entry._entry_type.lower() == 'computer' and (not obj_type_present or obj_type_str == ALL_GUID_STR):
-                        relations.append(self.build_relation(entry, sid, 'AllExtendedRights', '', inherited=is_inherited))
-                    if entry._entry_type.lower() == 'domain' and (
-                        has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChanges']) or
-                        (mask.has_priv(ACCESS_MASK.GENERIC_ALL) and obj_type_present and ace_object.acedata.data.ObjectType == EXTRIGHTS_GUID_MAPPING['GetChanges'])
-                    ):
+                    if entry._entry_type.lower() == 'domain' and \
+                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['GetChanges']):
                         relations.append(self.build_relation(entry, sid, 'GetChanges', '', inherited=is_inherited))
-                    if entry._entry_type.lower() == 'domain' and (
-                        has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesAll']) or
-                        (mask.has_priv(ACCESS_MASK.GENERIC_ALL) and obj_type_present and ace_object.acedata.data.ObjectType == EXTRIGHTS_GUID_MAPPING['GetChangesAll'])
-                    ):
+                    if entry._entry_type.lower() == 'domain' and \
+                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesAll']):
                         relations.append(self.build_relation(entry, sid, 'GetChangesAll', '', inherited=is_inherited))
-                    if entry._entry_type.lower() == 'domain' and (
-                        has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesInFilteredSet']) or
-                        (mask.has_priv(ACCESS_MASK.GENERIC_ALL) and obj_type_present and ace_object.acedata.data.ObjectType == EXTRIGHTS_GUID_MAPPING['GetChangesInFilteredSet'])
-                    ):
+                    if entry._entry_type.lower() == 'domain' and \
+                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesInFilteredSet']):
                         relations.append(self.build_relation(entry, sid, 'GetChangesInFilteredSet', '', inherited=is_inherited))
-                    if entry._entry_type.lower() in ['user', 'computer'] and (
-                        has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']) or
-                        (mask.has_priv(ACCESS_MASK.GENERIC_ALL) and obj_type_present and ace_object.acedata.data.ObjectType == EXTRIGHTS_GUID_MAPPING['UserForceChangePassword'])
-                    ):
+                    if entry._entry_type.lower() in ['user', 'computer'] and \
+                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']):
                         relations.append(self.build_relation(entry, sid, 'ForceChangePassword', '', inherited=is_inherited))
 
                     #
                     # Rights for certificate templates
                     #
-                    if entry._entry_type.lower() in ['pki template', 'enterpriseca'] and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
+                    if entry._entry_type.lower() in ['pki template', 'enterpriseca'] and \
+                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
                         relations.append(self.build_relation(entry, sid, 'Enroll', '', inherited=is_inherited))
 
 
