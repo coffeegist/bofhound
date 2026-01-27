@@ -24,23 +24,6 @@ from bofhound import console
 EXTRIGHTS_GUID_MAPPING["Enroll"] = string_to_bin("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 EXTRIGHTS_GUID_MAPPING["MembershipPropertySet"] = string_to_bin("bc0ac240-79a9-11d0-9020-00c04fc2d4cf")
 
-def can_write_property_scoped(ace_object, binproperty) -> bool:
-    """
-    Returns True only when the ACE grants write to this and objecttype is present and matches.
-    """
-    if not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
-        return False
-    return can_write_property(ace_object, binproperty)
-
-def has_extended_right_scoped(ace_object, binright) -> bool:
-    """
-    Returns True only when the ACE grants this extended right and objecttype is present and matches.
-    """
-    if not ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT):
-        return False
-    return has_extended_right(ace_object, binright)
-
-
 class ADDS():
 
     AT_SCHEMAIDGUID = "schemaidguid"
@@ -936,20 +919,20 @@ class ADDS():
                         relations.append(self.build_relation(entry, sid, 'GenericWrite', inherited=is_inherited))
                     # AddMember should only fire for the member GUID or the MembershipPropertySet GUID (SharpHound semantics)
                     if entry._entry_type.lower() == 'group' and (
-                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['WriteMember']) or
-                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['MembershipPropertySet'])
+                        obj_type_present and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['WriteMember']) or
+                        obj_type_present and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['MembershipPropertySet'])
                     ):
                         relations.append(self.build_relation(entry, sid, 'AddMember', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'computer' and \
-                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['AllowedToAct']):
+                        obj_type_present and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['AllowedToAct']):
                         relations.append(self.build_relation(entry, sid, 'AddAllowedToAct', '', inherited=is_inherited))
                     # Property set, but ignore Domain Admins since they already have enough privileges anyway
                     if entry._entry_type.lower() in ['computer', 'user'] and \
-                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['UserAccountRestrictionsSet']) and \
+                        obj_type_present and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['UserAccountRestrictionsSet']) and \
                         not sid.endswith('-512'):
                         relations.append(self.build_relation(entry, sid, 'WriteAccountRestrictions', '', inherited=is_inherited))
                     if entry._entry_type.lower() in ['ou', 'domain'] and \
-                        can_write_property_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['WriteGPLink']):
+                        obj_type_present and can_write_property(ace_object, EXTRIGHTS_GUID_MAPPING['WriteGPLink']):
                         relations.append(self.build_relation(entry, sid, 'WriteGPLink', '', inherited=is_inherited))
 
                     # Since 4.0
@@ -1004,23 +987,23 @@ class ADDS():
                         ):
                             relations.append(self.build_relation(entry, sid, 'ReadLAPSPassword', inherited=is_inherited))
                     if entry._entry_type.lower() == 'domain' and \
-                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['GetChanges']):
+                        obj_type_present and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChanges']):
                         relations.append(self.build_relation(entry, sid, 'GetChanges', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'domain' and \
-                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesAll']):
+                        obj_type_present and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesAll']):
                         relations.append(self.build_relation(entry, sid, 'GetChangesAll', '', inherited=is_inherited))
                     if entry._entry_type.lower() == 'domain' and \
-                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesInFilteredSet']):
+                        obj_type_present and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['GetChangesInFilteredSet']):
                         relations.append(self.build_relation(entry, sid, 'GetChangesInFilteredSet', '', inherited=is_inherited))
                     if entry._entry_type.lower() in ['user', 'computer'] and \
-                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']):
+                        obj_type_present and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['UserForceChangePassword']):
                         relations.append(self.build_relation(entry, sid, 'ForceChangePassword', '', inherited=is_inherited))
 
                     #
                     # Rights for certificate templates
                     #
                     if entry._entry_type.lower() in ['pki template', 'enterpriseca'] and \
-                        has_extended_right_scoped(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
+                        obj_type_present and has_extended_right(ace_object, EXTRIGHTS_GUID_MAPPING['Enroll']):
                         relations.append(self.build_relation(entry, sid, 'Enroll', '', inherited=is_inherited))
 
 
