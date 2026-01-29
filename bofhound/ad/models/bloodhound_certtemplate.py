@@ -216,8 +216,9 @@ class BloodHoundCertTemplate(BloodHoundObject):
                 MS_PKI_PRIVATE_KEY_FLAG.USE_LEGACY_PROVIDER in private_key_flag
             )
 
-            if (self.Properties['schemaversion'] in schemaversions_noparsing or
-            (self.Properties['schemaversion'] == 4 and hasUseLegacyProvider)):
+            if ('schemaversion' in self.Properties and 
+              (self.Properties['schemaversion'] in schemaversions_noparsing or
+              (self.Properties['schemaversion'] == 4 and hasUseLegacyProvider))):
                 self.Properties['applicationpolicies'] = applicationpolicies
             
             else:
@@ -234,7 +235,7 @@ class BloodHoundCertTemplate(BloodHoundObject):
         else:
             self.Properties['issuancepolicies'] = []
 
-        if (self.Properties['schemaversion'] == 1 and len(ekus)>0):
+        if ('schemaversion' in self.Properties and self.Properties['schemaversion'] == 1 and len(ekus)>0):
             self.Properties['effectiveekus'] = ekus
         elif self.Properties['certificateapplicationpolicy']:
             self.Properties['effectiveekus'] = self.Properties['certificateapplicationpolicy']
