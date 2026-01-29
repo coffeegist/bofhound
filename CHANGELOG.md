@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.23] - 1/29/2026
+### Fixes
+- Fix crash occuring when certificate template `mspki-template-schema-version` attribute is not present ([#52](https://github.com/coffeegist/bofhound/issues/52))
+
 ## [0.4.22] - 1/29/2026
 ### Fixes
 - ACL parsing fixes to more closely mirror SharpHound ([#53](https://github.com/coffeegist/bofhound/pull/53/))
