@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.22] - 1/29/2026
+### Fixes
+- ACL parsing fixes to more closely mirror SharpHound ([#53](https://github.com/coffeegist/bofhound/pull/53/))
+
 ## [0.4.21] - 1/14/2026
 ### Added
 - Add ability to parse dnsNode objects and add IP addresses to computer properties by matching on dNSHostName [#51](https://github.com/coffeegist/bofhound/pull/51)
