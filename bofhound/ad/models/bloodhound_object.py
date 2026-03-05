@@ -212,10 +212,15 @@ class BloodHoundObject():
         #
         # certname
         #
-        certificate_byte_array = base64.b64decode(certificate_b64)
-        ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
-        self.x509Certificate = ca_cert # set for post-processing
-        self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
+        try:
+            certificate_byte_array = base64.b64decode(certificate_b64)
+            ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
+            self.x509Certificate = ca_cert # set for post-processing
+            self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
+        except (ValueError, TypeError):
+            logger.warning("Failed to parse cacertificate for object, using thumbprint as certname")
+            self.x509Certificate = None
+            self.Properties['certname'] = thumbprint
         
         #
         # cert chain
@@ -230,6 +235,8 @@ class BloodHoundObject():
         #
         self.Properties['hasbasicconstraints'] = False
         self.Properties['basicconstraintpathlength'] = 0
+        if self.x509Certificate is None:
+            return
         for ext in ca_cert['extensions']:
             if ext['extn_id'].native == 'basic_constraints':
                 basic_constraints = ext['extn_value'].parsed
