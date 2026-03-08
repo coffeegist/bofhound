@@ -38,6 +38,12 @@ class BloodHoundDomainTrust(object):
             self.TrustProperties = trust.to_output()
 
             # BHCE now wants trusttype and direction defined as string names instead of int values
-            
-            self.TrustProperties['TrustDirection'] = TrustDirection(self.TrustProperties['TrustDirection']).name
-            self.TrustProperties['TrustType'] = TrustType(self.TrustProperties['TrustType']).name
+            # Newer versions of bloodhound.py may already return string names from to_output(),
+            # so only convert if the value is still an integer
+            direction = self.TrustProperties['TrustDirection']
+            if isinstance(direction, int):
+                self.TrustProperties['TrustDirection'] = TrustDirection(direction).name
+
+            trust_type = self.TrustProperties['TrustType']
+            if isinstance(trust_type, int):
+                self.TrustProperties['TrustType'] = TrustType(trust_type).name
