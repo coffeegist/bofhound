@@ -1350,6 +1350,8 @@ class ADDS():
     @staticmethod
     def find_issuer_ca(start_ca_obj, all_ca_obj):
         for potential_issuer in all_ca_obj:
+            if potential_issuer.x509Certificate is None:
+                continue
             if start_ca_obj.x509Certificate['issuer'] == potential_issuer.x509Certificate['subject']:
                 return potential_issuer
         return None

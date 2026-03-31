@@ -5,7 +5,8 @@
 
 ### Fixes
 - Fix reference to non-existent attribute reference in log statement during local group membership parsing [#57](https://github.com/coffeegist/bofhound/issues/57)
-- TrustDirection and TrustType value handling [56](https://github.com/coffeegist/bofhound/pull/56)
+- TrustDirection and TrustType value handling [#56](https://github.com/coffeegist/bofhound/pull/56)
+- Malformed certificate object handling [#55](https://github.com/coffeegist/bofhound/pull/55)
 
 ## [0.4.23] - 1/29/2026
 ### Fixes
