@@ -12,7 +12,6 @@ from abc import ABC, abstractmethod
 from typing import Iterator, AsyncIterator, TypeVar
 from typing_extensions import override
 from mythic import mythic
-from syncer import sync
 from bofhound.logger import logger
 
 T = TypeVar('T')
@@ -115,7 +114,7 @@ class MythicDataSource(DataSource):
     def _connect(self):
         logger.debug("Logging into Mythic...")
         try:
-            self._mythic_instance = sync(mythic.login(
+            self._mythic_instance = asyncio.run(mythic.login(
                 apitoken=self.mythic_token,
                 server_ip=self.mythic_server,
                 server_port=7443,
@@ -131,14 +130,16 @@ class MythicDataSource(DataSource):
 
     def _async_iterable_to_sync_iterable(self, iterator: AsyncIterator[T]) -> Iterator[T]:
         """Convert an async iterator to a sync iterator."""
-        loop = asyncio.get_event_loop()
-
-        while True:
-            try:
-                result = loop.run_until_complete(anext(iterator))
-                yield result
-            except StopAsyncIteration:
-                break
+        loop = asyncio.new_event_loop()
+        try:
+            while True:
+                try:
+                    result = loop.run_until_complete(anext(iterator))
+                    yield result
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()
 
     @override
     def get_data_streams(self) -> Iterator['MythicDataStream']:
