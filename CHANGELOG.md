@@ -1,5 +1,8 @@
 # Changelog
 ## [0.4.24] - 3/31/2026
+### Added
+- Support for LAPSv2 [#58](https://github.com/coffeegist/bofhound/pull/58)
+
 ### Fixes
 - Fix reference to non-existent attribute reference in log statement during local group membership parsing [#57](https://github.com/coffeegist/bofhound/issues/57)
 
