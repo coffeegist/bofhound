@@ -19,6 +19,7 @@ class BloodHoundComputer(BloodHoundObject):
         'useraccountcontrol', 'dnshostname', 'samaccounttype', 'primarygroupid',
         'msds-allowedtodelegateto', 'operatingsystemservicepack',
         'msds-allowedtoactonbehalfofotheridentity', 'ms-mcs-admpwdexpirationtime',
+        'mslaps-passwordexpirationtime',
         'memberof'
     ]
 
@@ -94,7 +95,7 @@ class BloodHoundComputer(BloodHoundObject):
         # TODO: HighValue / AdminCount
         self.Properties['highvalue'] = False
 
-        if 'ms-mcs-admpwdexpirationtime' in object.keys():
+        if 'ms-mcs-admpwdexpirationtime' in object.keys() or 'mslaps-passwordexpirationtime' in object.keys():
             self.Properties['haslaps'] = True
         else:
             self.Properties['haslaps'] = False

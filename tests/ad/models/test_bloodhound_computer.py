@@ -57,3 +57,24 @@ def test_constructor_hasLaps(parsed_full_computer):
 
     assert bhc.Properties['haslaps'] == True
     assert bhc.Properties['operatingsystem'] == 'Windows 10 Enterprise Evaluation'
+
+
+@pytest.fixture
+def parsed_lapsv2_computer():
+    yield {
+        "objectclass": "top, person, organizationalPerson, user, computer",
+        "cn": "WIN11",
+        "distinguishedname": "CN=WIN11,OU=Workstations,DC=windomain,DC=local",
+        "objectsid": "S-1-5-21-3674311734-1768984491-1162443153-1105",
+        "samaccountname": "WIN11$",
+        "dnshostname": "win11.windomain.local",
+        "useraccountcontrol": "4096",
+        "operatingsystem": "Windows 11 Enterprise",
+        "mslaps-passwordexpirationtime": "133100000000000000"
+    }
+
+
+def test_constructor_hasLaps_v2(parsed_lapsv2_computer):
+    bhc = BloodHoundComputer(parsed_lapsv2_computer)
+
+    assert bhc.Properties['haslaps'] == True

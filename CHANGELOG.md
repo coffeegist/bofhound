@@ -1,4 +1,12 @@
 # Changelog
+## [0.4.24] - 3/31/2026
+### Added
+- Support for LAPSv2 [#58](https://github.com/coffeegist/bofhound/pull/58)
+
+### Fixes
+- Fix reference to non-existent attribute reference in log statement during local group membership parsing [#57](https://github.com/coffeegist/bofhound/issues/57)
+- TrustDirection and TrustType value handling [56](https://github.com/coffeegist/bofhound/pull/56)
+
 ## [0.4.23] - 1/29/2026
 ### Fixes
 - Fix crash occuring when certificate template `mspki-template-schema-version` attribute is not present ([#52](https://github.com/coffeegist/bofhound/issues/52))

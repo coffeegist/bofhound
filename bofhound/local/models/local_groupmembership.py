@@ -54,7 +54,7 @@ class LocalGroupMembership:
                 self.host_fqdn = object[LocalGroupMembership.LOCALGROUP_HOST]
             else:
                 self.host_name = object[LocalGroupMembership.LOCALGROUP_HOST]
-                logger.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.user}[/] session on {ColorScheme.computer}{self.host_name}[/]", extra=OBJ_EXTRA_FMT)
+                logger.debug(f"FQDN missing from hostname for {ColorScheme.user}{self.member}[/] local group membershio on {ColorScheme.computer}{self.host_name}[/]", extra=OBJ_EXTRA_FMT)
 
         if LocalGroupMembership.LOCALGROUP_MEMBER_SID in object.keys():
             self.member_sid = object[LocalGroupMembership.LOCALGROUP_MEMBER_SID]
