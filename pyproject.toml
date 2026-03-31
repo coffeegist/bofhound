@@ -37,7 +37,6 @@ Werkzeug = "^2.0.2"
 rich = "^12.5"
 cffi = "^1.17.1"
 mythic = "^0.2.5"
-syncer = "^2.0.3"
 requests = "^2.32.3"
 adidnsdump = "^1.4.0"
 
