@@ -4,7 +4,6 @@ import json
 import asyncio
 import logging
 from typing import AsyncIterator, Iterator, TypeVar
-from syncer import sync
 from mythic import mythic
 
 T = TypeVar('T')
