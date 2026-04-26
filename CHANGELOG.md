@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.25] - 4/25/2026
+### Fixes
+- Fixed issue causing crash if OC2 task did not recieve output [#60](https://github.com/coffeegist/bofhound/pull/60)
+
 ## [0.4.24] - 3/31/2026
 ### Added
 - Support for LAPSv2 [#58](https://github.com/coffeegist/bofhound/pull/58)
