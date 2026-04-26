@@ -95,6 +95,10 @@ class OutflankDataStream(FileDataStream):
                     and event_json['task']['name'].lower() == bofname):
                     # now we have a block of ldapsearch data we can parse through for objects
                     response_lines = event_json['task']['response']
+
+                    if response_lines is None:
+                        continue
+
                     for response_line in response_lines.splitlines():
                         yield response_line
 
