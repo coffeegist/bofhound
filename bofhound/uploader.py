@@ -116,7 +116,8 @@ class BloodHoundUploader:
                 'Content-Type': content_type,
             },
             data=body,
-            verify=False
+            verify=False,
+            timeout=(10, 300)
         )
 
     @staticmethod
