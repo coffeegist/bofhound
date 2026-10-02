@@ -4,6 +4,8 @@
 ### Added
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
+- Preserve inherited ACL edges for standard AD classes when schema objects are missing, honoring collected mappings and class restrictions (#65).
+- Exclude inherit-only ACEs from permissions on the current object, including inherited ACEs (#65).
 - Return a failing exit status for unsuccessful BloodHound uploads and skip directories in upload-only mode (#64).
 - Handle renewed CA objects with multiple cacertificate values and skip malformed certificate candidates (#63).
 - Prevent default group generation from crashing when a computer has no primary group SID (#61).
