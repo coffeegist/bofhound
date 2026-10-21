@@ -7,6 +7,7 @@
 - Performance options: `--workers`, `--no-cache`, `--cache-file`, `--cache-stats`, and `--context-from` (#50).
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
+- Preserve complete accumulated LDAP snapshots, detect changed raw attributes, and commit cache updates only after successful output (#50).
 - Store cache objects as data-only JSON and reject incompatible legacy caches without loading them (#50).
 - Preserve inherited ACL edges for standard AD classes when schema objects are missing, honoring collected mappings and class restrictions (#65).
 - Exclude inherit-only ACEs from permissions on the current object, including inherited ACEs (#65).

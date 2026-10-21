@@ -18,7 +18,7 @@ class ObjectCache:
     """SQLite-based cache for storing processed BloodHound objects."""
     
     # Version for cache compatibility
-    CACHE_VERSION = "2.0.0"  # Data-only JSON; legacy pickle caches must be rebuilt.
+    CACHE_VERSION = "3.0.0"  # Raw LDAP snapshots, never processed Python objects.
     
     def __init__(self, cache_path: str):
         """
@@ -150,39 +150,47 @@ class ObjectCache:
         
         self.conn.commit()
     
-    def _hash_object(self, obj: Dict[str, Any]) -> str:
+    @staticmethod
+    def _normalize_object(obj):
+        if not isinstance(obj, dict) or not all(isinstance(key, str) for key in obj):
+            raise ValueError("Cache objects must be LDAP attribute dictionaries")
+        value = {key.lower(): item for key, item in obj.items()}
+        # Validate and detach from the caller. Never discard output-relevant attributes.
+        return json.loads(json.dumps(value, sort_keys=True, allow_nan=False))
+
+    @staticmethod
+    def _identity(obj):
+        dn = obj.get('distinguishedname', '').upper()
+        sid = BloodHoundObject.get_sid(obj.get('objectsid'), dn) or obj.get('objectguid', '')
+        return str(sid).upper() if sid else '', dn
+
+    def _hash_object(self, obj):
+        normalized = self._normalize_object(obj)
+        if normalized.get('distinguishedname'):
+            normalized['distinguishedname'] = normalized['distinguishedname'].upper()
+        data = json.dumps(normalized, sort_keys=True,
+                          separators=(',', ':'), allow_nan=False)
+        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+    def merge_ldap_objects(self, incoming):
+        """Combine incremental collections before rebuilding the complete graph.
+
+        Present attributes supersede earlier values, including empty strings.
+        Absent objects/attributes are retained: absence in a partial collection
+        cannot prove deletion. A fresh cache gives a fresh snapshot.
         """
-        Calculate hash of object attributes for change detection.
-        
-        Args:
-            obj: LDAP object dictionary
-            
-        Returns:
-            MD5 hash of normalized object attributes
-        """
-        # Exclude volatile attributes from hash calculation
-        exclude_attrs = {
-            'whencreated', 'whenchanged', 'usnchanged', 'usncreated',
-            'dscorepropagationdata', 'lastlogon', 'lastlogontimestamp',
-            'badpasswordtime', 'logoncount'
-        }
-        
-        # Create sorted list of key-value pairs for consistent hashing
-        items = []
-        for key in sorted(obj.keys()):
-            if key.lower() not in exclude_attrs:
-                value = obj[key]
-                # Convert bytes to string for hashing
-                if isinstance(value, bytes):
-                    try:
-                        value = value.decode('utf-8', errors='ignore')
-                    except:
-                        value = str(value)
-                items.append(f"{key}:{value}")
-        
-        hash_string = '|'.join(items)
-        return hashlib.md5(hash_string.encode('utf-8')).hexdigest()
-    
+        objects = {}
+        unidentified = []
+        for raw in self.get_all_cached_objects() + incoming:
+            obj = self._normalize_object(raw)
+            sid, dn = self._identity(obj)
+            key = ('id', sid) if sid else ('dn', dn)
+            if not sid and not dn:
+                unidentified.append(obj)
+                continue
+            objects[key] = {**objects.get(key, {}), **obj}
+        return list(objects.values()) + unidentified
+
     def get_cached_object(self, sid: Optional[str] = None, 
                          dn: Optional[str] = None) -> Optional[Dict]:
         """
@@ -197,12 +205,7 @@ class ObjectCache:
         """
         cursor = self.conn.cursor()
         
-        if sid and dn:
-            cursor.execute(
-                'SELECT * FROM objects WHERE sid = ? AND dn = ?',
-                (sid, dn)
-            )
-        elif sid:
+        if sid:
             cursor.execute('SELECT * FROM objects WHERE sid = ?', (sid,))
         elif dn:
             cursor.execute('SELECT * FROM objects WHERE dn = ?', (dn,))
@@ -222,31 +225,23 @@ class ObjectCache:
             }
         return None
     
-    def store_object(self, obj: Any, source_file: str = ''):
-        """
-        Store processed BloodHound object in cache.
-        
-        Args:
-            obj: BloodHoundObject instance
-            source_file: Source log file name
-        """
-        sid = obj.ObjectIdentifier if obj.ObjectIdentifier else ''
-        dn = obj.Properties.get('distinguishedname', '')
-        object_type = obj._entry_type if hasattr(obj, '_entry_type') else 'Unknown'
-        
-        # Calculate hash from original properties
-        attr_hash = self._hash_object(obj.Properties)
-        
-        # Serialize object
-        data = json.dumps(obj.Properties, sort_keys=True, allow_nan=False)
-        
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO objects 
-            (sid, dn, object_type, data, attr_hash, timestamp, source_file)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (sid, dn, object_type, data, attr_hash, time.time(), source_file))
-    
+    def store_object(self, obj, source_file=''):
+        """Stage a raw LDAP snapshot; callers commit only after writing output."""
+        obj = self._normalize_object(obj)
+        sid, dn = self._identity(obj)
+        if not sid and not dn:
+            return
+        if sid:
+            # A rename changes the DN, not the object's stable identity.
+            self.conn.execute('DELETE FROM objects WHERE sid = ?', (sid,))
+        self.conn.execute(
+            'INSERT OR REPLACE INTO objects '
+            '(sid, dn, object_type, data, attr_hash, timestamp, source_file) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (sid, dn, obj.get('objectclass', ''), json.dumps(obj, sort_keys=True),
+             self._hash_object(obj), time.time(), source_file)
+        )
+
     def get_changed_objects(self, ldap_objects: List[Dict]) -> List[Dict]:
         """
         Filter LDAP objects to return only new or changed ones.
@@ -261,8 +256,7 @@ class ObjectCache:
         unchanged_count = 0
         
         for ldap_obj in ldap_objects:
-            sid = ldap_obj.get('objectsid', '')
-            dn = ldap_obj.get('distinguishedname', '').upper()
+            sid, dn = self._identity(ldap_obj)
             
             # Calculate hash of new object
             new_hash = self._hash_object(ldap_obj)
@@ -270,7 +264,7 @@ class ObjectCache:
             # Look up in cache
             cached = self.get_cached_object(sid=sid, dn=dn)
             
-            if not cached:
+            if not cached or cached['hash'] != new_hash:
                 changed.append(ldap_obj)
             else:
                 # Skip cached objects
@@ -361,8 +355,8 @@ class ObjectCache:
     def close(self):
         """Close database connection."""
         if self.conn:
-            self.conn.commit()
             self.conn.close()
+            self.conn = None
     
     # ===== SID Mapping Methods =====
     
@@ -395,7 +389,6 @@ class ObjectCache:
             INSERT OR REPLACE INTO sid_mappings (sid, name, object_type, domain, timestamp)
             VALUES (?, ?, ?, ?, ?)
         ''', [(sid, name, obj_type, domain, timestamp) for sid, name, obj_type, domain in mappings])
-        self.conn.commit()
     
     def get_sid_mapping(self, sid: str) -> Optional[Dict]:
         """
@@ -510,7 +503,6 @@ class ObjectCache:
             INSERT OR REPLACE INTO dn_mappings (dn, sid, object_type, timestamp)
             VALUES (?, ?, ?, ?)
         ''', [(dn, sid, obj_type, timestamp) for dn, sid, obj_type in mappings])
-        self.conn.commit()
     
     def get_dn_mapping(self, dn: str) -> Optional[Dict]:
         """
@@ -579,7 +571,6 @@ class ObjectCache:
             INSERT OR REPLACE INTO schema_guids (name, guid, timestamp)
             VALUES (?, ?, ?)
         ''', [(name, guid, timestamp) for name, guid in mappings.items()])
-        self.conn.commit()
     
     def get_all_schema_guids(self) -> Dict[str, str]:
         """
@@ -641,5 +632,11 @@ class ObjectCache:
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.close()
+        """Commit successful scopes and roll back failed scopes."""
+        try:
+            if exc_type is None:
+                self.commit()
+            elif self.conn:
+                self.conn.rollback()
+        finally:
+            self.close()

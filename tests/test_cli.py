@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 
 from bofhound import __main__ as cli
 
-ARGS = ['--quiet', '--bh-token-id', 'id', '--bh-token-key', 'key']
+ARGS = ['--quiet', '--no-cache', '--bh-token-id', 'id', '--bh-token-key', 'key']
 
 
 @pytest.fixture
@@ -99,3 +99,47 @@ def test_normal_parse_writes_before_starting_upload(tmp_path, monkeypatch, uploa
     uploader.create_upload_job.assert_called_once()
     uploader.upload_file.assert_called_once_with(output)
     uploader.close_upload_job.assert_called_once()
+
+
+def _export_snapshot(folder):
+    import json
+    return {
+        path.name.split('_')[0]: json.loads(path.read_text())
+        for path in folder.glob('*.json')
+    }
+
+
+def test_repeated_cache_run_preserves_complete_export(tmp_path):
+    from pathlib import Path
+    sample = Path(__file__).parent / 'test_data/ldapsearchbof_logs/beacon_257-objects.log'
+    cache_path = tmp_path / 'cache.db'
+    snapshots = []
+    for run in ['first', 'second']:
+        output = tmp_path / run
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(sample), '-o', str(output),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+        snapshots.append(_export_snapshot(output))
+    assert snapshots[0] == snapshots[1]
+    assert snapshots[1]['computers']['meta']['count'] == 4
+    assert snapshots[1]['domains']['meta']['count'] == 1
+
+
+def test_output_failure_keeps_previous_snapshot(tmp_path, monkeypatch):
+    from bofhound.cache import ObjectCache
+    from pathlib import Path
+    cache_path = tmp_path / 'cache.db'
+    prior = {'distinguishedname': 'CN=Prior,DC=example,DC=test', 'name': 'Prior'}
+    with ObjectCache(str(cache_path)) as cache:
+        cache.store_object(prior)
+    monkeypatch.setattr(cli.BloodHoundWriter, 'write', Mock(side_effect=OSError('disk full')))
+    sample = Path(__file__).parent / 'test_data/ldapsearchbof_logs/minimal-ou-gplink.log'
+    result = CliRunner().invoke(cli.app, [
+        '--quiet', '--workers', '1', '-i', str(sample), '-o', str(tmp_path / 'output'),
+        '--cache-file', str(cache_path),
+    ])
+    assert result.exit_code != 0
+    with ObjectCache(str(cache_path)) as cache:
+        assert cache.get_all_cached_objects() == [cache._normalize_object(prior)]

@@ -18,9 +18,9 @@ RAW_USER = {
 def test_cache_stores_data_only(tmp_path):
     with ObjectCache(str(tmp_path / 'cache.db')) as cache:
         obj = BloodHoundUser(RAW_USER)
-        cache.store_object(obj)
-        assert cache.get_cached_object(sid=obj.ObjectIdentifier)['data'] == obj.Properties
-        assert cache.get_all_cached_objects() == [obj.Properties]
+        cache.store_object(RAW_USER)
+        assert cache.get_cached_object(sid=obj.ObjectIdentifier)['data'] == cache._normalize_object(RAW_USER)
+        assert cache.get_all_cached_objects() == [cache._normalize_object(RAW_USER)]
 
 
 def test_old_cache_is_rejected_without_migration(tmp_path):
@@ -42,10 +42,57 @@ class PrintMarker:
 
 def test_tampered_cache_never_executes_pickle(tmp_path, capsys):
     with ObjectCache(str(tmp_path / 'cache.db')) as cache:
-        cache.store_object(BloodHoundUser(RAW_USER))
+        cache.store_object(RAW_USER)
         cache.conn.execute('UPDATE objects SET data = ?', (pickle.dumps(PrintMarker()),))
         with pytest.raises((ValueError, UnicodeDecodeError)):
             cache.get_cached_object(sid=RAW_USER['objectsid'])
         with pytest.raises((ValueError, UnicodeDecodeError)):
             cache.get_all_cached_objects()
     assert 'UNSAFE_CACHE_MARKER' not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('attribute,value', [
+    ('description', 'new'), ('lastlogon', '12345'), ('whenchanged', 'now'),
+    ('ntsecuritydescriptor', 'changed ACL'), ('description', ''),
+])
+def test_changed_attributes_are_not_skipped(tmp_path, attribute, value):
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(RAW_USER)
+        assert cache.get_changed_objects([RAW_USER]) == []
+        changed = dict(RAW_USER, **{attribute: value})
+        assert cache.get_changed_objects([changed]) == [changed]
+
+
+def test_incremental_snapshot_retains_old_objects_and_updates_partial_attributes(tmp_path):
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(RAW_USER)
+        updated = {'objectsid': RAW_USER['objectsid'], 'description': ''}
+        other = {'distinguishedname': 'CN=Other,DC=example,DC=test', 'name': 'Other'}
+        objects = cache.merge_ldap_objects([updated, other])
+        assert len(objects) == 2
+        assert objects[0]['samaccountname'] == 'example'
+        assert objects[0]['description'] == ''
+        assert objects[1]['name'] == 'Other'
+
+
+def test_rename_replaces_old_dn_without_duplicate(tmp_path):
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(RAW_USER)
+        renamed = dict(RAW_USER, distinguishedname='CN=Renamed,DC=example,DC=test')
+        merged = cache.merge_ldap_objects([renamed])
+        assert len(merged) == 1
+        cache.store_object(merged[0])
+        assert len(cache.get_all_cached_objects()) == 1
+        assert cache.get_all_cached_objects()[0]['distinguishedname'].startswith('CN=Renamed,')
+
+
+def test_failed_transaction_does_not_advance_objects_or_context(tmp_path):
+    path = str(tmp_path / 'cache.db')
+    with pytest.raises(RuntimeError):
+        with ObjectCache(path) as cache:
+            cache.store_object(RAW_USER)
+            cache.store_sid_mappings_bulk([('sid', 'name', 'User', 'domain')])
+            raise RuntimeError('output failed')
+    with ObjectCache(path) as cache:
+        assert cache.get_all_cached_objects() == []
+        assert cache.get_all_sid_mappings() == {}

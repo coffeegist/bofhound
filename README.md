@@ -135,35 +135,27 @@ upload acceptance and job completion, not the outcome of server-side ingestion.
 
 ## Performance & Cache
 
-This branch introduces a SQLite-backed object cache and parallel-ready ACL processing to speed up repeated runs on large datasets.
+`--workers N` controls parallel file and ACL processing. Use `--workers 1` for
+sequential processing. The default uses about 90% of available CPU cores.
 
-- Caching is enabled by default. When a cache exists, incremental filtering is automatic: objects already seen (by SID/DN) are skipped.
-- To disable caching (and incremental behavior), pass `--no-cache` or remove the cache file.
-- Cache location defaults to `bofhound_cache.db` in the output folder; override with `--cache-file PATH`.
-- ACL processing accepts a worker count via `--workers` (auto-detected if unspecified).
-- Inspect cache with `--cache-stats`.
+Caching is enabled by default at `--output/bofhound_cache.db`; override it with
+`--cache-file PATH`, disable it with `--no-cache`, or inspect it with `--cache-stats`.
+The cache stores data-only raw LDAP snapshots. Each run combines cached and current
+LDAP data and rebuilds relationships against that complete snapshot. It does not
+skip ACL processing or reuse computed relationships, because newly collected
+objects can change existing relationships.
 
-Examples (Windows PowerShell):
+Present attributes replace earlier values, including empty strings. Objects and
+attributes absent from a partial collection remain cached; absence does not prove
+deletion. Use a new cache file to start a fresh snapshot. Local sessions and local
+group records are processed from the current logs and are not retained in the cache.
+Legacy or incompatible cache versions are rejected without being loaded or changed;
+choose a new cache path or remove the old database and rebuild from the original logs.
 
-```
-# First run: build cache and output JSON
-.\n+venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out
-
-# Incremental run: skip unchanged objects (automatic when cache exists)
-.
-\venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out
-
-# Disable cache entirely
-.
-\venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out --no-cache
-
-# Use a specific cache file and workers
-.
-\venv\Scripts\bofhound.exe -i samples/ -p All --parser ldapsearch --output out --cache-file out\my_cache.db --workers 6
-
-# Show cache stats and exit
-.
-\venv\Scripts\bofhound.exe -i samples/ --parser ldapsearch --output out --cache-stats
+```sh
+bofhound -i ./logs --output ./out --workers 4
+bofhound -i ./logs --output ./out --no-cache
+bofhound --output ./out --cache-stats
 ```
 
 # ldapsearch
