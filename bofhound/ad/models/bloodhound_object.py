@@ -199,29 +199,44 @@ class BloodHoundObject():
     # for AIACAs, EnterpriseCAs, and RootCAs
     #
     def parse_cacertificate(self, object):
-        certificate_b64 = object.get("cacertificate")
-            
-        certificate_byte_array = base64.b64decode(certificate_b64)
-        
-        #
-        # thumbprint
-        #
+        certificate_b64 = object.get("cacertificate") or ""
+
+        # Renewed CAs retain multiple certificates. Select the latest expiry,
+        # ignoring malformed candidates without losing a usable certificate.
+        certificate_byte_array = b""
+        ca_cert = None
+        latest_expiry = None
+        fallback_bytes = None
+        for candidate in certificate_b64.split(","):
+            try:
+                candidate_bytes = base64.b64decode(candidate.strip())
+                # Empty entries must not hide a later nonempty fallback.
+                if fallback_bytes is None and candidate_bytes:
+                    fallback_bytes = candidate_bytes
+                candidate_cert = x509.Certificate.load(candidate_bytes)["tbs_certificate"]
+                # ASN.1 parsing is lazy; validate fields before selecting a cert.
+                expiry = candidate_cert['validity']['not_after'].native
+                candidate_cert['subject'].native
+                candidate_cert['extensions'].native
+                if latest_expiry is None or expiry > latest_expiry:
+                    certificate_byte_array = candidate_bytes
+                    ca_cert = candidate_cert
+                    latest_expiry = expiry
+            except (ValueError, TypeError, KeyError):
+                continue
+
+        if ca_cert is None:
+            certificate_byte_array = fallback_bytes or b""
+            logger.warning("Failed to parse cacertificate for object, using thumbprint as certname")
+
         thumbprint = hashlib.sha1(certificate_byte_array).hexdigest().upper()
         self.Properties['certthumbprint'] = thumbprint
-        
-        #
-        # certname
-        #
-        try:
-            certificate_byte_array = base64.b64decode(certificate_b64)
-            ca_cert = x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
-            self.x509Certificate = ca_cert # set for post-processing
-            self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
-        except (ValueError, TypeError):
-            logger.warning("Failed to parse cacertificate for object, using thumbprint as certname")
-            self.x509Certificate = None
-            self.Properties['certname'] = thumbprint
-        
+        self.x509Certificate = ca_cert
+        self.Properties['certname'] = (
+            ca_cert['subject'].native.get('common_name', thumbprint)
+            if ca_cert is not None else thumbprint
+        )
+
         #
         # cert chain
         # not sure that Python libs offer a way to build the chain without access to the issuer cert like it seems SharpHound  does
@@ -244,4 +259,3 @@ class BloodHoundObject():
                     self.Properties['hasbasicconstraints'] = True
                     self.Properties['basicconstraintpathlength'] = basic_constraints['path_len_constraint'].native
                 break
-
