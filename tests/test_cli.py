@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 
 from bofhound import __main__ as cli
 
-ARGS = ['--quiet', '--bh-token-id', 'id', '--bh-token-key', 'key']
+ARGS = ['--quiet', '--no-cache', '--bh-token-id', 'id', '--bh-token-key', 'key']
 
 
 @pytest.fixture
@@ -99,3 +99,158 @@ def test_normal_parse_writes_before_starting_upload(tmp_path, monkeypatch, uploa
     uploader.create_upload_job.assert_called_once()
     uploader.upload_file.assert_called_once_with(output)
     uploader.close_upload_job.assert_called_once()
+
+
+def _export_snapshot(folder):
+    import json
+    return {
+        path.name.split('_')[0]: json.loads(path.read_text())
+        for path in folder.glob('*.json')
+    }
+
+
+def test_repeated_cache_run_preserves_complete_export(tmp_path):
+    from pathlib import Path
+    sample = Path(__file__).parent / 'test_data/ldapsearchbof_logs/beacon_257-objects.log'
+    cache_path = tmp_path / 'cache.db'
+    snapshots = []
+    for run, workers in [('first', '1'), ('second', '2'), ('uncached', '2')]:
+        output = tmp_path / run
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', workers, '-i', str(sample), '-o', str(output),
+            '--cache-file', str(cache_path),
+        ] + (['--no-cache'] if run == 'uncached' else []))
+        assert result.exit_code == 0, (result.output, result.exception)
+        snapshots.append(_export_snapshot(output))
+    assert snapshots[0] == snapshots[1] == snapshots[2]
+    assert snapshots[1]['computers']['meta']['count'] == 4
+    assert snapshots[1]['domains']['meta']['count'] == 1
+
+
+def test_output_failure_keeps_previous_snapshot(tmp_path, monkeypatch):
+    from bofhound.cache import ObjectCache
+    from pathlib import Path
+    cache_path = tmp_path / 'cache.db'
+    prior = {'distinguishedname': 'CN=Prior,DC=example,DC=test', 'name': 'Prior'}
+    with ObjectCache(str(cache_path)) as cache:
+        cache.store_object(prior)
+    monkeypatch.setattr(cli.BloodHoundWriter, 'write', Mock(side_effect=OSError('disk full')))
+    sample = Path(__file__).parent / 'test_data/ldapsearchbof_logs/minimal-ou-gplink.log'
+    result = CliRunner().invoke(cli.app, [
+        '--quiet', '--workers', '1', '-i', str(sample), '-o', str(tmp_path / 'output'),
+        '--cache-file', str(cache_path),
+    ])
+    assert result.exit_code != 0
+    with ObjectCache(str(cache_path)) as cache:
+        assert cache.get_all_cached_objects() == [cache._normalize_object(prior)]
+
+
+
+def test_parallel_input_failure_writes_no_output_and_keeps_cache(tmp_path):
+    from bofhound.cache import ObjectCache
+    cache_path = tmp_path / 'cache.db'
+    prior = {'distinguishedname': 'CN=Prior,DC=example,DC=test', 'name': 'Prior'}
+    with ObjectCache(str(cache_path)) as cache:
+        cache.store_object(prior)
+    logs = tmp_path / 'logs'
+    logs.mkdir()
+    (logs / 'good.log').write_text('--------------------\nsamaccountname: example\nRetrieved 1 results\n')
+    (logs / 'bad.log').write_bytes(b'\xff\xfe\x80')
+    output = tmp_path / 'output'
+    result = CliRunner().invoke(cli.app, [
+        '--quiet', '--workers', '2', '-i', str(logs), '-o', str(output),
+        '--cache-file', str(cache_path),
+    ])
+    assert result.exit_code != 0
+    assert list(output.glob('*.json')) == []
+    with ObjectCache(str(cache_path)) as cache:
+        assert cache.get_all_cached_objects() == [prior]
+
+
+
+def test_changed_cached_user_is_updated_in_export(tmp_path):
+    sample = tmp_path / 'input.log'
+    cache_path = tmp_path / 'cache.db'
+    sid = 'S-1-5-21-111-222-333-5678'
+    for description in ['old', 'new']:
+        sample.write_text(
+            '--------------------\nobjectclass: top, domain\n'
+            'distinguishedname: DC=example,DC=test\nobjectsid: S-1-5-21-111-222-333\n'
+            '--------------------\nsamaccounttype: 805306368\nsamaccountname: example\n'
+            'distinguishedname: CN=Example,DC=example,DC=test\n'
+            f'objectsid: {sid}\ndescription: {description}\nRetrieved 2 results\n'
+        )
+        output = tmp_path / description
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(sample), '-o', str(output),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+        users = _export_snapshot(output)['users']['data']
+        user = next(user for user in users if user['ObjectIdentifier'] == sid)
+        assert user['Properties']['description'] == description
+
+
+
+def test_cached_rename_replaces_old_dn_context(tmp_path):
+    from bofhound.cache import ObjectCache
+    sample = tmp_path / 'input.log'
+    cache_path = tmp_path / 'cache.db'
+    sid = 'S-1-5-21-111-222-333-5678'
+    for name in ['Old', 'New']:
+        sample.write_text(
+            '--------------------\nsamaccounttype: 805306368\nsamaccountname: example\n'
+            f'distinguishedname: CN={name},DC=example,DC=test\nobjectsid: {sid}\nRetrieved 1 results\n'
+        )
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(sample), '-o', str(tmp_path / name),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+    with ObjectCache(str(cache_path)) as cache:
+        mappings = cache.get_all_dn_mappings()
+        assert 'CN=OLD,DC=EXAMPLE,DC=TEST' not in mappings
+        assert mappings['CN=NEW,DC=EXAMPLE,DC=TEST']['sid'] == sid
+
+
+@pytest.mark.parametrize('retired_first', [False, True])
+def test_guid_rename_collision_exports_only_current_identity_across_runs(tmp_path, retired_first):
+    from bofhound.cache import ObjectCache
+    from tests.ad.test_inherited_acls import make_acl_entry
+    current = {
+        'objectsid': 'S-1-5-21-111-222-333-1001',
+        'objectguid': '11111111-1111-1111-1111-111111111111',
+        'distinguishedname': 'CN=Current,DC=example,DC=test',
+        'samaccounttype': '805306368', 'samaccountname': 'current',
+    }
+    retired = {
+        **current, 'objectsid': 'S-1-5-21-111-222-333-1002',
+        'objectguid': '22222222-2222-2222-2222-222222222222',
+        'distinguishedname': 'CN=Reused,DC=example,DC=test', 'samaccountname': 'retired',
+        'ntsecuritydescriptor': make_acl_entry().RawAces,
+    }
+    partial = {'objectguid': current['objectguid'], 'distinguishedname': retired['distinguishedname']}
+    records = [retired, current] if retired_first else [current, retired]
+    source = tmp_path / 'input.log'
+    cache_path = tmp_path / 'cache.db'
+    snapshots = []
+    for name, incoming in [('initial', records), ('rename', [partial]), ('repeat', [])]:
+        text = ''.join('--------------------\n' + ''.join(f'{key}: {value}\n' for key, value in raw.items())
+                       for raw in incoming)
+        source.write_text(text + f'Retrieved {len(incoming)} results\n')
+        output = tmp_path / name
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(source), '-o', str(output),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+        if name != 'initial':
+            snapshot = _export_snapshot(output)
+            users = {user['ObjectIdentifier']: user for user in snapshot['users']['data']}
+            assert retired['objectsid'] not in users
+            assert users[current['objectsid']]['Aces'] == []
+            assert users[current['objectsid']]['Properties']['distinguishedname'] == partial['distinguishedname'].upper()
+            snapshots.append(snapshot)
+    assert snapshots[0] == snapshots[1]
+    with ObjectCache(str(cache_path)) as cache:
+        assert cache.get_all_cached_objects() == [{**current, **partial}]

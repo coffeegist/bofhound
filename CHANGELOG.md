@@ -1,9 +1,24 @@
 # Changelog
 
 ## [Unreleased]
+### Performance
+- Parallel ACL and file parsing, SQLite caching, and lookup tables for large datasets (#50).
 ### Added
+- Performance options: `--workers`, `--no-cache`, `--cache-file`, `--cache-stats`, and `--context-from` (#50).
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
+- Keep cached group membership links bound to known identities through renames and DN reuse (#50).
+- Preserve each identity’s attributes through chained or swapped same-batch renames (#50).
+- Evict stale DN owners and all their identity aliases before exporting or persisting renamed objects (#50).
+- Resolve cached partial renames through independent SID/GUID aliases and keep enriched identities unique on disk (#50).
+- Preserve parser accumulation across reused serial/parallel pipelines and the process_file entry point (#50).
+- Discard old attributes and ACLs when a different stable identity reuses a cached DN (#50).
+- Abort on file/ACL worker failures before writing output or advancing the cache; bound pending process tasks (#50).
+- Preserve stream adapters, parser configuration, input ordering, and records spanning files during parallel parsing (#50).
+- Use the current ACL parser in process workers so schema restrictions, inherit-only flags, and LAPS rights match sequential output (#50).
+- Resolve CA hosting computers from external cached context while preferring current collected hosts (#50).
+- Preserve complete accumulated LDAP snapshots, detect changed raw attributes, and commit cache updates only after successful output (#50).
+- Store cache objects as data-only JSON and reject incompatible legacy caches without loading them (#50).
 - Preserve inherited ACL edges for standard AD classes when schema objects are missing, honoring collected mappings and class restrictions (#65).
 - Exclude inherit-only ACEs from permissions on the current object, including inherited ACEs (#65).
 - Return a failing exit status for unsuccessful BloodHound uploads and skip directories in upload-only mode (#64).

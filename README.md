@@ -5,7 +5,7 @@
              |   _  <  |  |  |  | |   __|  |   __   | |  |  |  | |  |  |  | |  . `  | |  |  |  |
              |  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
              |______/   \______/  |__|     |__|  |___\_\________\_\________\|__| \___\|_________\
-           
+
                                          << @coffeegist | @Tw1sm >>
 ```
 
@@ -132,6 +132,41 @@ files remain available for retrying; retrying a folder resends all selected file
 including any that were accepted in an earlier attempt. A successful exit confirms
 upload acceptance and job completion, not the outcome of server-side ingestion.
 
+
+## Performance & Cache
+
+`--workers N` controls parallel file and ACL processing. Use `--workers 1` for
+sequential processing. The default uses about 90% of available CPU cores. Actual pools are limited to the
+number of tasks and the platform limit (61 processes on Windows). Files with
+incomplete records and custom stateful parsers use sequential parsing to preserve
+records spanning files. Pending tasks
+are bounded; input or ACL worker failures abort before output/cache updates.
+
+Caching is enabled by default at `--output/bofhound_cache.db`; override it with
+`--cache-file PATH`, disable it with `--no-cache`, or inspect it with `--cache-stats`.
+The cache stores data-only raw LDAP snapshots. Each run combines cached and current
+LDAP data and rebuilds relationships against that complete snapshot. It does not
+skip ACL processing or reuse computed relationships, because newly collected
+objects can change existing relationships.
+
+Present attributes replace earlier values, including empty strings. Cached group
+membership links follow known identities through renames and are removed when the
+known target is displaced; explicitly supplied membership attributes use current DNs. Objects and
+attributes absent from a partial collection remain cached; absence does not prove
+deletion. Use a new cache file to start a fresh snapshot. Local sessions and local
+group records are processed from the current logs and are not retained in the cache.
+`--context-from PATH` loads SID/domain/schema mappings and CA-host identities from
+a prior cache (or a directory containing `bofhound_cache.db`) without exporting its
+objects. Current collected computers take precedence over cached host identities.
+Legacy or incompatible cache versions are rejected without being loaded or changed;
+choose a new cache path or remove the old database and rebuild from the original logs.
+
+```sh
+bofhound -i ./logs --output ./out --workers 4
+bofhound -i ./logs --output ./out --no-cache
+bofhound --output ./out --cache-stats
+```
+
 # ldapsearch
 Specify `*,ntsecuritydescriptor` as the attributes to return to be able to parse ACL edges. You are missing a ton of data if you don't include this in your `ldapsearch` queries!
 
@@ -147,7 +182,7 @@ Some object classes rely on domain objects being populated within BOFHound. Doma
 ```
 ldapsearch (objectclass=domain) --attributes *,ntsecuritydescriptor
 ldapsearch (distinguishedname=DC=windomain,DC=local) --attributes *,ntsecuritydescriptor
-``` 
+```
 
 ## Example ldapsearch Queries
 ```
@@ -194,7 +229,7 @@ ldapsearch (objectclass=msPKI-Enterprise-Oid) --attributes *,ntsecuritydescripto
 # Versions
 Check the tagged releases to download a specific version
 - v0.4.0 and onward support parsing AD CS objects and edges
-- v0.3.0 and onward support session/local group data 
+- v0.3.0 and onward support session/local group data
 - v0.2.1 and onward are compatible with BloodHound CE
 - v0.2.0 is the last release supporting BloodHound Legacy
 

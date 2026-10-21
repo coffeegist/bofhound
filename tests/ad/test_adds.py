@@ -253,3 +253,31 @@ def test_unknown_parent_requires_identifier(guid):
     assert child.ContainedBy == (
         {'ObjectIdentifier': guid.upper(), 'ObjectType': 'Container'} if guid else {}
     )
+
+
+@pytest.mark.parametrize('current_host', [False, True])
+def test_ca_host_resolves_from_external_cache_without_exporting_context(tmp_path, current_host):
+    from bofhound.cache import ObjectCache
+    from bofhound.ad.models import BloodHoundEnterpriseCA
+    hostname = 'ca.example.test'
+    prior_sid = 'S-1-5-21-111-222-333-1001'
+    current_sid = 'S-1-5-21-111-222-333-1002'
+    raw = {
+        'samaccounttype': '805306369', 'objectsid': prior_sid,
+        'distinguishedname': 'CN=CAHOST,DC=example,DC=test',
+        'dnshostname': hostname,
+    }
+    with ObjectCache(str(tmp_path / 'context.db')) as cache:
+        cache.store_object(raw)
+        adds = ADDS()
+        adds.load_context_from_cache(cache)
+    assert adds.computers == []
+    if current_host:
+        adds.import_objects([{**raw, 'objectsid': current_sid}])
+    ca = BloodHoundEnterpriseCA({
+        'distinguishedname': 'CN=CA,DC=example,DC=test',
+        'dnshostname': hostname.upper(),
+    })
+    adds.resolve_hosting_computer(ca)
+    assert ca.HostingComputer == (current_sid if current_host else prior_sid)
+    assert len(adds.computers) == int(current_host)
