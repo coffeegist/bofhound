@@ -18,7 +18,7 @@ class ObjectCache:
     """SQLite cache of data-only LDAP snapshots and resolution mappings."""
 
     # Version for cache compatibility
-    CACHE_VERSION = "3.0.0"  # Raw LDAP snapshots, never processed Python objects.
+    CACHE_VERSION = "4.0.0"  # Raw LDAP snapshots, never processed Python objects.
 
     def __init__(self, cache_path: str):
         """
@@ -62,6 +62,7 @@ class ObjectCache:
             CREATE TABLE IF NOT EXISTS objects (
                 sid TEXT,
                 dn TEXT,
+                guid TEXT,
                 object_type TEXT,
                 data BLOB,
                 attr_hash TEXT,
@@ -72,8 +73,9 @@ class ObjectCache:
         ''')
 
         # Create indexes for fast lookups
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_sid ON objects(sid)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_dn ON objects(dn)')
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sid ON objects(sid) WHERE sid != ''")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_dn ON objects(dn) WHERE dn != ''")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_guid ON objects(guid) WHERE guid != ''")
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_type ON objects(object_type)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_hash ON objects(attr_hash)')
 
@@ -180,36 +182,50 @@ class ObjectCache:
         cannot prove deletion. A fresh cache gives a fresh snapshot.
         """
         objects = {}
-        by_dn = {}
-        unidentified = []
+        by_sid, by_guid, by_dn = {}, {}, {}
+        indexes = (by_sid, by_guid, by_dn)
+        next_key = 0
+
+        def aliases(raw):
+            dn = raw.get('distinguishedname', '').upper()
+            sid = BloodHoundObject.get_sid(raw.get('objectsid'), dn)
+            guid = raw.get('objectguid')
+            return str(sid).upper() if sid else '', str(guid).upper() if guid else '', dn
+
+        def remove(key):
+            record = objects.pop(key)
+            for index, alias in zip(indexes, aliases(record)):
+                if alias and index.get(alias) == key:
+                    del index[alias]
+
         for raw in self.get_all_cached_objects() + incoming:
             obj = self._normalize_object(raw)
-            sid, dn = self._identity(obj)
-            key = ('id', sid) if sid else ('dn', dn)
-            if not sid and not dn:
-                unidentified.append(obj)
-                continue
-            previous_key = key if key in objects else by_dn.get(dn)
-            previous = objects.get(previous_key, {})
-            # Compare identities in the same namespace: a GUID-only record can
-            # legitimately gain its SID in a later partial collection.
-            replacement = any(
-                previous.get(attribute) and obj.get(attribute)
-                and str(previous[attribute]).upper() != str(obj[attribute]).upper()
-                for attribute in ('objectsid', 'objectguid')
-            )
-            merged = obj if replacement else {**previous, **obj}
-            merged_sid, merged_dn = self._identity(merged)
-            merged_key = ('id', merged_sid) if merged_sid else ('dn', merged_dn)
-            if previous_key is not None and previous_key != merged_key:
-                objects.pop(previous_key)
-            old_dn = self._identity(previous)[1]
-            if old_dn != merged_dn:
-                by_dn.pop(old_dn, None)
-            objects[merged_key] = merged
-            if merged_dn:
-                by_dn[merged_dn] = merged_key
-        return list(objects.values()) + unidentified
+            sid, guid, dn = aliases(obj)
+            owners = {index[alias] for index, alias in ((by_sid, sid), (by_guid, guid))
+                      if alias and alias in index}
+            if not owners and dn in by_dn:
+                owners.add(by_dn[dn])
+
+            merged = {}
+            for key in sorted(owners):
+                previous = objects[key]
+                old_sid, old_guid, _ = aliases(previous)
+                conflict = ((sid and old_sid and sid != old_sid)
+                            or (guid and old_guid and guid != old_guid))
+                if not conflict:
+                    merged.update(previous)
+            merged.update(obj)
+
+            key = min(owners) if owners else next_key
+            if not owners:
+                next_key += 1
+            for owner in owners:
+                remove(owner)
+            objects[key] = merged
+            for index, alias in zip(indexes, aliases(merged)):
+                if alias:
+                    index[alias] = key
+        return list(objects.values())
 
     def clear_context(self):
         """Stage replacement of derived mappings with the current snapshot's context."""
@@ -256,18 +272,19 @@ class ObjectCache:
         sid, dn = self._identity(obj)
         if not sid and not dn:
             return
-        if sid and dn:
-            # Renames retain identity; a replacement at the same DN has a new SID.
-            self.conn.execute('DELETE FROM objects WHERE sid = ? OR dn = ?', (sid, dn))
-        elif sid:
-            self.conn.execute('DELETE FROM objects WHERE sid = ?', (sid,))
-        else:
-            self.conn.execute('DELETE FROM objects WHERE dn = ?', (dn,))
+        guid = str(obj.get('objectguid') or '').upper()
+        # Independent aliases prevent GUID-only rows surviving SID enrichment/renames.
+        predicates, values = [], []
+        for column, value in (('sid', sid), ('guid', guid), ('dn', dn)):
+            if value:
+                predicates.append(f'{column} = ?')
+                values.append(value)
+        self.conn.execute('DELETE FROM objects WHERE ' + ' OR '.join(predicates), values)
         self.conn.execute(
             'INSERT OR REPLACE INTO objects '
-            '(sid, dn, object_type, data, attr_hash, timestamp, source_file) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (sid, dn, obj.get('objectclass', ''), json.dumps(obj, sort_keys=True),
+            '(sid, dn, guid, object_type, data, attr_hash, timestamp, source_file) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (sid, dn, guid, obj.get('objectclass', ''), json.dumps(obj, sort_keys=True),
              self._hash_object(obj), time.time(), source_file)
         )
 

@@ -174,3 +174,42 @@ def test_partial_guid_collection_preserves_identity_and_attributes(tmp_path, ini
         assert merged[0]['objectsid'] == sid
         cache.store_object(merged[0])
         assert cache.get_all_cached_objects() == merged
+
+
+
+@pytest.mark.parametrize('incoming_sid', [False, True])
+def test_guid_alias_follows_rename_and_persists_one_identity(tmp_path, incoming_sid):
+    from bofhound.ad import ADDS
+    guid = '11111111-1111-1111-1111-111111111111'
+    old = {**RAW_USER, 'objectguid': guid, 'samaccounttype': '805306368'}
+    partial = {'objectguid': guid, 'distinguishedname': 'CN=Renamed,DC=example,DC=test', 'description': 'new'}
+    if incoming_sid:
+        old.pop('objectsid')
+        partial['objectsid'] = RAW_USER['objectsid']
+    path = str(tmp_path / 'cache.db')
+    with ObjectCache(path) as cache:
+        cache.store_object(old)
+        merged = cache.merge_ldap_objects([partial])
+        assert merged == [{**old, **partial}]
+        cache.store_object(merged[0])
+        assert cache.get_all_cached_objects() == merged
+        adds = ADDS()
+        adds.import_objects(merged)
+        assert len(adds.users) == 1
+        assert adds.users[0].ObjectIdentifier == RAW_USER['objectsid']
+        assert adds.users[0].Properties['distinguishedname'] == partial['distinguishedname'].upper()
+        assert adds.users[0].Properties['description'] == 'new'
+    with ObjectCache(path) as cache:
+        assert cache.merge_ldap_objects([]) == merged
+
+
+def test_sid_and_guid_partial_records_join_without_losing_fields(tmp_path):
+    guid = '11111111-1111-1111-1111-111111111111'
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object({**RAW_USER, 'distinguishedname': 'CN=Old,DC=example,DC=test'})
+        cache.store_object({'objectguid': guid, 'distinguishedname': 'CN=New,DC=example,DC=test', 'displayname': 'Example'})
+        update = {'objectsid': RAW_USER['objectsid'], 'objectguid': guid, 'distinguishedname': 'CN=New,DC=example,DC=test'}
+        merged = cache.merge_ldap_objects([update])
+        assert len(merged) == 1
+        assert merged[0]['samaccountname'] == 'example'
+        assert merged[0]['displayname'] == 'Example'
