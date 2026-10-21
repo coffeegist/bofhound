@@ -232,3 +232,24 @@ def test_import_gplink_parsing(ldapsearchbof_minimal_ou_gplink_results):
     assert len(ou.GPLinks) == 1
     assert ou.GPLinks[0][0] == 'CN={6AC1786C-016F-11D2-945F-00C04FB984F9},CN=POLICIES,CN=SYSTEM,DC=EZ,DC=LAB'.upper()
     assert ou.GPLinks[0][1] == '0'
+
+
+@pytest.mark.parametrize('guid', [None, '', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'])
+def test_unknown_parent_requires_identifier(guid):
+    adds = ADDS()
+    parent = {
+        'distinguishedname': 'CN=Parent,DC=example,DC=test',
+        'objectclass': 'top, container',
+    }
+    if guid is not None:
+        parent['objectguid'] = guid
+    adds.unknown_objects = [parent]
+    child = BloodHoundUser({
+        'distinguishedname': 'CN=Child,CN=Parent,DC=example,DC=test',
+    })
+
+    adds.calculate_contained(child)
+
+    assert child.ContainedBy == (
+        {'ObjectIdentifier': guid.upper(), 'ObjectType': 'Container'} if guid else {}
+    )

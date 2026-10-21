@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Fixed
 - Prevent default group generation from crashing when a computer has no primary group SID (#61).
+- Skip unresolved containment references when a parent object has no GUID (#62).
 ## [0.4.25] - 4/25/2026
 ### Fixes
 - Fixed issue causing crash if OC2 task did not recieve output [#60](https://github.com/coffeegist/bofhound/pull/60)
