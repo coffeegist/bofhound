@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Fixed
+- Handle renewed CA objects with multiple cacertificate values and skip malformed certificate candidates (#63).
 - Prevent default group generation from crashing when a computer has no primary group SID (#61).
 - Skip unresolved containment references when a parent object has no GUID (#62).
 ## [0.4.25] - 4/25/2026

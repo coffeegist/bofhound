@@ -1,7 +1,6 @@
 import calendar
 import hashlib
 import base64
-import binascii
 from asn1crypto import x509
 from datetime import datetime
 from bloodhound.enumeration.acls import SecurityDescriptor, ACL, ACCESS_ALLOWED_ACE, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE, has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
@@ -200,46 +199,43 @@ class BloodHoundObject():
     # for AIACAs, EnterpriseCAs, and RootCAs
     #
     def parse_cacertificate(self, object):
-        certificate_b64 = object.get("cacertificate")
+        certificate_b64 = object.get("cacertificate") or ""
 
-        # cacertificate can be multi-valued (e.g. after a CA certificate renewal,
-        # the AD object retains the old cert alongside the new one), joined with
-        # ", ". Decode each candidate independently and use the one with the
-        # latest notAfter date as "the" current CA certificate.
-        best_cert_bytes = None
-        best_cert_parsed = None
-        for candidate in certificate_b64.split(", "):
+        # Renewed CAs retain multiple certificates. Select the latest expiry,
+        # ignoring malformed candidates without losing a usable certificate.
+        certificate_byte_array = b""
+        ca_cert = None
+        latest_expiry = None
+        fallback_bytes = None
+        for candidate in certificate_b64.split(","):
             try:
-                candidate_bytes = base64.b64decode(candidate)
+                candidate_bytes = base64.b64decode(candidate.strip())
+                # Empty entries must not hide a later nonempty fallback.
+                if fallback_bytes is None and candidate_bytes:
+                    fallback_bytes = candidate_bytes
                 candidate_cert = x509.Certificate.load(candidate_bytes)["tbs_certificate"]
-            except (ValueError, TypeError, binascii.Error):
+                # ASN.1 parsing is lazy; validate fields before selecting a cert.
+                expiry = candidate_cert['validity']['not_after'].native
+                candidate_cert['subject'].native
+                candidate_cert['extensions'].native
+                if latest_expiry is None or expiry > latest_expiry:
+                    certificate_byte_array = candidate_bytes
+                    ca_cert = candidate_cert
+                    latest_expiry = expiry
+            except (ValueError, TypeError, KeyError):
                 continue
-            if best_cert_parsed is None or candidate_cert["validity"]["not_after"].native > best_cert_parsed["validity"]["not_after"].native:
-                best_cert_bytes = candidate_bytes
-                best_cert_parsed = candidate_cert
 
-        if best_cert_bytes is None:
-            best_cert_bytes = base64.b64decode(certificate_b64)
+        if ca_cert is None:
+            certificate_byte_array = fallback_bytes or b""
+            logger.warning("Failed to parse cacertificate for object, using thumbprint as certname")
 
-        certificate_byte_array = best_cert_bytes
-
-        #
-        # thumbprint
-        #
         thumbprint = hashlib.sha1(certificate_byte_array).hexdigest().upper()
         self.Properties['certthumbprint'] = thumbprint
-
-        #
-        # certname
-        #
-        try:
-            ca_cert = best_cert_parsed if best_cert_parsed is not None else x509.Certificate.load(certificate_byte_array)["tbs_certificate"]
-            self.x509Certificate = ca_cert # set for post-processing
-            self.Properties['certname'] = ca_cert['subject'].native.get('common_name', thumbprint)
-        except (ValueError, TypeError):
-            logger.warning("Failed to parse cacertificate for object, using thumbprint as certname")
-            self.x509Certificate = None
-            self.Properties['certname'] = thumbprint
+        self.x509Certificate = ca_cert
+        self.Properties['certname'] = (
+            ca_cert['subject'].native.get('common_name', thumbprint)
+            if ca_cert is not None else thumbprint
+        )
 
         #
         # cert chain
