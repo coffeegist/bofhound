@@ -189,3 +189,25 @@ def test_changed_cached_user_is_updated_in_export(tmp_path):
         users = _export_snapshot(output)['users']['data']
         user = next(user for user in users if user['ObjectIdentifier'] == sid)
         assert user['Properties']['description'] == description
+
+
+
+def test_cached_rename_replaces_old_dn_context(tmp_path):
+    from bofhound.cache import ObjectCache
+    sample = tmp_path / 'input.log'
+    cache_path = tmp_path / 'cache.db'
+    sid = 'S-1-5-21-111-222-333-5678'
+    for name in ['Old', 'New']:
+        sample.write_text(
+            '--------------------\nsamaccounttype: 805306368\nsamaccountname: example\n'
+            f'distinguishedname: CN={name},DC=example,DC=test\nobjectsid: {sid}\nRetrieved 1 results\n'
+        )
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(sample), '-o', str(tmp_path / name),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+    with ObjectCache(str(cache_path)) as cache:
+        mappings = cache.get_all_dn_mappings()
+        assert 'CN=OLD,DC=EXAMPLE,DC=TEST' not in mappings
+        assert mappings['CN=NEW,DC=EXAMPLE,DC=TEST']['sid'] == sid

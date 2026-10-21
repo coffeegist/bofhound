@@ -1,7 +1,7 @@
 """
 Object cache system for incremental BOFHound processing.
 
-Enables storing processed objects in SQLite database for fast incremental updates.
+Stores raw LDAP snapshots and resolution mappings for incremental collections.
 """
 
 import sqlite3
@@ -15,7 +15,7 @@ from bofhound.ad.models.bloodhound_object import BloodHoundObject
 
 
 class ObjectCache:
-    """SQLite-based cache for storing processed BloodHound objects."""
+    """SQLite cache of data-only LDAP snapshots and resolution mappings."""
 
     # Version for cache compatibility
     CACHE_VERSION = "3.0.0"  # Raw LDAP snapshots, never processed Python objects.
@@ -180,6 +180,7 @@ class ObjectCache:
         cannot prove deletion. A fresh cache gives a fresh snapshot.
         """
         objects = {}
+        by_dn = {}
         unidentified = []
         for raw in self.get_all_cached_objects() + incoming:
             obj = self._normalize_object(raw)
@@ -188,8 +189,25 @@ class ObjectCache:
             if not sid and not dn:
                 unidentified.append(obj)
                 continue
-            objects[key] = {**objects.get(key, {}), **obj}
+            previous_key = key if key in objects else by_dn.get(dn)
+            previous = objects.get(previous_key, {})
+            merged = {**previous, **obj}
+            merged_sid, merged_dn = self._identity(merged)
+            merged_key = ('id', merged_sid) if merged_sid else ('dn', merged_dn)
+            if previous_key is not None and previous_key != merged_key:
+                objects.pop(previous_key)
+            old_dn = self._identity(previous)[1]
+            if old_dn != merged_dn:
+                by_dn.pop(old_dn, None)
+            objects[merged_key] = merged
+            if merged_dn:
+                by_dn[merged_dn] = merged_key
         return list(objects.values()) + unidentified
+
+    def clear_context(self):
+        """Stage replacement of derived mappings with the current snapshot's context."""
+        for table in ('sid_mappings', 'dn_mappings', 'domain_mappings', 'schema_guids'):
+            self.conn.execute(f'DELETE FROM {table}')
 
     def get_cached_object(self, sid: Optional[str] = None,
                          dn: Optional[str] = None) -> Optional[Dict]:
@@ -231,9 +249,13 @@ class ObjectCache:
         sid, dn = self._identity(obj)
         if not sid and not dn:
             return
-        if sid:
-            # A rename changes the DN, not the object's stable identity.
+        if sid and dn:
+            # Renames retain identity; a replacement at the same DN has a new SID.
+            self.conn.execute('DELETE FROM objects WHERE sid = ? OR dn = ?', (sid, dn))
+        elif sid:
             self.conn.execute('DELETE FROM objects WHERE sid = ?', (sid,))
+        else:
+            self.conn.execute('DELETE FROM objects WHERE dn = ?', (dn,))
         self.conn.execute(
             'INSERT OR REPLACE INTO objects '
             '(sid, dn, object_type, data, attr_hash, timestamp, source_file) '
@@ -275,10 +297,10 @@ class ObjectCache:
 
     def get_all_cached_objects(self) -> List[Any]:
         """
-        Retrieve all cached BloodHound objects.
+        Retrieve all cached raw LDAP attribute dictionaries.
 
         Returns:
-            List of deserialized BloodHound objects
+            List of data-only LDAP dictionaries
         """
         cursor = self.conn.cursor()
         cursor.execute('SELECT data FROM objects')

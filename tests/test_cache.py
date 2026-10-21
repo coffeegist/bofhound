@@ -96,3 +96,26 @@ def test_failed_transaction_does_not_advance_objects_or_context(tmp_path):
     with ObjectCache(path) as cache:
         assert cache.get_all_cached_objects() == []
         assert cache.get_all_sid_mappings() == {}
+
+
+
+def test_partial_dn_only_update_keeps_identity_and_replaces_empty_attributes(tmp_path):
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(RAW_USER)
+        merged = cache.merge_ldap_objects([{
+            'distinguishedname': RAW_USER['distinguishedname'].upper(),
+            'description': '',
+        }])
+        assert len(merged) == 1
+        assert merged[0]['objectsid'] == RAW_USER['objectsid']
+        assert merged[0]['description'] == ''
+
+
+def test_new_identity_at_same_dn_supersedes_old_snapshot(tmp_path):
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(RAW_USER)
+        replacement = dict(RAW_USER, objectsid='S-1-5-21-111-222-333-9999')
+        merged = cache.merge_ldap_objects([replacement])
+        assert merged == [replacement]
+        cache.store_object(merged[0])
+        assert cache.get_all_cached_objects() == [replacement]

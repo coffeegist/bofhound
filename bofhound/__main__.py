@@ -355,6 +355,8 @@ def main(
                 cache.store_object(obj)
             stored_count = len(ldap_objects)
 
+            # Replace derived mappings so renamed objects leave no stale DN aliases.
+            cache.clear_context()
             # Store SID mappings for context in future runs
             logger.debug("Storing SID mappings in cache...")
             sid_mappings = []
