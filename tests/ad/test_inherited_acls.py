@@ -10,7 +10,10 @@ from impacket.ldap.ldaptypes import (
 from impacket.uuid import string_to_bin
 
 from bofhound.ad import ADDS
-from bofhound.ad.models import BloodHoundUser
+from bofhound.ad.models import (
+    BloodHoundUser, BloodHoundComputer, BloodHoundGroup, BloodHoundOU,
+    BloodHoundDomain, BloodHoundGPO, BloodHoundContainer,
+)
 
 
 USER_GUID = "bf967aba-0de6-11d0-a285-00aa003049e2"
@@ -19,7 +22,7 @@ RESET_PASSWORD_GUID = "00299570-246d-11d0-a768-00aa006e0529"
 TRUSTEE_SID = "S-1-5-21-111-222-333-1234"
 
 
-def make_entry(entry_type="User", inherited_guid=USER_GUID, right_guid=None,
+def make_acl_entry(entry_type="User", inherited_guid=USER_GUID, right_guid=None,
                mask=0x00040000, inherited=True, inherit_only=False,
                object_ace=True):
     """Build a synthetic descriptor; no engagement data or secrets are used."""
@@ -57,7 +60,13 @@ def make_entry(entry_type="User", inherited_guid=USER_GUID, right_guid=None,
     descriptor["Sacl"] = b""
     descriptor["Dacl"] = dacl
 
-    entry = BloodHoundUser({
+    model = {
+        "User": BloodHoundUser, "Computer": BloodHoundComputer,
+        "Group": BloodHoundGroup, "OU": BloodHoundOU,
+        "Domain": BloodHoundDomain, "GPO": BloodHoundGPO,
+        "Container": BloodHoundContainer,
+    }.get(entry_type, BloodHoundUser)
+    entry = model({
         "distinguishedname": "CN=Example,OU=People,DC=example,DC=test",
         "samaccountname": "example",
         "objectsid": "S-1-5-21-111-222-333-5678",
@@ -74,7 +83,7 @@ def make_entry(entry_type="User", inherited_guid=USER_GUID, right_guid=None,
 ])
 def test_user_class_restricted_ace_without_schema(mask, right_guid, expected):
     adds = ADDS()
-    entry = make_entry(mask=mask, right_guid=right_guid)
+    entry = make_acl_entry(mask=mask, right_guid=right_guid)
 
     adds.parse_acl(entry)
 
@@ -95,7 +104,7 @@ def test_user_class_restricted_ace_without_schema(mask, right_guid, expected):
 ])
 def test_standard_class_restricted_write_dacl_without_schema(entry_type, class_guid):
     adds = ADDS()
-    entry = make_entry(entry_type=entry_type, inherited_guid=class_guid)
+    entry = make_acl_entry(entry_type=entry_type, inherited_guid=class_guid)
 
     adds.parse_acl(entry)
 
@@ -104,7 +113,7 @@ def test_standard_class_restricted_write_dacl_without_schema(entry_type, class_g
 
 def test_ace_restricted_to_computer_does_not_apply_to_user():
     adds = ADDS()
-    entry = make_entry(inherited_guid=COMPUTER_GUID)
+    entry = make_acl_entry(inherited_guid=COMPUTER_GUID)
 
     adds.parse_acl(entry)
 
@@ -113,7 +122,7 @@ def test_ace_restricted_to_computer_does_not_apply_to_user():
 
 def test_explicit_ace_child_class_restriction_does_not_restrict_current_object():
     adds = ADDS()
-    entry = make_entry(inherited_guid=COMPUTER_GUID, inherited=False)
+    entry = make_acl_entry(inherited_guid=COMPUTER_GUID, inherited=False)
 
     adds.parse_acl(entry)
 
@@ -125,7 +134,7 @@ def test_explicit_ace_child_class_restriction_does_not_restrict_current_object()
 def test_inherit_only_ace_never_applies_to_current_object(inherited, object_ace):
     adds = ADDS()
     adds.ObjectTypeGuidMap["user"] = USER_GUID
-    entry = make_entry(inherited=inherited, inherit_only=True, object_ace=object_ace)
+    entry = make_acl_entry(inherited=inherited, inherit_only=True, object_ace=object_ace)
 
     adds.parse_acl(entry)
 
@@ -135,7 +144,7 @@ def test_inherit_only_ace_never_applies_to_current_object(inherited, object_ace)
 @pytest.mark.parametrize("object_ace", [False, True])
 def test_unrestricted_inherited_ace_still_applies(object_ace):
     adds = ADDS()
-    entry = make_entry(inherited_guid=None, object_ace=object_ace)
+    entry = make_acl_entry(inherited_guid=None, object_ace=object_ace)
 
     adds.parse_acl(entry)
 
@@ -146,12 +155,12 @@ def test_supplied_schema_takes_precedence_over_standard_fallback():
     adds = ADDS()
     custom_guid = "12345678-1234-1234-1234-123456789abc"
     adds.import_objects([{"name": "User", "schemaidguid": custom_guid}])
-    entry = make_entry(inherited_guid=USER_GUID)
+    entry = make_acl_entry(inherited_guid=USER_GUID)
 
     adds.parse_acl(entry)
 
     assert entry.Aces == []
-    entry = make_entry(inherited_guid=custom_guid)
+    entry = make_acl_entry(inherited_guid=custom_guid)
     adds.parse_acl(entry)
     assert [ace["RightName"] for ace in entry.Aces] == ["WriteDacl"]
 
@@ -166,7 +175,7 @@ def test_schema_names_resolve_bloodhound_type_aliases(entry_type, schema_name):
     # Use a distinct GUID to prove the supplied alias is consulted before fallback.
     custom_guid = "12345678-1234-1234-1234-123456789abc"
     adds.import_objects([{"name": schema_name, "schemaidguid": custom_guid}])
-    entry = make_entry(entry_type=entry_type, inherited_guid=custom_guid)
+    entry = make_acl_entry(entry_type=entry_type, inherited_guid=custom_guid)
 
     adds.parse_acl(entry)
 
@@ -176,11 +185,40 @@ def test_schema_names_resolve_bloodhound_type_aliases(entry_type, schema_name):
 def test_unknown_class_is_skipped_without_schema_and_supported_with_schema():
     adds = ADDS()
     custom_guid = "12345678-1234-1234-1234-123456789abc"
-    entry = make_entry(entry_type="CustomClass", inherited_guid=custom_guid)
+    entry = make_acl_entry(entry_type="CustomClass", inherited_guid=custom_guid)
     adds.parse_acl(entry)
     assert entry.Aces == []
 
     adds.import_objects([{"name": "CustomClass", "schemaidguid": custom_guid}])
-    entry = make_entry(entry_type="CustomClass", inherited_guid=custom_guid)
+    entry = make_acl_entry(entry_type="CustomClass", inherited_guid=custom_guid)
     adds.parse_acl(entry)
     assert [ace["RightName"] for ace in entry.Aces] == ["WriteDacl"]
+
+
+@pytest.mark.parametrize('entry_type,schema_name', [
+    ('User', 'User'), ('Computer', 'Computer'), ('Group', 'Group'),
+    ('OU', 'Organizational-Unit'), ('Domain', 'Domain-DNS'),
+    ('GPO', 'Group-Policy-Container'), ('Container', 'Container'),
+])
+@pytest.mark.parametrize('collected_schema', [False, True])
+def test_inherited_class_restrictions_accept_only_matching_guid(entry_type, schema_name, collected_schema):
+    adds = ADDS()
+    # A partial schema collection must not disable fallback for unrelated classes.
+    adds.import_objects([{'name': 'Unrelated-Class', 'schemaidguid': USER_GUID}])
+    custom_guid = '12345678-1234-1234-1234-123456789abc'
+    if collected_schema:
+        adds.import_objects([{'name': schema_name, 'schemaidguid': custom_guid.upper()}])
+        accepted = custom_guid
+    else:
+        from bofhound.ad.adds import STANDARD_CLASS_GUIDS
+        accepted = STANDARD_CLASS_GUIDS[schema_name.lower()]
+    rejected = custom_guid if not collected_schema else 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    entry = make_acl_entry(entry_type=entry_type, inherited_guid=rejected)
+    adds.parse_acl(entry)
+    assert entry.Aces == []
+    entry = make_acl_entry(entry_type=entry_type, inherited_guid=accepted.upper())
+    adds.parse_acl(entry)
+    assert entry.Aces == [{
+        'RightName': 'WriteDacl', 'PrincipalSID': TRUSTEE_SID,
+        'IsInherited': True, 'PrincipalType': 'Unknown',
+    }]
