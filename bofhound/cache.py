@@ -191,7 +191,14 @@ class ObjectCache:
                 continue
             previous_key = key if key in objects else by_dn.get(dn)
             previous = objects.get(previous_key, {})
-            merged = {**previous, **obj}
+            # Compare identities in the same namespace: a GUID-only record can
+            # legitimately gain its SID in a later partial collection.
+            replacement = any(
+                previous.get(attribute) and obj.get(attribute)
+                and str(previous[attribute]).upper() != str(obj[attribute]).upper()
+                for attribute in ('objectsid', 'objectguid')
+            )
+            merged = obj if replacement else {**previous, **obj}
             merged_sid, merged_dn = self._identity(merged)
             merged_key = ('id', merged_sid) if merged_sid else ('dn', merged_dn)
             if previous_key is not None and previous_key != merged_key:

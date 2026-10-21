@@ -119,3 +119,58 @@ def test_new_identity_at_same_dn_supersedes_old_snapshot(tmp_path):
         assert merged == [replacement]
         cache.store_object(merged[0])
         assert cache.get_all_cached_objects() == [replacement]
+
+
+@pytest.mark.parametrize('identity_attribute', ['objectsid', 'objectguid'])
+def test_replacement_identity_does_not_inherit_old_security_attributes(tmp_path, identity_attribute):
+    from bofhound.ad import ADDS
+    from tests.ad.test_inherited_acls import make_acl_entry
+    old_identity, new_identity = (
+        ('S-1-5-21-111-222-333-1001', 'S-1-5-21-111-222-333-1002')
+        if identity_attribute == 'objectsid' else
+        ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222')
+    )
+    old = {
+        'distinguishedname': RAW_USER['distinguishedname'],
+        identity_attribute: old_identity,
+        'ntsecuritydescriptor': make_acl_entry().RawAces,
+        'memberof': 'CN=Domain Admins,DC=example,DC=test',
+        'admincount': '1', 'samaccounttype': '805306368',
+        'samaccountname': 'old-account',
+    }
+    replacement = {
+        'distinguishedname': old['distinguishedname'], identity_attribute: new_identity,
+        'samaccounttype': '805306368', 'samaccountname': 'replacement',
+    }
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(old)
+        merged = cache.merge_ldap_objects([replacement])
+        assert merged == [replacement]
+        cache.store_object(merged[0])
+        assert cache.get_all_cached_objects() == [replacement]
+    if identity_attribute == 'objectsid':
+        adds = ADDS()
+        adds.import_objects(merged)
+        adds.parse_acl(adds.users[0])
+        assert adds.users[0].Aces == []
+        assert adds.users[0].RawAces is None
+
+
+
+@pytest.mark.parametrize('initial_has_sid', [False, True])
+def test_partial_guid_collection_preserves_identity_and_attributes(tmp_path, initial_has_sid):
+    guid = '11111111-1111-1111-1111-111111111111'
+    sid = RAW_USER['objectsid']
+    old = {**RAW_USER, 'objectguid': guid, 'samaccounttype': '805306368'}
+    if not initial_has_sid:
+        old.pop('objectsid')
+    partial = {'objectguid': guid.upper(), 'distinguishedname': old['distinguishedname']}
+    if not initial_has_sid:
+        partial['objectsid'] = sid
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(old)
+        merged = cache.merge_ldap_objects([partial])
+        assert merged == [{**old, **partial}]
+        assert merged[0]['objectsid'] == sid
+        cache.store_object(merged[0])
+        assert cache.get_all_cached_objects() == merged
