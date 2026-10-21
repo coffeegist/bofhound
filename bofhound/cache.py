@@ -5,7 +5,7 @@ Enables storing processed objects in SQLite database for fast incremental update
 """
 
 import sqlite3
-import pickle
+import json
 import hashlib
 import time
 from typing import Dict, List, Optional, Any, Set
@@ -18,7 +18,7 @@ class ObjectCache:
     """SQLite-based cache for storing processed BloodHound objects."""
     
     # Version for cache compatibility
-    CACHE_VERSION = "1.1.0"  # Bumped for SID mapping tables
+    CACHE_VERSION = "2.0.0"  # Data-only JSON; legacy pickle caches must be rebuilt.
     
     def __init__(self, cache_path: str):
         """
@@ -37,6 +37,25 @@ class ObjectCache:
         self.conn.row_factory = sqlite3.Row
         
         cursor = self.conn.cursor()
+
+        # Never interpret or silently upgrade databases containing executable pickles.
+        tables = {row[0] for row in cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )}
+        if "objects" in tables or "metadata" in tables:
+            version = None
+            if "metadata" in tables:
+                row = cursor.execute(
+                    "SELECT value FROM metadata WHERE key = 'cache_version'"
+                ).fetchone()
+                version = row[0] if row else None
+            if version != self.CACHE_VERSION:
+                self.conn.close()
+                self.conn = None
+                raise ValueError(
+                    "Incompatible cache version; use a new --cache-file or remove "
+                    "the old cache and rebuild it from the original logs"
+                )
         
         # Create objects table
         cursor.execute('''
@@ -196,7 +215,7 @@ class ObjectCache:
                 'sid': row['sid'],
                 'dn': row['dn'],
                 'object_type': row['object_type'],
-                'data': pickle.loads(row['data']),
+                'data': self._decode_object(row['data']),
                 'hash': row['attr_hash'],
                 'timestamp': row['timestamp'],
                 'source_file': row['source_file']
@@ -219,7 +238,7 @@ class ObjectCache:
         attr_hash = self._hash_object(obj.Properties)
         
         # Serialize object
-        data = pickle.dumps(obj)
+        data = json.dumps(obj.Properties, sort_keys=True, allow_nan=False)
         
         cursor = self.conn.cursor()
         cursor.execute('''
@@ -270,16 +289,16 @@ class ObjectCache:
         cursor = self.conn.cursor()
         cursor.execute('SELECT data FROM objects')
         
-        objects = []
-        for row in cursor.fetchall():
-            try:
-                obj = pickle.loads(row['data'])
-                objects.append(obj)
-            except Exception as e:
-                logger.warning(f"Failed to deserialize cached object: {e}")
-        
-        return objects
-    
+        return [self._decode_object(row['data']) for row in cursor.fetchall()]
+
+    @staticmethod
+    def _decode_object(data):
+        """Read data only; cache content can never select a Python constructor."""
+        value = json.loads(data)
+        if not isinstance(value, dict):
+            raise ValueError("Invalid cache object: expected a JSON object")
+        return value
+
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get cache statistics.
