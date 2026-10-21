@@ -154,3 +154,63 @@ def test_unreadable_file_aborts_instead_of_returning_partial_results(tmp_path, w
     pipeline.register_parser(LdapSearchBofParser())
     with pytest.raises((UnicodeDecodeError, RuntimeError)):
         pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=workers)
+
+
+@pytest.mark.parametrize('first_entry_point', ['file', 'source'])
+@pytest.mark.parametrize('first_workers,second_workers', [(1, 2), (2, 1), (2, 2)])
+def test_reused_pipeline_preserves_serial_accumulation(tmp_path, first_entry_point, first_workers, second_workers):
+    import os
+    for index, name in enumerate(['a', 'b', 'c']):
+        path = tmp_path / f'{name}.log'
+        path.write_text(f'--------------------\nsamaccountname: {name}\nRetrieved 1 results\n')
+        os.utime(path, (index + 1, index + 1))
+
+    def run(workers_a, workers_b):
+        pipeline = ParsingPipeline()
+        parser = LdapSearchBofParser()
+        pipeline.register_parser(parser)
+        if first_entry_point == 'file':
+            first = pipeline.process_file(str(tmp_path / 'a.log'))
+            second = pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=workers_b)
+        else:
+            first = pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=workers_a)
+            second = pipeline.process_data_source(FileDataSource(str(tmp_path / 'a.log')), num_workers=workers_b)
+        names = lambda result: [obj['samaccountname'] for obj in result.get_ldap_objects()]
+        return names(first), names(second), [obj['samaccountname'] for obj in parser.get_results()]
+
+    expected = run(1, 1)
+    assert run(first_workers, second_workers) == expected
+    assert expected[1] == (['a', 'a', 'b', 'c'] if first_entry_point == 'file' else ['a', 'b', 'c', 'a'])
+
+
+def test_prepopulated_parser_is_not_copied_into_each_worker(tmp_path):
+    parser = LdapSearchBofParser()
+    for line in ['--------------------', 'samaccountname: prior', 'Retrieved 1 results']:
+        parser.process_line(line)
+    for name in ['a', 'b']:
+        (tmp_path / f'{name}.log').write_text(f'--------------------\nsamaccountname: {name}\nRetrieved 1 results\n')
+    pipeline = ParsingPipeline()
+    pipeline.register_parser(parser)
+    result = pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=2)
+    assert len(result.get_ldap_objects()) == 3
+    assert sum(obj['samaccountname'] == 'prior' for obj in result.get_ldap_objects()) == 1
+
+
+def test_custom_boundary_parser_keeps_its_cross_file_state(tmp_path):
+    class CountingLdapParser(LdapSearchBofParser):
+        def __init__(self):
+            super().__init__()
+            self.line_count = 0
+
+        def process_line(self, line):
+            self.line_count += 1
+            super().process_line(line)
+
+    for name in ['a', 'b']:
+        (tmp_path / f'{name}.log').write_text(f'--------------------\nsamaccountname: {name}\nRetrieved 1 results\n')
+    parser = CountingLdapParser()
+    pipeline = ParsingPipeline()
+    pipeline.register_parser(parser)
+    result = pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=2)
+    assert len(result.get_ldap_objects()) == 2
+    assert parser.line_count == 6
