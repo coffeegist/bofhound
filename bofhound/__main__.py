@@ -273,8 +273,7 @@ def main(
                     ctx_stats = context_cache.get_context_statistics()
                     if ctx_stats['sid_mappings'] == 0:
                         logger.warning("Context cache has no SID mappings - ACL resolution may be incomplete")
-                    else:
-                        ad.load_context_from_cache(context_cache)
+                    ad.load_context_from_cache(context_cache)
             except Exception as e:
                 logger.error(f"Failed to load context: {e}")
                 sys.exit(1)

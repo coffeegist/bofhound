@@ -116,6 +116,7 @@ class ADDS():
         # Track whether context was loaded from external source
         self._context_loaded = False
         self._context_source = None
+        self._context_computer_hosts = {}
 
     def load_context_from_cache(self, cache) -> int:
         """
@@ -168,6 +169,16 @@ class ADDS():
                 if sid in self.SID_MAP:
                     self.DN_MAP[dn] = self.SID_MAP[sid]
         
+        # Context supplies host identities without adding those objects to output.
+        for raw in cache.get_all_cached_objects():
+            is_computer = str(raw.get('samaccounttype')) == '805306369'
+            if not is_computer:
+                continue
+            hostname = raw.get('dnshostname')
+            sid = raw.get('objectsid')
+            if hostname and sid:
+                self._context_computer_hosts[hostname.lower()] = sid
+
         self._context_loaded = True
         self._context_source = cache.cache_path
         
@@ -1048,6 +1059,10 @@ class ADDS():
                     ca.HostingComputer = comp.ObjectIdentifier
                     logger.debug(f"Resolved CA hosting computer: {hostname} to {ca.HostingComputer}")
                     return
+            context_sid = self._context_computer_hosts.get(hostname.lower())
+            if context_sid:
+                ca.HostingComputer = context_sid
+                return
             logger.warning(f"Could not resolve CA hosting computer: {hostname}")
 
     def _get_class_schema_guid(self, entry_type):

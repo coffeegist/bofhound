@@ -149,6 +149,9 @@ Present attributes replace earlier values, including empty strings. Objects and
 attributes absent from a partial collection remain cached; absence does not prove
 deletion. Use a new cache file to start a fresh snapshot. Local sessions and local
 group records are processed from the current logs and are not retained in the cache.
+`--context-from PATH` loads SID/domain/schema mappings and CA-host identities from
+a prior cache (or a directory containing `bofhound_cache.db`) without exporting its
+objects. Current collected computers take precedence over cached host identities.
 Legacy or incompatible cache versions are rejected without being loaded or changed;
 choose a new cache path or remove the old database and rebuild from the original logs.
 
