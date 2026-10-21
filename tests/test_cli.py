@@ -114,15 +114,15 @@ def test_repeated_cache_run_preserves_complete_export(tmp_path):
     sample = Path(__file__).parent / 'test_data/ldapsearchbof_logs/beacon_257-objects.log'
     cache_path = tmp_path / 'cache.db'
     snapshots = []
-    for run in ['first', 'second']:
+    for run, workers in [('first', '1'), ('second', '2'), ('uncached', '2')]:
         output = tmp_path / run
         result = CliRunner().invoke(cli.app, [
-            '--quiet', '--workers', '1', '-i', str(sample), '-o', str(output),
+            '--quiet', '--workers', workers, '-i', str(sample), '-o', str(output),
             '--cache-file', str(cache_path),
-        ])
+        ] + (['--no-cache'] if run == 'uncached' else []))
         assert result.exit_code == 0, (result.output, result.exception)
         snapshots.append(_export_snapshot(output))
-    assert snapshots[0] == snapshots[1]
+    assert snapshots[0] == snapshots[1] == snapshots[2]
     assert snapshots[1]['computers']['meta']['count'] == 4
     assert snapshots[1]['domains']['meta']['count'] == 1
 
@@ -165,3 +165,27 @@ def test_parallel_input_failure_writes_no_output_and_keeps_cache(tmp_path):
     assert list(output.glob('*.json')) == []
     with ObjectCache(str(cache_path)) as cache:
         assert cache.get_all_cached_objects() == [prior]
+
+
+
+def test_changed_cached_user_is_updated_in_export(tmp_path):
+    sample = tmp_path / 'input.log'
+    cache_path = tmp_path / 'cache.db'
+    sid = 'S-1-5-21-111-222-333-5678'
+    for description in ['old', 'new']:
+        sample.write_text(
+            '--------------------\nobjectclass: top, domain\n'
+            'distinguishedname: DC=example,DC=test\nobjectsid: S-1-5-21-111-222-333\n'
+            '--------------------\nsamaccounttype: 805306368\nsamaccountname: example\n'
+            'distinguishedname: CN=Example,DC=example,DC=test\n'
+            f'objectsid: {sid}\ndescription: {description}\nRetrieved 2 results\n'
+        )
+        output = tmp_path / description
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(sample), '-o', str(output),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+        users = _export_snapshot(output)['users']['data']
+        user = next(user for user in users if user['ObjectIdentifier'] == sid)
+        assert user['Properties']['description'] == description
