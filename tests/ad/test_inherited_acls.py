@@ -222,3 +222,60 @@ def test_inherited_class_restrictions_accept_only_matching_guid(entry_type, sche
         'RightName': 'WriteDacl', 'PrincipalSID': TRUSTEE_SID,
         'IsInherited': True, 'PrincipalType': 'Unknown',
     }]
+
+
+@pytest.mark.parametrize('entry_type', ['User', 'Computer', 'Group', 'OU', 'Domain', 'GPO', 'Container'])
+@pytest.mark.parametrize('options', [
+    {}, {'inherited_guid': COMPUTER_GUID}, {'inherit_only': True},
+    {'inherit_only': True, 'object_ace': False}, {'inherited': False},
+    {'right_guid': RESET_PASSWORD_GUID},
+    {'right_guid': RESET_PASSWORD_GUID, 'mask': 0x100},
+    {'mask': 0x10000000, 'inherited_guid': None},
+    {'mask': 0x30, 'inherited_guid': None},
+    {'mask': 0x40000, 'object_ace': False},
+])
+def test_parallel_adapter_matches_current_acl_parser(entry_type, options):
+    from types import SimpleNamespace
+    from bofhound.ad.acl_worker import (
+        create_worker_context, prepare_entry_for_worker, parse_acl_standalone,
+    )
+    adds = ADDS()
+    adds.SID_MAP[TRUSTEE_SID] = SimpleNamespace(_entry_type='Group')
+    entry = make_acl_entry(entry_type=entry_type, **options)
+    adds.parse_acl(entry)
+    object_id, aces, protected = parse_acl_standalone(
+        prepare_entry_for_worker(entry),
+        create_worker_context(adds.SID_MAP, adds.DOMAIN_MAP, adds.ObjectTypeGuidMap),
+    )
+    assert object_id == entry.ObjectIdentifier
+    assert aces == entry.Aces
+    assert protected == entry.IsACLProtected
+
+
+@pytest.mark.parametrize('attribute', ['ms-mcs-admpwd', 'ms-laps-password', 'ms-laps-encryptedpassword'])
+def test_parallel_adapter_preserves_laps_rights(attribute):
+    from bofhound.ad.acl_worker import create_worker_context, prepare_entry_for_worker, parse_acl_standalone
+    adds = ADDS()
+    guid = '12345678-1234-1234-1234-123456789abc'
+    adds.ObjectTypeGuidMap[attribute] = guid
+    entry = make_acl_entry(entry_type='Computer', inherited_guid=COMPUTER_GUID, right_guid=guid, mask=0x100)
+    entry.Properties['haslaps'] = True
+    adds.parse_acl(entry)
+    assert [ace['RightName'] for ace in entry.Aces] == ['ReadLAPSPassword']
+    result = parse_acl_standalone(prepare_entry_for_worker(entry), create_worker_context({}, {}, adds.ObjectTypeGuidMap))
+    assert result[1] == entry.Aces
+
+
+def test_spawned_acl_worker_matches_serial():
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+    from bofhound.ad.acl_worker import create_worker_context, prepare_entry_for_worker, _worker_init, _worker_process
+    entries = [make_acl_entry(), make_acl_entry(inherit_only=True)]
+    adds = ADDS()
+    for entry in entries:
+        adds.parse_acl(entry)
+    context = create_worker_context({}, {}, {})
+    with ProcessPoolExecutor(max_workers=2, mp_context=multiprocessing.get_context('spawn'),
+                             initializer=_worker_init, initargs=(context,)) as executor:
+        results = list(executor.map(_worker_process, map(prepare_entry_for_worker, entries)))
+    assert [result[1] for result in results] == [entry.Aces for entry in entries]
