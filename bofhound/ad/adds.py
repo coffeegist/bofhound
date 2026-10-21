@@ -6,7 +6,7 @@ from impacket.uuid import string_to_bin
 from bloodhound.ad.utils import ADUtils
 from bloodhound.enumeration.acls import (
     SecurityDescriptor, ACCESS_MASK, ACE, ACCESS_ALLOWED_OBJECT_ACE,
-    has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property, ace_applies
+    has_extended_right, EXTRIGHTS_GUID_MAPPING, can_write_property
 )
 from bofhound.logger import logger
 from bofhound.ad.models import (
@@ -23,6 +23,27 @@ from bofhound import console
 #
 EXTRIGHTS_GUID_MAPPING["Enroll"] = string_to_bin("0e10c968-78fb-11d2-90d4-00c04f79dc55")
 EXTRIGHTS_GUID_MAPPING["MembershipPropertySet"] = string_to_bin("bc0ac240-79a9-11d0-9020-00c04fc2d4cf")
+
+# Standard schemaIDGUIDs are fixed across AD domains. Use them only when the
+# LDAP input did not include the corresponding schema object. Attribute GUIDs
+# and custom classes still require collected schema data.
+# https://learn.microsoft.com/en-us/windows/win32/adschema/classes
+STANDARD_CLASS_GUIDS = {
+    "user": "bf967aba-0de6-11d0-a285-00aa003049e2",
+    "computer": "bf967a86-0de6-11d0-a285-00aa003049e2",
+    "group": "bf967a9c-0de6-11d0-a285-00aa003049e2",
+    "organizational-unit": "bf967aa5-0de6-11d0-a285-00aa003049e2",
+    "domain-dns": "19195a5b-6da0-11d0-afd3-00c04fd930c9",
+    "group-policy-container": "f30e3bc2-9ff0-11d1-b603-0000f80367c1",
+    "container": "bf967a8b-0de6-11d0-a285-00aa003049e2",
+}
+
+# BloodHound labels differ from the names on AD schema objects.
+SCHEMA_CLASS_NAMES = {
+    "ou": "organizational-unit",
+    "domain": "domain-dns",
+    "gpo": "group-policy-container",
+}
 
 class ADDS():
 
@@ -811,6 +832,15 @@ class ADDS():
                     return
             logger.warning(f"Could not resolve CA hosting computer: {hostname}")
 
+    def _get_class_schema_guid(self, entry_type):
+        entry_type = entry_type.lower()
+        schema_name = SCHEMA_CLASS_NAMES.get(entry_type, entry_type)
+        return (
+            self.ObjectTypeGuidMap.get(schema_name)
+            or self.ObjectTypeGuidMap.get(entry_type)
+            or STANDARD_CLASS_GUIDS.get(schema_name)
+        )
+
     def parse_acl(self, entry:BloodHoundObject):
         """
         Parse the nTSecurityDescriptor attribute of an AD object and extract BloodHound
@@ -856,19 +886,19 @@ class ADDS():
             if ace_object.ace.AceType == 0x05:
                 is_inherited = ace_object.has_flag(ACE.INHERITED_ACE)
                 # ACCESS_ALLOWED_OBJECT_ACE
-                if not ace_object.has_flag(ACE.INHERITED_ACE) and ace_object.has_flag(ACE.INHERIT_ONLY_ACE):
-                    # ACE is set on this object, but only inherited, so not applicable to us
+                if ace_object.has_flag(ACE.INHERIT_ONLY_ACE):
+                    # Propagation-only ACEs never apply to the current object.
                     continue
 
                 # Check if the ACE has restrictions on object type (inherited case)
                 if ace_object.has_flag(ACE.INHERITED_ACE) \
                     and ace_object.acedata.has_flag(ACCESS_ALLOWED_OBJECT_ACE.ACE_INHERITED_OBJECT_TYPE_PRESENT):
                     # Verify if the ACE applies to this object type
-                    try:
-                        if not ace_applies(ace_object.acedata.get_inherited_object_type().lower(), entry._entry_type.lower(), self.ObjectTypeGuidMap):
-                            continue
-                    except KeyError:
-                        # If we can't validate the GUID, skip this ACE to avoid false positives
+                    class_guid = self._get_class_schema_guid(entry._entry_type)
+                    if class_guid is None:
+                        logger.debug("Skipping inherited ACE: no schema GUID for %s", entry._entry_type)
+                        continue
+                    if ace_object.acedata.get_inherited_object_type().lower() != class_guid.lower():
                         continue
                 mask = ace_object.acedata.mask
 
@@ -1013,8 +1043,8 @@ class ADDS():
                 is_inherited = ace_object.has_flag(ACE.INHERITED_ACE)
                 mask = ace_object.acedata.mask
                 # ACCESS_ALLOWED_ACE
-                if not ace_object.has_flag(ACE.INHERITED_ACE) and ace_object.has_flag(ACE.INHERIT_ONLY_ACE):
-                    # ACE is set on this object, but only inherited, so not applicable to us
+                if ace_object.has_flag(ACE.INHERIT_ONLY_ACE):
+                    # Propagation-only ACEs never apply to the current object.
                     continue
 
                 if mask.has_priv(ACCESS_MASK.GENERIC_ALL):
