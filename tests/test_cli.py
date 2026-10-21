@@ -211,3 +211,46 @@ def test_cached_rename_replaces_old_dn_context(tmp_path):
         mappings = cache.get_all_dn_mappings()
         assert 'CN=OLD,DC=EXAMPLE,DC=TEST' not in mappings
         assert mappings['CN=NEW,DC=EXAMPLE,DC=TEST']['sid'] == sid
+
+
+@pytest.mark.parametrize('retired_first', [False, True])
+def test_guid_rename_collision_exports_only_current_identity_across_runs(tmp_path, retired_first):
+    from bofhound.cache import ObjectCache
+    from tests.ad.test_inherited_acls import make_acl_entry
+    current = {
+        'objectsid': 'S-1-5-21-111-222-333-1001',
+        'objectguid': '11111111-1111-1111-1111-111111111111',
+        'distinguishedname': 'CN=Current,DC=example,DC=test',
+        'samaccounttype': '805306368', 'samaccountname': 'current',
+    }
+    retired = {
+        **current, 'objectsid': 'S-1-5-21-111-222-333-1002',
+        'objectguid': '22222222-2222-2222-2222-222222222222',
+        'distinguishedname': 'CN=Reused,DC=example,DC=test', 'samaccountname': 'retired',
+        'ntsecuritydescriptor': make_acl_entry().RawAces,
+    }
+    partial = {'objectguid': current['objectguid'], 'distinguishedname': retired['distinguishedname']}
+    records = [retired, current] if retired_first else [current, retired]
+    source = tmp_path / 'input.log'
+    cache_path = tmp_path / 'cache.db'
+    snapshots = []
+    for name, incoming in [('initial', records), ('rename', [partial]), ('repeat', [])]:
+        text = ''.join('--------------------\n' + ''.join(f'{key}: {value}\n' for key, value in raw.items())
+                       for raw in incoming)
+        source.write_text(text + f'Retrieved {len(incoming)} results\n')
+        output = tmp_path / name
+        result = CliRunner().invoke(cli.app, [
+            '--quiet', '--workers', '1', '-i', str(source), '-o', str(output),
+            '--cache-file', str(cache_path),
+        ])
+        assert result.exit_code == 0, (result.output, result.exception)
+        if name != 'initial':
+            snapshot = _export_snapshot(output)
+            users = {user['ObjectIdentifier']: user for user in snapshot['users']['data']}
+            assert retired['objectsid'] not in users
+            assert users[current['objectsid']]['Aces'] == []
+            assert users[current['objectsid']]['Properties']['distinguishedname'] == partial['distinguishedname'].upper()
+            snapshots.append(snapshot)
+    assert snapshots[0] == snapshots[1]
+    with ObjectCache(str(cache_path)) as cache:
+        assert cache.get_all_cached_objects() == [{**current, **partial}]

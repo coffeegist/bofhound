@@ -219,13 +219,17 @@ class ObjectCache:
             key = min(owners) if owners else next_key
             if not owners:
                 next_key += 1
-            for owner in owners:
+            # A rename may target a DN still owned by a retired cached identity.
+            # Evict destination aliases atomically, without inheriting their data.
+            displaced = {index[alias] for index, alias in zip(indexes, aliases(merged))
+                         if alias and alias in index}
+            for owner in owners | displaced:
                 remove(owner)
             objects[key] = merged
             for index, alias in zip(indexes, aliases(merged)):
                 if alias:
                     index[alias] = key
-        return list(objects.values())
+        return [objects[key] for key in sorted(objects)]
 
     def clear_context(self):
         """Stage replacement of derived mappings with the current snapshot's context."""

@@ -213,3 +213,54 @@ def test_sid_and_guid_partial_records_join_without_losing_fields(tmp_path):
         assert len(merged) == 1
         assert merged[0]['samaccountname'] == 'example'
         assert merged[0]['displayname'] == 'Example'
+
+
+@pytest.mark.parametrize('retired_first', [False, True])
+def test_rename_into_retired_dn_keeps_current_identity_and_acl_isolation(tmp_path, retired_first):
+    from bofhound.ad import ADDS
+    from tests.ad.test_inherited_acls import make_acl_entry
+    current = {**RAW_USER, 'objectguid': '11111111-1111-1111-1111-111111111111', 'samaccounttype': '805306368'}
+    retired = {
+        **current, 'objectsid': 'S-1-5-21-111-222-333-9999',
+        'objectguid': '22222222-2222-2222-2222-222222222222',
+        'distinguishedname': 'CN=Reused,DC=example,DC=test',
+        'samaccountname': 'retired', 'ntsecuritydescriptor': make_acl_entry().RawAces,
+    }
+    path = str(tmp_path / 'cache.db')
+    with ObjectCache(path) as cache:
+        for raw in ([retired, current] if retired_first else [current, retired]):
+            cache.store_object(raw)
+        update = {'objectsid': current['objectsid'], 'distinguishedname': retired['distinguishedname']}
+        merged = cache.merge_ldap_objects([update])
+        assert merged == [{**current, **update}]
+        adds = ADDS()
+        adds.import_objects(merged)
+        assert len(adds.users) == 1
+        adds.parse_acl(adds.users[0])
+        assert adds.users[0].ObjectIdentifier == current['objectsid']
+        assert adds.users[0].Aces == []
+        assert adds.users[0].RawAces is None
+        for raw in merged:
+            cache.store_object(raw)
+        assert cache.get_all_cached_objects() == merged
+    with ObjectCache(path) as cache:
+        assert cache.merge_ldap_objects([]) == merged
+
+
+def test_evicted_dn_owner_leaves_no_sid_or_guid_aliases(tmp_path):
+    current = {**RAW_USER, 'objectguid': '11111111-1111-1111-1111-111111111111'}
+    retired = {**current, 'objectsid': 'S-1-5-21-111-222-333-9999',
+               'objectguid': '22222222-2222-2222-2222-222222222222',
+               'distinguishedname': 'CN=Reused,DC=example,DC=test', 'description': 'retired'}
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(current)
+        cache.store_object(retired)
+        merged = cache.merge_ldap_objects([
+            {'objectsid': current['objectsid'], 'distinguishedname': retired['distinguishedname']},
+            {'objectguid': retired['objectguid'], 'distinguishedname': 'CN=Elsewhere,DC=example,DC=test'},
+        ])
+        assert len(merged) == 2
+        by_dn = {obj['distinguishedname']: obj for obj in merged}
+        assert by_dn[retired['distinguishedname']]['objectsid'] == current['objectsid']
+        assert 'description' not in by_dn['CN=Elsewhere,DC=example,DC=test']
+        assert 'objectsid' not in by_dn['CN=Elsewhere,DC=example,DC=test']
