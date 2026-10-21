@@ -90,7 +90,7 @@ def main(
 
         output_path = Path(output_folder)
         pattern = "*.zip" if zip_files else "*.json"
-        outfiles = sorted(output_path.glob(pattern))
+        outfiles = sorted(path for path in output_path.glob(pattern) if path.is_file())
         if not outfiles:
             logger.error("No %s files found in %s", pattern, output_folder)
             sys.exit(-1)
@@ -102,8 +102,8 @@ def main(
     uploader = None
     if bh_token_id and bh_token_key and bh_server:
         uploader = BloodHoundUploader(bh_server, bh_token_id, bh_token_key)
-        if not uploader.create_upload_job():
-            logger.error("Unable to start a BloodHound upload job, check --bh-server, "
+        if not uploader.preflight():
+            logger.error("BloodHound preflight failed, check --bh-server, "
                          "--bh-token-id and --bh-token-key")
             sys.exit(-1)
 
@@ -220,19 +220,13 @@ def main(
     # Upload files to BloodHound CE
     #
     if uploader:
-        with console.status("", spinner="aesthetic") as status:
-            status.update(" [bold] Uploading files to BloodHound server...")
-
-            for file in outfiles:
-                uploader.upload_file(file)
-
-            uploader.close_upload_job()
-        logger.info("Files uploaded to BloodHound server")
+        upload_files(bh_server, bh_token_id, bh_token_key, outfiles, uploader=uploader)
 
 
-def upload_files(server, token_id, token_key, files):
+def upload_files(server, token_id, token_key, files, uploader=None):
     """Upload a set of already-generated BloodHound JSON/zip files to a BloodHound CE server."""
-    uploader = BloodHoundUploader(server, token_id, token_key)
+    if uploader is None:
+        uploader = BloodHoundUploader(server, token_id, token_key)
 
     if not uploader.create_upload_job():
         logger.error("Unable to start a BloodHound upload job, check --bh-server, "
@@ -242,10 +236,17 @@ def upload_files(server, token_id, token_key, files):
     with console.status("", spinner="aesthetic") as status:
         status.update(" [bold] Uploading files to BloodHound server...")
 
-        for file in files:
-            uploader.upload_file(file)
+        success = True
+        try:
+            for file in files:
+                if not uploader.upload_file(file):
+                    success = False
+        finally:
+            closed = uploader.close_upload_job()
 
-        uploader.close_upload_job()
+    if not success or not closed:
+        logger.error("BloodHound upload failed; generated files can be retried with --upload-only")
+        sys.exit(1)
     logger.info("Files uploaded to BloodHound server")
 
 
