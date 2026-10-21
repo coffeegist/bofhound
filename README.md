@@ -149,7 +149,9 @@ LDAP data and rebuilds relationships against that complete snapshot. It does not
 skip ACL processing or reuse computed relationships, because newly collected
 objects can change existing relationships.
 
-Present attributes replace earlier values, including empty strings. Objects and
+Present attributes replace earlier values, including empty strings. Cached group
+membership links follow known identities through renames and are removed when the
+known target is displaced; explicitly supplied membership attributes use current DNs. Objects and
 attributes absent from a partial collection remain cached; absence does not prove
 deletion. Use a new cache file to start a fresh snapshot. Local sessions and local
 group records are processed from the current logs and are not retained in the cache.

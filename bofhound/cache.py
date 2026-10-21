@@ -181,7 +181,9 @@ class ObjectCache:
         Absent objects/attributes are retained: absence in a partial collection
         cannot prove deletion. A fresh cache gives a fresh snapshot.
         """
+        cached = self.get_all_cached_objects()
         objects = {}
+        fresh_memberships = {}
         by_sid, by_guid, by_dn = {}, {}, {}
         indexes = (by_sid, by_guid, by_dn)
         displaced = set()
@@ -195,12 +197,15 @@ class ObjectCache:
 
         def remove(key):
             displaced.discard(key)
+            fresh_memberships.pop(key, None)
             record = objects.pop(key)
             for index, alias in zip(indexes, aliases(record)):
                 if alias and index.get(alias) == key:
                     del index[alias]
 
-        for raw in self.get_all_cached_objects() + incoming:
+        cached_targets = {aliases(raw)[2]: aliases(raw) for raw in cached if aliases(raw)[2]}
+        membership_fields = ('member', 'memberof')
+        for position, raw in enumerate(cached + incoming):
             obj = self._normalize_object(raw)
             sid, guid, dn = aliases(obj)
             owners = {index[alias] for index, alias in ((by_sid, sid), (by_guid, guid))
@@ -209,6 +214,7 @@ class ObjectCache:
                 owners.add(by_dn[dn])
 
             merged = {}
+            fresh = 0
             for key in sorted(owners):
                 previous = objects[key]
                 old_sid, old_guid, _ = aliases(previous)
@@ -216,7 +222,12 @@ class ObjectCache:
                             or (guid and old_guid and guid != old_guid))
                 if not conflict:
                     merged.update(previous)
+                    fresh |= fresh_memberships[key]
             merged.update(obj)
+            if position >= len(cached):
+                for bit, field in enumerate(membership_fields):
+                    if field in obj:
+                        fresh |= 1 << bit
 
             key = min(owners) if owners else next_key
             if not owners:
@@ -231,12 +242,39 @@ class ObjectCache:
             for owner in owners:
                 remove(owner)
             objects[key] = merged
+            fresh_memberships[key] = fresh
             for index, alias in zip(indexes, aliases(merged)):
                 if alias:
                     index[alias] = key
         # Unobserved displaced identities are stale and must not reach export/disk.
         for key in list(displaced):
             remove(key)
+        # Cached DN links refer to the identity observed at collection time, not
+        # an arbitrary future occupant of that DN. Fresh links use current DNs.
+        for key, record in objects.items():
+            for bit, field in enumerate(membership_fields):
+                value = record.get(field)
+                if fresh_memberships[key] & (1 << bit) or not isinstance(value, str):
+                    continue
+                resolved = []
+                for reference in value.split(', '):
+                    prior = cached_targets.get(reference.upper())
+                    if prior is None or not (prior[0] or prior[1]):
+                        resolved.append(reference)
+                        continue
+                    sid, guid, _ = prior
+                    targets = {index[alias] for index, alias in ((by_sid, sid), (by_guid, guid))
+                               if alias and alias in index}
+                    if len(targets) != 1:
+                        continue
+                    target = objects[next(iter(targets))]
+                    new_sid, new_guid, new_dn = aliases(target)
+                    if ((sid and new_sid and sid != new_sid)
+                            or (guid and new_guid and guid != new_guid) or not new_dn):
+                        continue
+                    resolved.append(reference if new_dn == reference.upper()
+                                    else target['distinguishedname'])
+                record[field] = ', '.join(resolved)
         return [objects[key] for key in sorted(objects)]
 
     def clear_context(self):

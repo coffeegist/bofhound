@@ -301,3 +301,50 @@ def test_multiple_partial_renames_preserve_each_identity_independent_of_order(tm
         assert cache.get_all_cached_objects() == merged
     with ObjectCache(path) as cache:
         assert cache.merge_ldap_objects([]) == merged
+
+
+
+@pytest.mark.parametrize('fresh_group', [False, True])
+def test_cached_membership_does_not_transfer_to_new_dn_occupant(tmp_path, fresh_group):
+    from bofhound.ad import ADDS
+    a = {**RAW_USER, 'samaccounttype': '805306368'}
+    b = {**a, 'objectsid': 'S-1-5-21-111-222-333-1002', 'distinguishedname': 'CN=B,DC=example,DC=test'}
+    group = {'objectsid': 'S-1-5-21-111-222-333-2000', 'samaccounttype': '268435456',
+             'samaccountname': 'privileged', 'distinguishedname': 'CN=Privileged,DC=example,DC=test',
+             'member': b['distinguishedname']}
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        for raw in [a, b, group]:
+            cache.store_object(raw)
+        incoming = [{'objectsid': a['objectsid'], 'distinguishedname': b['distinguishedname']}]
+        if fresh_group:
+            incoming.append(group)
+        merged = cache.merge_ldap_objects(incoming)
+        adds = ADDS()
+        adds.import_objects(merged)
+        adds.resolve_group_members()
+        assert adds.groups[0].Members == ([{'ObjectIdentifier': a['objectsid'], 'ObjectType': 'User'}]
+                                         if fresh_group else [])
+        for raw in merged:
+            cache.store_object(raw)
+        assert cache.merge_ldap_objects([]) == merged
+
+
+def test_cached_membership_follows_same_identity_rename(tmp_path):
+    from bofhound.ad import ADDS
+    user = {**RAW_USER, 'samaccounttype': '805306368', 'memberof': 'CN=Group,DC=example,DC=test'}
+    group = {'objectsid': 'S-1-5-21-111-222-333-2000', 'samaccounttype': '268435456',
+             'samaccountname': 'group', 'distinguishedname': user['memberof'], 'member': user['distinguishedname']}
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(user)
+        cache.store_object(group)
+        merged = cache.merge_ldap_objects([
+            {'objectsid': user['objectsid'], 'distinguishedname': 'CN=Renamed,DC=example,DC=test'},
+            {'objectsid': group['objectsid'], 'distinguishedname': 'CN=RenamedGroup,DC=example,DC=test'},
+        ])
+        by_sid = {raw['objectsid']: raw for raw in merged}
+        assert by_sid[user['objectsid']]['memberof'] == 'CN=RenamedGroup,DC=example,DC=test'
+        assert by_sid[group['objectsid']]['member'] == 'CN=Renamed,DC=example,DC=test'
+        adds = ADDS()
+        adds.import_objects(merged)
+        adds.resolve_group_members()
+        assert adds.groups[0].Members == [{'ObjectIdentifier': user['objectsid'], 'ObjectType': 'User'}]
