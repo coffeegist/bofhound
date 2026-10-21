@@ -143,3 +143,25 @@ def test_output_failure_keeps_previous_snapshot(tmp_path, monkeypatch):
     assert result.exit_code != 0
     with ObjectCache(str(cache_path)) as cache:
         assert cache.get_all_cached_objects() == [cache._normalize_object(prior)]
+
+
+
+def test_parallel_input_failure_writes_no_output_and_keeps_cache(tmp_path):
+    from bofhound.cache import ObjectCache
+    cache_path = tmp_path / 'cache.db'
+    prior = {'distinguishedname': 'CN=Prior,DC=example,DC=test', 'name': 'Prior'}
+    with ObjectCache(str(cache_path)) as cache:
+        cache.store_object(prior)
+    logs = tmp_path / 'logs'
+    logs.mkdir()
+    (logs / 'good.log').write_text('--------------------\nsamaccountname: example\nRetrieved 1 results\n')
+    (logs / 'bad.log').write_bytes(b'\xff\xfe\x80')
+    output = tmp_path / 'output'
+    result = CliRunner().invoke(cli.app, [
+        '--quiet', '--workers', '2', '-i', str(logs), '-o', str(output),
+        '--cache-file', str(cache_path),
+    ])
+    assert result.exit_code != 0
+    assert list(output.glob('*.json')) == []
+    with ObjectCache(str(cache_path)) as cache:
+        assert cache.get_all_cached_objects() == [prior]

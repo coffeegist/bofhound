@@ -279,3 +279,13 @@ def test_spawned_acl_worker_matches_serial():
                              initializer=_worker_init, initargs=(context,)) as executor:
         results = list(executor.map(_worker_process, map(prepare_entry_for_worker, entries)))
     assert [result[1] for result in results] == [entry.Aces for entry in entries]
+
+
+@pytest.mark.parametrize('workers', [1, 2])
+def test_failed_acl_aborts_processing(workers):
+    adds = ADDS()
+    entries = [make_acl_entry(), make_acl_entry()]
+    entries[1].RawAces = 'bm90IGEgZGVzY3JpcHRvcg=='
+    adds.users = entries
+    with pytest.raises(RuntimeError, match='Unable to parse ACL'):
+        adds.process(num_workers=workers)

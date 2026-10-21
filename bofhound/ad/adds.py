@@ -466,7 +466,7 @@ class ADDS():
         """
         import os
         import time
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+        from concurrent.futures import ProcessPoolExecutor
         from bofhound.ad.acl_worker import (
             create_worker_context, prepare_entry_for_worker, _worker_init, _worker_process
         )
@@ -505,6 +505,8 @@ class ADDS():
         # Count objects with ACLs to parse
         objects_with_acls = [obj for obj in all_objects if obj.RawAces]
         acl_count = len(objects_with_acls)
+        from bofhound.parallel import worker_limit
+        num_workers = worker_limit(num_workers, acl_count)
         logger.info(f"Found {acl_count:,} objects with ACLs to parse (using {num_workers} worker(s))")
 
         if acl_count == 0:
@@ -519,8 +521,7 @@ class ADDS():
                     try:
                         num_parsed_relations += self.parse_acl(obj)
                     except Exception as e:
-                        logger.debug(f"Error parsing ACL for {obj.Properties.get('name', 'UNKNOWN')}: {e}")
-                        continue
+                        raise RuntimeError(f"Unable to parse ACL for {obj.ObjectIdentifier}") from e
                     
                     if (i + 1) % progress_interval == 0 or i == acl_count - 1:
                         elapsed = time.time() - start_time
@@ -549,10 +550,7 @@ class ADDS():
             
             # Prepare entries for workers
             logger.info("Preparing entries for parallel processing...")
-            entries = [prepare_entry_for_worker(obj) for obj in objects_with_acls]
-            
-            # Create a mapping from object_id -> object for result application
-            object_map = {obj.ObjectIdentifier: obj for obj in objects_with_acls}
+            entries = map(prepare_entry_for_worker, objects_with_acls)
             
             # Process with multiprocessing
             completed = 0
@@ -569,24 +567,20 @@ class ADDS():
                     initargs=(worker_context,),
                     mp_context=mp_context
                 ) as executor:
-                    # Submit all tasks
-                    futures = {executor.submit(_worker_process, entry): entry for entry in entries}
-                    
-                    # Process results as they complete
-                    for future in as_completed(futures):
+                    from bofhound.parallel import ordered_parallel_map
+                    results = ordered_parallel_map(
+                        executor, _worker_process, entries, max_pending=num_workers * 2,
+                    )
+                    for obj in objects_with_acls:
                         try:
-                            object_id, relations, is_acl_protected = future.result()
-                            num_parsed_relations += len(relations)
-                            
-                            # Apply results back to object
-                            if object_id in object_map:
-                                obj = object_map[object_id]
-                                obj.Aces = relations
-                                obj.IsACLProtected = is_acl_protected
-                        except Exception as e:
-                            entry = futures[future]
-                            logger.debug(f"Error parsing ACL for {entry.get('object_id', 'UNKNOWN')}: {e}")
-                        
+                            object_id, relations, is_acl_protected = next(results)
+                        except Exception as exc:
+                            raise RuntimeError(f"Unable to parse ACL for {obj.ObjectIdentifier}") from exc
+                        num_parsed_relations += len(relations)
+                        # Apply by input position, including objects without unique identifiers.
+                        obj.Aces = relations
+                        obj.IsACLProtected = is_acl_protected
+
                         completed += 1
                         if completed % progress_interval == 0 or completed == acl_count:
                             elapsed = time.time() - start_time

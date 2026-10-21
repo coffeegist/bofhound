@@ -120,7 +120,8 @@ class ParsingPipeline:
         # Determine worker count
         if num_workers is None:
             num_workers = max(1, int((os.cpu_count() or 1) * 0.9))
-        num_workers = min(num_workers, len(file_streams))
+        from bofhound.parallel import worker_limit
+        num_workers = worker_limit(num_workers, len(file_streams))
         
         if num_workers == 1:
             # Single file or single worker - use sequential
@@ -132,19 +133,22 @@ class ParsingPipeline:
         incomplete = False
         ctx = multiprocessing.get_context('spawn')
         with ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
-            futures = [executor.submit(_worker_parse_file, stream, self.tool_parsers)
-                       for stream in file_streams]
-            # Source order determines which later collected attributes take precedence.
-            for stream, future in zip(file_streams, futures):
+            from functools import partial
+            from bofhound.parallel import ordered_parallel_map
+            results = ordered_parallel_map(
+                executor, partial(_worker_parse_file, configured_parsers=self.tool_parsers),
+                file_streams, max_pending=num_workers * 2,
+            )
+            for stream in file_streams:
                 if progress_callback:
                     progress_callback(stream.identifier)
                 try:
-                    worker_result, pending_record = future.result()
-                    incomplete |= pending_record
-                    for obj_type in ObjectType:
-                        result.add_objects(obj_type, worker_result.get(obj_type.value, []))
+                    worker_result, pending_record = next(results)
                 except Exception as exc:
-                    logger.error("Error processing %s: %s", stream.identifier, exc)
+                    raise RuntimeError(f"Unable to process input {stream.identifier}") from exc
+                incomplete |= pending_record
+                for obj_type in ObjectType:
+                    result.add_objects(obj_type, worker_result.get(obj_type.value, []))
         if incomplete:
             # Independent file tasks cannot resolve records split across file boundaries.
             logger.debug("Incomplete record at file boundary; parsing streams sequentially")

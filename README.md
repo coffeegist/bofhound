@@ -136,7 +136,9 @@ upload acceptance and job completion, not the outcome of server-side ingestion.
 ## Performance & Cache
 
 `--workers N` controls parallel file and ACL processing. Use `--workers 1` for
-sequential processing. The default uses about 90% of available CPU cores.
+sequential processing. The default uses about 90% of available CPU cores. Actual pools are limited to the
+number of tasks and the platform limit (61 processes on Windows). Pending tasks
+are bounded; input or ACL worker failures abort before output/cache updates.
 
 Caching is enabled by default at `--output/bofhound_cache.db`; override it with
 `--cache-file PATH`, disable it with `--no-cache`, or inspect it with `--cache-stats`.

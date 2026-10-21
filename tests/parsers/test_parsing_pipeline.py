@@ -1,4 +1,5 @@
 """Tests for LDAP Search BOF parser."""
+import pytest
 from bofhound.parsers import (
     ParsingPipeline, ParsingResult, BoundaryDetector, BoundaryResult,
     LdapSearchBofParser
@@ -143,3 +144,13 @@ def test_custom_stateful_parser_uses_sequential_contract(tmp_path):
     result = pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=2)
     assert result.get_ldap_objects() == [{'lines': 2}]
     assert parser.count == 2
+
+
+@pytest.mark.parametrize('workers', [1, 2])
+def test_unreadable_file_aborts_instead_of_returning_partial_results(tmp_path, workers):
+    (tmp_path / 'a.log').write_text('--------------------\nsamaccountname: example\nRetrieved 1 results\n')
+    (tmp_path / 'bad.log').write_bytes(b'\xff\xfe\x80')
+    pipeline = ParsingPipeline()
+    pipeline.register_parser(LdapSearchBofParser())
+    with pytest.raises((UnicodeDecodeError, RuntimeError)):
+        pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=workers)

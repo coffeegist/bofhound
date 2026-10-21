@@ -7,6 +7,7 @@
 - Performance options: `--workers`, `--no-cache`, `--cache-file`, `--cache-stats`, and `--context-from` (#50).
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
+- Abort on file/ACL worker failures before writing output or advancing the cache; bound pending process tasks (#50).
 - Preserve stream adapters, parser configuration, input ordering, and records spanning files during parallel parsing (#50).
 - Use the current ACL parser in process workers so schema restrictions, inherit-only flags, and LAPS rights match sequential output (#50).
 - Resolve CA hosting computers from external cached context while preferring current collected hosts (#50).
