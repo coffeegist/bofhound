@@ -184,6 +184,7 @@ class ObjectCache:
         objects = {}
         by_sid, by_guid, by_dn = {}, {}, {}
         indexes = (by_sid, by_guid, by_dn)
+        displaced = set()
         next_key = 0
 
         def aliases(raw):
@@ -193,6 +194,7 @@ class ObjectCache:
             return str(sid).upper() if sid else '', str(guid).upper() if guid else '', dn
 
         def remove(key):
+            displaced.discard(key)
             record = objects.pop(key)
             for index, alias in zip(indexes, aliases(record)):
                 if alias and index.get(alias) == key:
@@ -219,16 +221,22 @@ class ObjectCache:
             key = min(owners) if owners else next_key
             if not owners:
                 next_key += 1
-            # A rename may target a DN still owned by a retired cached identity.
-            # Evict destination aliases atomically, without inheriting their data.
-            displaced = {index[alias] for index, alias in zip(indexes, aliases(merged))
-                         if alias and alias in index}
-            for owner in owners | displaced:
+            # Keep a displaced identity's own attributes available for a later
+            # same-batch rename, but never use them to enrich the new DN owner.
+            destination_dn = aliases(merged)[2]
+            destination_owner = by_dn.get(destination_dn)
+            if destination_owner is not None and destination_owner not in owners:
+                displaced.add(destination_owner)
+                del by_dn[destination_dn]
+            for owner in owners:
                 remove(owner)
             objects[key] = merged
             for index, alias in zip(indexes, aliases(merged)):
                 if alias:
                     index[alias] = key
+        # Unobserved displaced identities are stale and must not reach export/disk.
+        for key in list(displaced):
+            remove(key)
         return [objects[key] for key in sorted(objects)]
 
     def clear_context(self):

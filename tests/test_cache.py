@@ -247,7 +247,7 @@ def test_rename_into_retired_dn_keeps_current_identity_and_acl_isolation(tmp_pat
         assert cache.merge_ldap_objects([]) == merged
 
 
-def test_evicted_dn_owner_leaves_no_sid_or_guid_aliases(tmp_path):
+def test_displaced_identity_can_move_later_with_its_own_attributes(tmp_path):
     current = {**RAW_USER, 'objectguid': '11111111-1111-1111-1111-111111111111'}
     retired = {**current, 'objectsid': 'S-1-5-21-111-222-333-9999',
                'objectguid': '22222222-2222-2222-2222-222222222222',
@@ -262,5 +262,42 @@ def test_evicted_dn_owner_leaves_no_sid_or_guid_aliases(tmp_path):
         assert len(merged) == 2
         by_dn = {obj['distinguishedname']: obj for obj in merged}
         assert by_dn[retired['distinguishedname']]['objectsid'] == current['objectsid']
-        assert 'description' not in by_dn['CN=Elsewhere,DC=example,DC=test']
-        assert 'objectsid' not in by_dn['CN=Elsewhere,DC=example,DC=test']
+        assert by_dn['CN=Elsewhere,DC=example,DC=test']['description'] == 'retired'
+        assert by_dn['CN=Elsewhere,DC=example,DC=test']['objectsid'] == retired['objectsid']
+
+
+@pytest.mark.parametrize('reverse_order', [False, True])
+@pytest.mark.parametrize('swap', [False, True])
+def test_multiple_partial_renames_preserve_each_identity_independent_of_order(tmp_path, reverse_order, swap):
+    from bofhound.ad import ADDS
+    from tests.ad.test_inherited_acls import make_acl_entry
+    a = {**RAW_USER, 'samaccounttype': '805306368', 'samaccountname': 'a'}
+    b = {**a, 'objectsid': 'S-1-5-21-111-222-333-1002', 'samaccountname': 'b',
+         'distinguishedname': 'CN=B,DC=example,DC=test', 'ntsecuritydescriptor': make_acl_entry().RawAces}
+    updates = [
+        {'objectsid': a['objectsid'], 'distinguishedname': b['distinguishedname']},
+        {'objectsid': b['objectsid'], 'distinguishedname': a['distinguishedname'] if swap else 'CN=C,DC=example,DC=test'},
+    ]
+    if reverse_order:
+        updates.reverse()
+    path = str(tmp_path / 'cache.db')
+    with ObjectCache(path) as cache:
+        cache.store_object(a)
+        cache.store_object(b)
+        merged = cache.merge_ldap_objects(updates)
+        adds = ADDS()
+        adds.import_objects(merged)
+        assert len(adds.users) == 2
+        users = {user.ObjectIdentifier: user for user in adds.users}
+        assert users[a['objectsid']].Properties['samaccountname'] == 'a'
+        assert users[a['objectsid']].RawAces is None
+        assert users[b['objectsid']].Properties['samaccountname'] == 'b'
+        assert users[b['objectsid']].RawAces == b['ntsecuritydescriptor']
+        assert users[a['objectsid']].Properties['distinguishedname'] == b['distinguishedname'].upper()
+        expected_b_dn = a['distinguishedname'] if swap else 'CN=C,DC=example,DC=test'
+        assert users[b['objectsid']].Properties['distinguishedname'] == expected_b_dn.upper()
+        for obj in merged:
+            cache.store_object(obj)
+        assert cache.get_all_cached_objects() == merged
+    with ObjectCache(path) as cache:
+        assert cache.merge_ldap_objects([]) == merged

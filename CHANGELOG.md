@@ -7,6 +7,7 @@
 - Performance options: `--workers`, `--no-cache`, `--cache-file`, `--cache-stats`, and `--context-from` (#50).
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
+- Preserve each identity’s attributes through chained or swapped same-batch renames (#50).
 - Evict stale DN owners and all their identity aliases before exporting or persisting renamed objects (#50).
 - Resolve cached partial renames through independent SID/GUID aliases and keep enriched identities unique on disk (#50).
 - Preserve parser accumulation across reused serial/parallel pipelines and the process_file entry point (#50).
