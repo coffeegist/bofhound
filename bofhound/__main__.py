@@ -1,6 +1,7 @@
 """Entry point for bofhound CLI application."""
 import sys
 import logging
+from pathlib import Path
 import typer
 from bofhound.parsers import ParserType, ParsingPipelineFactory
 from bofhound.parsers.data_sources import FileDataSource, MythicDataSource, OutflankDataStream
@@ -62,6 +63,12 @@ def main(
     bh_server: str = typer.Option(
         "http://127.0.0.1:8080", "--bh-server", help="BloodHound CE URL",
         rich_help_panel="BloodHound CE Options"
+    ),
+    upload_only: bool = typer.Option(
+        False, "--upload-only",
+        help=("Skip parsing and upload the BloodHound JSON files already in --output "
+              "to the BloodHound CE server"),
+        rich_help_panel="BloodHound CE Options"
     )):
     """
     Generate BloodHound compatible JSON from logs written by the ldapsearch BOF, pyldapsearch and
@@ -75,6 +82,30 @@ def main(
 
     if not quiet:
         banner()
+
+    if upload_only:
+        if not (bh_token_id and bh_token_key and bh_server):
+            logger.error("--upload-only requires --bh-token-id, --bh-token-key and --bh-server")
+            sys.exit(-1)
+
+        output_path = Path(output_folder)
+        pattern = "*.zip" if zip_files else "*.json"
+        outfiles = sorted(path for path in output_path.glob(pattern) if path.is_file())
+        if not outfiles:
+            logger.error("No %s files found in %s", pattern, output_folder)
+            sys.exit(-1)
+
+        upload_files(bh_server, bh_token_id, bh_token_key, outfiles)
+        return
+
+    # bail out before spending time on parsing if the BloodHound server or credentials are wrong
+    uploader = None
+    if bh_token_id and bh_token_key and bh_server:
+        uploader = BloodHoundUploader(bh_server, bh_token_id, bh_token_key)
+        if not uploader.preflight():
+            logger.error("BloodHound preflight failed, check --bh-server, "
+                         "--bh-token-id and --bh-token-key")
+            sys.exit(-1)
 
      # default to Cobalt logfile naming format
     data_source = None
@@ -188,19 +219,35 @@ def main(
     #
     # Upload files to BloodHound CE
     #
-    if bh_token_id and bh_token_key and bh_server:
-        with console.status("", spinner="aesthetic") as status:
-            status.update(" [bold] Uploading files to BloodHound server...")
-            uploader = BloodHoundUploader(bh_server, bh_token_id, bh_token_key)
+    if uploader:
+        upload_files(bh_server, bh_token_id, bh_token_key, outfiles, uploader=uploader)
 
-            if not uploader.create_upload_job():
-                return
 
-            for file in outfiles:
-                uploader.upload_file(file)
+def upload_files(server, token_id, token_key, files, uploader=None):
+    """Upload a set of already-generated BloodHound JSON/zip files to a BloodHound CE server."""
+    if uploader is None:
+        uploader = BloodHoundUploader(server, token_id, token_key)
 
-            uploader.close_upload_job()
-        logger.info("Files uploaded to BloodHound server")
+    if not uploader.create_upload_job():
+        logger.error("Unable to start a BloodHound upload job, check --bh-server, "
+                     "--bh-token-id and --bh-token-key")
+        sys.exit(-1)
+
+    with console.status("", spinner="aesthetic") as status:
+        status.update(" [bold] Uploading files to BloodHound server...")
+
+        success = True
+        try:
+            for file in files:
+                if not uploader.upload_file(file):
+                    success = False
+        finally:
+            closed = uploader.close_upload_job()
+
+    if not success or not closed:
+        logger.error("BloodHound upload failed; generated files can be retried with --upload-only")
+        sys.exit(1)
+    logger.info("Files uploaded to BloodHound server")
 
 
 def banner():

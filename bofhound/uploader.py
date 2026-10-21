@@ -19,6 +19,19 @@ class BloodHoundUploader:
         self.upload_job_id = None
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+    def preflight(self):
+        """Check connectivity and credentials without creating an upload job."""
+        try:
+            response = self._request(method="GET", uri="/api/v2/file-upload")
+            if response.status_code != 200:
+                logger.error("BloodHound preflight failed: HTTP %s - %s",
+                             response.status_code, self.get_error(response))
+                return False
+            return True
+        except Exception as exc:
+            logger.error("BloodHound preflight failed: %s", exc)
+            return False
+
     def create_upload_job(self):
         try:
             r = self._request(
@@ -28,7 +41,7 @@ class BloodHoundUploader:
 
             if r.status_code != 201:
                 logger.error(f"Failed to create upload job: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
-                return None
+                return False
             
             self.upload_job_id = r.json()["data"]["id"]
             logger.debug(f"BloodHound upload job created with ID: {self.upload_job_id}")
@@ -61,13 +74,15 @@ class BloodHoundUploader:
 
             if r.status_code != 202:
                 logger.error(f"Failed to upload file {file.name}: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
+                return False
 
             logger.debug(f"Uploaded file {file.name} to BloodHound: HTTP {r.status_code}")
+            return True
 
         except Exception as e:
             logger.error(f"Error uploading file {file.name}")
             logger.error(e)
-            return None
+            return False
 
     
     def close_upload_job(self):
@@ -79,13 +94,15 @@ class BloodHoundUploader:
 
             if r.status_code != 200:
                 logger.error(f"Failed to close upload job: HTTP {r.status_code} - {BloodHoundUploader.get_error(r)}")
-                return None
+                return False
             
             logger.debug(f"Ended BloodHound upload job successfully")
+            return True
 
         except Exception as e:
             logger.error(f"Error closing upload job")
             logger.error(e)
+            return False
 
     #
     # Sign requests
@@ -116,7 +133,8 @@ class BloodHoundUploader:
                 'Content-Type': content_type,
             },
             data=body,
-            verify=False
+            verify=False,
+            timeout=(10, 300)
         )
 
     @staticmethod

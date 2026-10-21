@@ -108,6 +108,30 @@ Parse Havoc loot logs (will change default input path to `/opt/havoc/data/loot`)
 bofhound --parser havoc --zip
 ```
 
+## Uploading to BloodHound CE
+
+Supply `--bh-server`, `--bh-token-id`, and `--bh-token-key` to upload after parsing.
+BOFHound checks connectivity and credentials before parsing, then creates an upload
+job after generating the files. Upload permissions are checked when that job starts.
+Requests use a 10-second connect timeout and a 300-second read timeout.
+
+Retry an upload without parsing the logs again:
+
+```sh
+bofhound --upload-only --output ./output --bh-server http://127.0.0.1:8080 --bh-token-id TOKEN_ID --bh-token-key TOKEN_KEY
+```
+
+This uploads all regular `*.json` files directly inside `--output` (default: current
+directory). To upload existing `*.zip` archives instead, add `--zip`. In upload-only
+mode, `--zip` selects archives; it does not create them. Use a directory containing
+only the exports you intend to upload. Both token options are required; the server
+defaults to `http://127.0.0.1:8080`.
+
+An unsuccessful upload or job completion returns a nonzero exit status. Generated
+files remain available for retrying; retrying a folder resends all selected files,
+including any that were accepted in an earlier attempt. A successful exit confirms
+upload acceptance and job completion, not the outcome of server-side ingestion.
+
 # ldapsearch
 Specify `*,ntsecuritydescriptor` as the attributes to return to be able to parse ACL edges. You are missing a ton of data if you don't include this in your `ldapsearch` queries!
 

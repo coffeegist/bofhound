@@ -1,7 +1,10 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
 ### Fixed
+- Return a failing exit status for unsuccessful BloodHound uploads and skip directories in upload-only mode (#64).
 - Handle renewed CA objects with multiple cacertificate values and skip malformed certificate candidates (#63).
 - Prevent default group generation from crashing when a computer has no primary group SID (#61).
 - Skip unresolved containment references when a parent object has no GUID (#62).
