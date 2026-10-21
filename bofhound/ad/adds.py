@@ -507,7 +507,7 @@ class ADDS():
                 extra=OBJ_EXTRA_FMT
             )
 
-            domain_controllers = [ computer for computer in self.computers if computer.PrimaryGroupSid.endswith('-516') ]
+            domain_controllers = [ computer for computer in self.computers if computer.PrimaryGroupSid and computer.PrimaryGroupSid.endswith('-516') ]
 
             group = BloodHoundGroup({})
             group.IsDeleted = False
