@@ -36,7 +36,7 @@ class BloodHoundObject():
             self.Properties = {k.lower(): v for k, v in object.items()}
 
             self.ObjectIdentifier = BloodHoundObject.get_sid(
-                self.Properties.get('objectsid'), 
+                self.Properties.get('objectsid'),
                 self.Properties.get('distinguishedname')
             )
 
@@ -90,7 +90,7 @@ class BloodHoundObject():
                 if not base_preference:
                     if getattr(object, attr):
                         setattr(self, attr, value)
-    
+
 
 
     def get_distinguished_name(self):
@@ -188,16 +188,16 @@ class BloodHoundObject():
         base = ''
         for comp in components:
             base += f',DC={comp}'
-        
+
         return base[1:]
-    
-    
+
+
     @staticmethod
     def get_cn_from_dn(dn):
         for component in dn.split(',', 1):
             if component.startswith('CN='):
                 return component[3:]
-    
+
     #
     # for AIACAs, EnterpriseCAs, and RootCAs
     #

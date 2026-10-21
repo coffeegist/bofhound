@@ -5,7 +5,7 @@
              |   _  <  |  |  |  | |   __|  |   __   | |  |  |  | |  |  |  | |  . `  | |  |  |  |
              |  |_)  | |  `--'  | |  |     |  |  |  | |  `--'  | |  `--'  | |  |\   | |  '--'  |
              |______/   \______/  |__|     |__|  |___\_\________\_\________\|__| \___\|_________\
-           
+
                                          << @coffeegist | @Tw1sm >>
 ```
 
@@ -137,7 +137,9 @@ upload acceptance and job completion, not the outcome of server-side ingestion.
 
 `--workers N` controls parallel file and ACL processing. Use `--workers 1` for
 sequential processing. The default uses about 90% of available CPU cores. Actual pools are limited to the
-number of tasks and the platform limit (61 processes on Windows). Pending tasks
+number of tasks and the platform limit (61 processes on Windows). Files with
+incomplete records and custom stateful parsers use sequential parsing to preserve
+records spanning files. Pending tasks
 are bounded; input or ACL worker failures abort before output/cache updates.
 
 Caching is enabled by default at `--output/bofhound_cache.db`; override it with
@@ -178,7 +180,7 @@ Some object classes rely on domain objects being populated within BOFHound. Doma
 ```
 ldapsearch (objectclass=domain) --attributes *,ntsecuritydescriptor
 ldapsearch (distinguishedname=DC=windomain,DC=local) --attributes *,ntsecuritydescriptor
-``` 
+```
 
 ## Example ldapsearch Queries
 ```
@@ -225,7 +227,7 @@ ldapsearch (objectclass=msPKI-Enterprise-Oid) --attributes *,ntsecuritydescripto
 # Versions
 Check the tagged releases to download a specific version
 - v0.4.0 and onward support parsing AD CS objects and edges
-- v0.3.0 and onward support session/local group data 
+- v0.3.0 and onward support session/local group data
 - v0.2.1 and onward are compatible with BloodHound CE
 - v0.2.0 is the last release supporting BloodHound Legacy
 

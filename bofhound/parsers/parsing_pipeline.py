@@ -64,7 +64,7 @@ class ParsingPipeline:
     def process_data_source(self, data_source: DataSource, progress_callback=None, num_workers=None) -> ParsingResult:
         """
         Process a data source through all registered parsers.
-        
+
         Args:
             data_source: The data source to process
             progress_callback: Optional callback for progress updates
@@ -77,19 +77,19 @@ class ParsingPipeline:
         self._used = True
         if isinstance(data_source, FileDataSource):
             file_list = list(data_source.get_data_streams())
-            
+
             # Use parallel processing if multiple files and workers > 1
             if (num_workers != 1 and len(file_list) > 1 and not already_used
                     and all(isinstance(parser, BoundaryBasedParser) for parser in self.tool_parsers)):
                 return self._process_files_parallel(
-                    file_list, 
+                    file_list,
                     progress_callback=progress_callback,
                     num_workers=num_workers
                 )
-        
+
         # Fall back to sequential processing
         return self._process_sequential(data_source, progress_callback)
-    
+
     def _process_sequential(self, data_source: DataSource, progress_callback=None) -> ParsingResult:
         """Process data source sequentially (original behavior)."""
         result = ParsingResult()
@@ -110,25 +110,25 @@ class ParsingPipeline:
             result.add_objects(parser.produces_object_type, parser.get_results())
 
         return result
-    
-    def _process_files_parallel(self, file_streams: List[FileDataStream], 
+
+    def _process_files_parallel(self, file_streams: List[FileDataStream],
                                 progress_callback=None, num_workers=None) -> ParsingResult:
         """Process multiple files in parallel using multiprocessing."""
         from concurrent.futures import ProcessPoolExecutor
         from bofhound.logger import logger
-        
+
         # Determine worker count
         if num_workers is None:
             num_workers = max(1, int((os.cpu_count() or 1) * 0.9))
         from bofhound.parallel import worker_limit
         num_workers = worker_limit(num_workers, len(file_streams))
-        
+
         if num_workers == 1:
             # Single file or single worker - use sequential
             return self._process_sequential_files(file_streams, progress_callback)
-        
+
         logger.debug(f"Processing {len(file_streams)} files with {num_workers} workers")
-        
+
         result = ParsingResult()
         incomplete = False
         ctx = multiprocessing.get_context('spawn')
@@ -155,11 +155,11 @@ class ParsingPipeline:
             return self._process_sequential_files(file_streams, progress_callback)
         return result
 
-    def _process_sequential_files(self, file_streams: List[FileDataStream], 
+    def _process_sequential_files(self, file_streams: List[FileDataStream],
                                    progress_callback=None) -> ParsingResult:
         """Process files sequentially (for single file or single worker)."""
         result = ParsingResult()
-        
+
         for data_stream in file_streams:
             if progress_callback:
                 progress_callback(data_stream.identifier)
@@ -167,10 +167,10 @@ class ParsingPipeline:
                 filtered_line = line.rstrip('\n\r')
                 for parser in self.tool_parsers:
                     parser.process_line(filtered_line)
-        
+
         for parser in self.tool_parsers:
             result.add_objects(parser.produces_object_type, parser.get_results())
-        
+
         return result
 
     def process_file(self, file_path: str) -> ParsingResult:

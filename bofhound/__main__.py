@@ -63,7 +63,7 @@ def main(
     ),
     workers: int = typer.Option(
         None, "--workers",
-        help='Number of worker processes for parallel ACL parsing. Default: ~90%% of CPU cores (auto-detected). Check your system: python -c "import os; print(f\'CPU cores: {os.cpu_count()}\')"',
+        help='Number of worker processes for parallel ACL parsing. Default: ~90% of CPU cores (auto-detected). Check your system: python -c "import os; print(f\'CPU cores: {os.cpu_count()}\')"',
         rich_help_panel="Performance Options"
     ),
     cache_stats: bool = typer.Option(
@@ -111,13 +111,13 @@ def main(
         # Determine cache file path
         if not cache_file:
             cache_file = f"{output_folder}/bofhound_cache.db"
-        
+
         import os
         if not os.path.exists(cache_file):
             console.print(f"[yellow]Cache file not found: {cache_file}[/yellow]")
             console.print("Run bofhound first to create the cache.")
             sys.exit(0)
-        
+
         try:
             with ObjectCache(cache_file) as cache:
                 stats = cache.get_statistics()
@@ -166,7 +166,7 @@ def main(
     # Auto-detect worker count if not specified
     import os
     cpu_count = os.cpu_count() or 4
-    
+
     if workers is None:
         # Use ~90% of cores by default - leave headroom for OS and other processes
         workers = max(1, int(cpu_count * 0.9))
@@ -176,7 +176,7 @@ def main(
     elif workers > cpu_count:
         console.print(f"[yellow]Warning: {workers} workers exceeds CPU count ({cpu_count})[/yellow]")
         console.print("This may reduce performance. Recommended: --workers {}".format(int(cpu_count * 0.9)))
-    
+
     # Log worker and CPU info in one line
     worker_pct = int((workers / cpu_count) * 100)
     logger.info(f"Using {workers}/{cpu_count} CPU cores ({worker_pct}%)")
@@ -190,9 +190,9 @@ def main(
         # Determine cache file path
         if not cache_file:
             cache_file = f"{output_folder}/bofhound_cache.db"
-        
+
         cache_exists = os.path.exists(cache_file)
-        
+
         try:
             cache = ObjectCache(cache_file)
             if cache_exists:
@@ -253,20 +253,20 @@ def main(
         ad = ADDS()
         broker = LocalBroker()
         pipeline = ParsingPipelineFactory.create_pipeline(parser_type=parser_type)
-    
+
         # Load context from external cache if specified
         if context_from:
             import os
             context_cache_path = context_from
-        
+
             # If directory, look for cache file inside it
             if os.path.isdir(context_from):
                 context_cache_path = os.path.join(context_from, 'bofhound_cache.db')
-        
+
             if not os.path.exists(context_cache_path):
                 logger.error(f"Context cache file not found: {context_cache_path}")
                 sys.exit(1)
-        
+
             try:
                 logger.info(f"Loading context from: {context_cache_path}")
                 with ObjectCache(context_cache_path) as context_cache:
@@ -290,7 +290,7 @@ def main(
             results.get_privileged_sessions() + results.get_registry_sessions()
         logger.info("Parsed %d LDAP objects", len(ldap_objects))
         logger.info("Parsed %d local group/session objects", len(local_objects))
-    
+
         if cache:
             # Rebuild relationships against all collected input, not just changed nodes.
             ldap_objects = cache.merge_ldap_objects(ldap_objects)
@@ -368,23 +368,23 @@ def main(
                     sid_mappings.append((sid, name, obj_type, domain))
                     if dn:
                         dn_mappings.append((dn, sid, obj_type))
-        
+
             if sid_mappings:
                 cache.store_sid_mappings_bulk(sid_mappings)
             if dn_mappings:
                 cache.store_dn_mappings_bulk(dn_mappings)
-        
+
             # Store domain mappings
             for dc, domain_sid in ad.DOMAIN_MAP.items():
                 cache.store_domain_mapping(dc, domain_sid)
-        
+
             # Store schema GUIDs
             if ad.ObjectTypeGuidMap:
                 cache.store_schema_guids_bulk(ad.ObjectTypeGuidMap)
-        
+
         if cache:
             cache.commit()
-        
+
             # Log context statistics
             ctx_stats = cache.get_context_statistics()
             logger.info(f"Cache updated successfully ({stored_count:,} objects stored)")
