@@ -2,7 +2,7 @@
 import os
 import multiprocessing
 from typing import List, Dict, Any
-from .types import ObjectType, ToolParser
+from .types import ObjectType, ToolParser, BoundaryBasedParser
 from .data_sources import DataSource, FileDataSource, FileDataStream
 from . import (
     NetLocalGroupBofParser, NetLoggedOnBofParser, NetSessionBofParser, RegSessionBofParser,
@@ -55,6 +55,7 @@ class ParsingPipeline:
         self.tool_parsers: List[ToolParser] = []
         self.platform_filters = platform_filters or []
         self.parser_type = None  # Will be set by factory
+        self._used = False
 
     def register_parser(self, parser: ToolParser):
         """Register a tool parser with the pipeline"""
@@ -71,12 +72,15 @@ class ParsingPipeline:
 
         Returns categorized results.
         """
-        # Check if we can use parallel processing
+        # Arbitrary/stateful custom parsers retain their sequential contract.
+        already_used = self._used
+        self._used = True
         if isinstance(data_source, FileDataSource):
             file_list = list(data_source.get_data_streams())
             
             # Use parallel processing if multiple files and workers > 1
-            if num_workers != 1 and len(file_list) > 1:
+            if (num_workers != 1 and len(file_list) > 1 and not already_used
+                    and all(isinstance(parser, BoundaryBasedParser) for parser in self.tool_parsers)):
                 return self._process_files_parallel(
                     file_list, 
                     progress_callback=progress_callback,
@@ -110,12 +114,12 @@ class ParsingPipeline:
     def _process_files_parallel(self, file_streams: List[FileDataStream], 
                                 progress_callback=None, num_workers=None) -> ParsingResult:
         """Process multiple files in parallel using multiprocessing."""
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+        from concurrent.futures import ProcessPoolExecutor
         from bofhound.logger import logger
         
         # Determine worker count
         if num_workers is None:
-            num_workers = max(1, int(os.cpu_count() * 0.9))
+            num_workers = max(1, int((os.cpu_count() or 1) * 0.9))
         num_workers = min(num_workers, len(file_streams))
         
         if num_workers == 1:
@@ -124,40 +128,29 @@ class ParsingPipeline:
         
         logger.debug(f"Processing {len(file_streams)} files with {num_workers} workers")
         
-        # Prepare file paths for workers
-        file_paths = [fs.file_path for fs in file_streams]
-        
         result = ParsingResult()
-        completed = 0
-        
-        # Use spawn context for clean worker processes
+        incomplete = False
         ctx = multiprocessing.get_context('spawn')
-        
         with ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
-            # Submit all files for processing
-            future_to_file = {
-                executor.submit(_worker_parse_file, fp, self.parser_type): fp 
-                for fp in file_paths
-            }
-            
-            for future in as_completed(future_to_file):
-                file_path = future_to_file[future]
-                completed += 1
-                
+            futures = [executor.submit(_worker_parse_file, stream, self.tool_parsers)
+                       for stream in file_streams]
+            # Source order determines which later collected attributes take precedence.
+            for stream, future in zip(file_streams, futures):
                 if progress_callback:
-                    progress_callback(f"FILES_TO_PARSE/{os.path.basename(file_path)}")
-                
+                    progress_callback(stream.identifier)
                 try:
-                    worker_result = future.result()
-                    # Merge results
+                    worker_result, pending_record = future.result()
+                    incomplete |= pending_record
                     for obj_type in ObjectType:
                         result.add_objects(obj_type, worker_result.get(obj_type.value, []))
-                except Exception as e:
-                    logger.error(f"Error processing {file_path}: {e}")
-        
-        logger.debug(f"Parallel parsing complete: {completed} files processed")
+                except Exception as exc:
+                    logger.error("Error processing %s: %s", stream.identifier, exc)
+        if incomplete:
+            # Independent file tasks cannot resolve records split across file boundaries.
+            logger.debug("Incomplete record at file boundary; parsing streams sequentially")
+            return self._process_sequential_files(file_streams, progress_callback)
         return result
-    
+
     def _process_sequential_files(self, file_streams: List[FileDataStream], 
                                    progress_callback=None) -> ParsingResult:
         """Process files sequentially (for single file or single worker)."""
@@ -201,38 +194,18 @@ class ParsingPipeline:
         return result
 
 
-def _worker_parse_file(file_path: str, parser_type) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Worker function to parse a single file.
-    Runs in a separate process.
-    """
-    # Create fresh parsers for this worker
-    parsers = [
-        NetLoggedOnBofParser(),
-        NetSessionBofParser(),
-        NetLocalGroupBofParser(),
-        RegSessionBofParser(),
-    ]
-    
-    if parser_type == ParserType.BRC4:
-        parsers.append(Brc4LdapSentinelParser())
-    else:
-        parsers.append(LdapSearchBofParser())
-    
-    # Process the file
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            filtered_line = line.rstrip('\n\r')
-            for parser in parsers:
-                parser.process_line(filtered_line)
-    
-    # Collect results as dict (for pickling across process boundary)
+def _worker_parse_file(data_stream, configured_parsers):
+    """Process the configured stream adapter with a private copy of its parsers."""
+    from copy import deepcopy
+    parsers = deepcopy(configured_parsers)
+    for line in data_stream.lines():
+        for parser in parsers:
+            parser.process_line(line.rstrip('\n\r'))
+    pending_record = any(parser.has_pending_input for parser in parsers)
     results = {}
     for parser in parsers:
-        obj_type = parser.produces_object_type
-        results[obj_type.value] = parser.get_results()
-    
-    return results
+        results.setdefault(parser.produces_object_type.value, []).extend(parser.get_results())
+    return results, pending_record
 
 
 class ParsingPipelineFactory:

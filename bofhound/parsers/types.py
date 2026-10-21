@@ -59,6 +59,16 @@ class BoundaryBasedParser(ToolParser):
         )
         self._skippable_patterns = []
 
+    @property
+    def has_pending_input(self):
+        """Whether parsing this file independently could lose cross-file state."""
+        return (
+            self._parsing_state != ParsingState.WAITING_FOR_OBJECT
+            or self._start_boundary_detector._accumulated_chars != 0
+            or (self._end_boundary_detector is not None
+                and self._end_boundary_detector._accumulated_chars != 0)
+        )
+
     @override
     def process_line(self, line) -> None:
         """
