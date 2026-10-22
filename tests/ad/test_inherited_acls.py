@@ -120,6 +120,64 @@ def test_ace_restricted_to_computer_does_not_apply_to_user():
     assert entry.Aces == []
 
 
+@pytest.mark.parametrize('schema', ['missing', 'partial', 'collected', 'collected-custom'])
+@pytest.mark.parametrize('workers', [1, 2])
+def test_issue_22_computer_full_control_does_not_apply_to_microsoftdns(schema, workers):
+    """Import, process and export the descendant-computer ACE reported in #22."""
+    from bofhound.ad.helpers import PropertiesLevel
+
+    adds = ADDS()
+    computer_guid = COMPUTER_GUID
+    container_guid = 'bf967a8b-0de6-11d0-a285-00aa003049e2'
+    if schema == 'collected-custom':
+        # Distinct GUIDs make collected schema lookup observable: standard GUIDs
+        # alone would let fallback hide the case mismatch reported by P-aLu.
+        computer_guid = '12345678-1234-1234-1234-123456789abc'
+        container_guid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    if schema != 'missing':
+        adds.import_objects([{'name': 'Computer', 'schemaidguid': computer_guid.upper()}])
+    if schema in ('collected', 'collected-custom'):
+        adds.import_objects([{'name': 'Container', 'schemaidguid': container_guid.upper()}])
+
+    # AD stores Full Control as the mapped directory-service rights mask.
+    descriptor = make_acl_entry(inherited_guid=computer_guid, mask=0x000F01FF).RawAces
+    dns_dn = 'CN=MicrosoftDNS,DC=DomainDnsZones,DC=example,DC=test'
+    computer_dn = 'CN=TargetComputer,DC=example,DC=test'
+    adds.import_objects([
+        {
+            'name': 'MicrosoftDNS', 'objectclass': 'top, container',
+            'distinguishedname': dns_dn,
+            'objectguid': '11111111-2222-3333-4444-555555555555',
+            'ntsecuritydescriptor': descriptor,
+        },
+        {
+            'samaccountname': 'OGCWAPPS10000001$', 'samaccounttype': '805306369',
+            'distinguishedname': 'CN=OGCWAPPS10000001,DC=example,DC=test',
+            'objectsid': TRUSTEE_SID, 'useraccountcontrol': '4096',
+        },
+        {
+            'samaccountname': 'TargetComputer$', 'samaccounttype': '805306369',
+            'distinguishedname': computer_dn, 'useraccountcontrol': '4096',
+            'objectsid': 'S-1-5-21-111-222-333-5678',
+            'ntsecuritydescriptor': descriptor,
+        },
+    ])
+    dns = adds.DN_MAP[dns_dn.upper()]
+    computer = adds.DN_MAP[computer_dn.upper()]
+    assert dns._entry_type == 'Container'
+    assert computer._entry_type == 'Computer'
+    if schema != 'missing':
+        assert adds.ObjectTypeGuidMap['computer'] == computer_guid.lower()
+
+    adds.process(num_workers=workers)
+
+    assert dns.to_json(PropertiesLevel.All)['Aces'] == []
+    assert computer.to_json(PropertiesLevel.All)['Aces'] == [{
+        'RightName': 'GenericAll', 'PrincipalSID': TRUSTEE_SID,
+        'IsInherited': True, 'PrincipalType': 'Computer',
+    }]
+
+
 def test_explicit_ace_child_class_restriction_does_not_restrict_current_object():
     adds = ADDS()
     entry = make_acl_entry(inherited_guid=COMPUTER_GUID, inherited=False)
