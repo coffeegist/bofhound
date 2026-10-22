@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-10-22
 ### Performance
 - Parallel ACL and file parsing, SQLite caching, and lookup tables for large datasets (#50).
 ### Added
