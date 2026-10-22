@@ -4,6 +4,7 @@
 ### Performance
 - Parallel ACL and file parsing, SQLite caching, and lookup tables for large datasets (#50).
 ### Added
+- Manual release workflow with TestPyPI upload/install rehearsal, production approval, GitHub-generated release notes, and identical package artifacts published through Trusted Publishing.
 - Regression coverage for issue #22: inherited computer-only Full Control on MicrosoftDNS, including schema name case handling and parallel processing.
 - Performance options: `--workers`, `--no-cache`, `--cache-file`, `--cache-stats`, and `--context-from` (#50).
 - Check BloodHound connectivity and credentials before parsing, bound HTTP request timeouts, and support retrying existing JSON/zip output with `--upload-only` (#64).
