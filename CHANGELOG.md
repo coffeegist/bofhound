@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+### Fixed
+- Wait for uploaded packages and newly created GitHub drafts to become visible before verification; keep final release verification read-only until publishing.
 
 ## [0.5.0] - 2026-10-22
 ### Performance

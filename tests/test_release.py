@@ -20,6 +20,15 @@ def uploaded(files):
             for name, checksum in files.items()}
 
 
+@pytest.fixture(autouse=True)
+def retry_delays(monkeypatch):
+    """Exercise retries without sleeping, using a small test retry budget."""
+    delays = []
+    monkeypatch.setattr(release, 'VISIBILITY_ATTEMPTS', 3)
+    monkeypatch.setattr(release.time, 'sleep', delays.append)
+    return delays
+
+
 @pytest.fixture
 def bundle(tmp_path, monkeypatch):
     monkeypatch.setenv('GITHUB_RUN_ID', '123')
@@ -79,7 +88,7 @@ def test_partial_pypi_upload_retries_only_identical_missing_files(bundle, monkey
     release.check_pypi(bundle)
     assert [p.name for p in (Path(bundle.bundle) / 'pending-pypi').iterdir()] == ['bofhound-0.5.0.tar.gz']
     bundle.complete = True
-    with pytest.raises(ValueError, match='incomplete'):
+    with pytest.raises(RuntimeError, match='incomplete'):
         release.check_pypi(bundle)
 
 
@@ -199,7 +208,7 @@ def test_partial_draft_upload_only_adds_missing_assets(bundle, monkeypatch):
     assert all('--clobber' not in args for args in commands)
 
 
-def test_new_draft_uses_github_generated_notes_for_exact_release_commit(bundle, monkeypatch):
+def test_new_draft_waits_for_visibility_without_creating_duplicates(bundle, monkeypatch, retry_delays):
     generated = (
         "## What's Changed\n"
         '* Fix ACL filtering by @contributor in https://github.com/coffeegist/bofhound/pull/66\n\n'
@@ -207,10 +216,12 @@ def test_new_draft_uses_github_generated_notes_for_exact_release_commit(bundle, 
         '**Full Changelog**: https://github.com/coffeegist/bofhound/compare/v0.4.25...v0.5.0\n'
     )
     draft = None
+    hidden_reads = 0
     requests = []
     commands = []
 
     def github(path, **fields):
+        nonlocal hidden_reads
         requests.append((path, fields))
         if path.endswith('/generate-notes'):
             return {'name': 'v0.5.0', 'body': generated}
@@ -219,6 +230,10 @@ def test_new_draft_uses_github_generated_notes_for_exact_release_commit(bundle, 
         if '/releases/tags/' in path:
             return None  # GitHub's tag endpoint omits draft releases.
         if '/releases?' in path:
+            if draft is not None:
+                hidden_reads += 1
+                if hidden_reads < 3:
+                    return []
             return [draft] if draft is not None else []
         return {'object': {'sha': COMMIT}}
 
@@ -239,6 +254,7 @@ def test_new_draft_uses_github_generated_notes_for_exact_release_commit(bundle, 
     assert ('repos/coffeegist/bofhound/releases/generate-notes',
             {'tag_name': 'v0.5.0', 'target_commitish': COMMIT}) in requests
     assert len([args for args in commands if args[2] == 'create']) == 1
+    assert retry_delays == [10, 10]
 
 
 def test_note_generation_failure_does_not_create_a_draft(bundle, monkeypatch):
@@ -287,10 +303,10 @@ def test_draft_lookup_does_not_treat_permission_failure_as_absence(monkeypatch):
 
 def test_github_release_is_not_published_before_pypi_is_complete(bundle, monkeypatch):
     commands = []
-    monkeypatch.setattr(release, 'stage', lambda args: None)
+    monkeypatch.setattr(release, 'stage', lambda args, **kwargs: None)
     monkeypatch.setattr(release, 'pypi_files', lambda version, index='pypi': {})
     monkeypatch.setattr(release, 'run', lambda *args: commands.append(args))
-    with pytest.raises(ValueError, match='incomplete'):
+    with pytest.raises(RuntimeError, match='incomplete'):
         release.finish(bundle)
     assert commands == []
 
@@ -375,6 +391,153 @@ def test_corrupted_download_blocks_rehearsal_even_when_index_hash_matches(bundle
 def test_incomplete_rehearsal_upload_is_not_installed(bundle, monkeypatch):
     bundle.index = 'testpypi'
     monkeypatch.setattr(release, 'pypi_files', lambda version, index='pypi': {})
-    with pytest.raises(ValueError, match='TestPyPI upload incomplete'):
+    with pytest.raises(RuntimeError, match='TestPyPI upload incomplete'):
         release.download(bundle)
     assert not (Path(bundle.bundle) / 'downloaded-testpypi').exists()
+
+
+@pytest.mark.parametrize('index', ['testpypi', 'pypi'])
+def test_uploaded_files_can_appear_in_stages_before_verification_passes(bundle, monkeypatch, retry_delays, index):
+    bundle.index = index
+    bundle.complete = True
+    files = release.verify(bundle)['files']
+    wheel = 'bofhound-0.5.0-py3-none-any.whl'
+    snapshots = iter([{}, uploaded({wheel: files[wheel]}), uploaded(files)])
+    requested = []
+
+    def metadata(version, requested_index):
+        requested.append(requested_index)
+        return next(snapshots)
+
+    monkeypatch.setattr(release, 'pypi_files', metadata)
+    assert release.check_pypi(bundle) == uploaded(files)
+    assert requested == [index, index, index]
+    assert retry_delays == [10, 10]
+    assert not (Path(bundle.bundle) / f'pending-{index}').exists()
+
+
+def test_incomplete_upload_wait_is_bounded_and_preserves_original_run_recovery(bundle, monkeypatch, retry_delays):
+    bundle.complete = True
+    calls = []
+    monkeypatch.setattr(release, 'pypi_files', lambda *args: calls.append(args) or {})
+    with pytest.raises(RuntimeError, match='after 3 attempts.*Re-run failed jobs'):
+        release.check_pypi(bundle)
+    assert len(calls) == 3
+    assert retry_delays == [10, 10]
+
+
+def test_conflict_after_visibility_delay_still_fails_immediately(bundle, monkeypatch, retry_delays):
+    bundle.complete = True
+    snapshots = iter([{}, uploaded({'bofhound-0.5.0.tar.gz': 'different'})])
+    monkeypatch.setattr(release, 'pypi_files', lambda *args: next(snapshots))
+    with pytest.raises(ValueError, match='file differs'):
+        release.check_pypi(bundle)
+    assert retry_delays == [10]
+
+
+@pytest.mark.parametrize('status', [401, 403])
+@pytest.mark.parametrize('backend', ['registry', 'github'])
+def test_permission_errors_are_never_retried(monkeypatch, retry_delays, status, backend):
+    from urllib.error import HTTPError
+    error = (HTTPError('https://pypi.org', status, 'Denied', {}, None)
+             if backend == 'registry' else release.GitHubError(f'Denied (HTTP {status})'))
+    calls = []
+
+    def read():
+        calls.append(1)
+        raise error
+
+    with pytest.raises(type(error)):
+        release.wait_for_visibility('protected read', read)
+    assert calls == [1]
+    assert retry_delays == []
+
+
+@pytest.mark.parametrize('backend', ['registry', 'github', 'timeout'])
+def test_temporary_read_failure_retries_until_visible(retry_delays, backend):
+    from urllib.error import HTTPError
+    error = (HTTPError('https://pypi.org', 503, 'Unavailable', {}, None) if backend == 'registry'
+             else release.GitHubError('Unavailable (HTTP 503)') if backend == 'github'
+             else TimeoutError('read timed out'))
+    calls = []
+
+    def read():
+        calls.append(1)
+        if len(calls) == 1:
+            raise error
+        return 'visible'
+
+    assert release.wait_for_visibility('uploaded record', read) == 'visible'
+    assert calls == [1, 1]
+    assert retry_delays == [10]
+
+
+def test_finalization_waits_for_draft_assets_and_pypi_without_repeating_writes(bundle, monkeypatch, retry_delays):
+    root = Path(bundle.bundle)
+    expected = [root / 'release-manifest.json', *sorted((root / 'dist').iterdir())]
+    assets = [{'name': path.name} for path in expected]
+    record = {'tag_name': 'v0.5.0', 'body': '<!-- bofhound-release-run: 123 -->',
+              'draft': True, 'assets': assets}
+    snapshots = iter([None, dict(record, assets=assets[:1]), record])
+    files = release.verify(bundle)['files']
+    index_snapshots = iter([{}, uploaded({next(iter(files)): next(iter(files.values()))}), uploaded(files)])
+    commands = []
+
+    def github(path, **fields):
+        assert not fields, 'Finalization must not create a tag, notes, release, or upload assets'
+        if '/git/ref/' in path or '/commits/' in path:
+            return {'sha': COMMIT}
+        raise AssertionError(path)
+
+    def run(*args):
+        commands.append(args)
+        if args[2] == 'download':
+            name = args[args.index('--pattern') + 1]
+            path = root / 'release-manifest.json' if name == 'release-manifest.json' else root / 'dist' / name
+            Path(args[-1], name).write_bytes(path.read_bytes())
+        else:
+            assert args[2] == 'edit'
+        return ''
+
+    monkeypatch.setattr(release, 'github', github)
+    monkeypatch.setattr(release, 'find_release', lambda *args: next(snapshots))
+    monkeypatch.setattr(release, 'pypi_files', lambda *args: next(index_snapshots))
+    monkeypatch.setattr(release, 'run', run)
+    release.finish(bundle)
+    assert retry_delays == [10, 10, 10, 10]
+    assert [args[2] for args in commands] == ['download', 'download', 'download', 'edit']
+
+
+def test_finalization_never_uploads_missing_github_assets(bundle, monkeypatch, retry_delays):
+    monkeypatch.setattr(release, 'github', lambda *args, **kwargs: {'sha': COMMIT})
+    monkeypatch.setattr(release, 'find_release', lambda *args: {
+        'body': '<!-- bofhound-release-run: 123 -->', 'draft': True, 'assets': []})
+    commands = []
+    monkeypatch.setattr(release, 'run', lambda *args: commands.append(args))
+    with pytest.raises(RuntimeError, match='after 3 attempts'):
+        release.finish(bundle)
+    assert commands == []
+    assert retry_delays == [10, 10]
+
+
+@pytest.mark.parametrize('conflict', ['unexpected-asset', 'changed-bytes'])
+def test_github_integrity_conflicts_block_publication_without_waiting(bundle, monkeypatch, retry_delays, conflict):
+    root = Path(bundle.bundle)
+    assets = [{'name': path.name} for path in [root / 'release-manifest.json', *(root / 'dist').iterdir()]]
+    if conflict == 'unexpected-asset':
+        assets.append({'name': 'unexpected.whl'})
+    monkeypatch.setattr(release, 'github', lambda *args, **kwargs: {'sha': COMMIT})
+    monkeypatch.setattr(release, 'find_release', lambda *args: {
+        'body': '<!-- bofhound-release-run: 123 -->', 'draft': True, 'assets': assets})
+    commands = []
+
+    def read_asset(*args):
+        commands.append(args)
+        assert args[2] == 'download', 'No writes allowed after an integrity conflict'
+        Path(args[-1], args[args.index('--pattern') + 1]).write_bytes(b'changed')
+        return ''
+
+    monkeypatch.setattr(release, 'run', read_asset)
+    with pytest.raises(ValueError, match='unexpected assets|asset differs'):
+        release.finish(bundle)
+    assert retry_delays == []

@@ -151,6 +151,22 @@ to TestPyPI/PyPI or its release tag exists.
 Partial GitHub uploads resume by adding only missing assets. Existing assets
 must match byte for byte; the workflow never replaces them. Partial PyPI uploads
 resume by uploading only missing files, after comparing all existing hashes.
+After an upload, verification allows time for registry metadata to become visible:
+it makes up to 13 read attempts, waiting 10 seconds between attempts. The same
+bounded wait applies to discovering a newly created GitHub draft and checking
+its uploaded assets. Temporary read timeouts, HTTP 429, and selected server errors
+are retried within that budget. Network request time is additional to the waits;
+the production job has a 20-minute overall timeout.
+
+Missing or partially visible records produce progress messages rather than an
+immediate failed release. Integrity conflicts, unexpected files, changed tag
+targets, and permission errors still fail immediately. Retries repeat reads only,
+never the package upload, tag creation, or draft creation. Final verification
+waits for all GitHub assets and production packages without trying to upload or
+create anything, then publishes the existing draft. If visibility does not recover
+within the retry budget, the job fails with instructions to rerun failed jobs
+in the original run.
+
 Conflicting tags, versions, assets, or hashes stop the release. If PyPI succeeds
 but the final GitHub step fails, rerun that step to finish publication.
 
