@@ -1,0 +1,226 @@
+name: Release
+run-name: Release v${{ inputs.version }} from ${{ inputs.commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version already committed in pyproject.toml and CHANGELOG.md (e.g. 0.5.0)'
+        required: true
+        type: string
+      commit:
+        description: 'Full 40-character commit SHA on main to release'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bofhound-release
+  cancel-in-progress: false
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_COMMIT: ${{ inputs.commit }}
+
+jobs:
+  build:
+    name: Test and build once
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        id: project-python
+        with:
+          python-version: '3.10'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Validate commit, version, changelog and retry state
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/release.py plan
+      - name: Reuse saved packages when rerunning this workflow
+        if: steps.plan.outputs.reuse == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: bofhound-release
+          path: bundle
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.plan.outputs.reuse != 'true'
+        with:
+          ref: ${{ steps.plan.outputs.commit }}
+          path: source
+          persist-credentials: false
+      - name: Install build tools and project dependencies
+        if: steps.plan.outputs.reuse != 'true'
+        working-directory: source
+        env:
+          PROJECT_PYTHON: ${{ steps.project-python.outputs.python-path }}
+        run: |
+          python -m pip install poetry==2.2.1 twine==6.2.0
+          poetry env use "$PROJECT_PYTHON"
+          poetry install --no-interaction
+      - name: Run full test suite
+        if: steps.plan.outputs.reuse != 'true'
+        working-directory: source
+        run: poetry run pytest -q
+      - name: Build and check wheel and source archive
+        if: steps.plan.outputs.reuse != 'true'
+        working-directory: source
+        run: |
+          poetry build --output ../bundle/dist
+          python -m twine check --strict ../bundle/dist/*
+      - name: Test installed wheel outside the checkout
+        if: steps.plan.outputs.reuse != 'true'
+        env:
+          PROJECT_PYTHON: ${{ steps.project-python.outputs.python-path }}
+        run: |
+          "$PROJECT_PYTHON" -m venv "$RUNNER_TEMP/release-smoke"
+          "$RUNNER_TEMP/release-smoke/bin/python" -m pip install bundle/dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/release-smoke/bin/python" -m pip check
+          "$RUNNER_TEMP/release-smoke/bin/bofhound" --help
+      - name: Record package hashes and release identity
+        if: steps.plan.outputs.reuse != 'true'
+        run: python .github/scripts/release.py manifest
+      - name: Save tested packages for publishing and retries
+        if: steps.plan.outputs.reuse != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bofhound-release
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Verify saved artifact
+        run: python .github/scripts/release.py verify
+
+  testpypi:
+    name: Rehearse publishing on TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/bofhound/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: bofhound-release
+          path: bundle
+      - name: Check TestPyPI checksums and prepare only missing files
+        id: pending
+        run: python .github/scripts/release.py pypi --index testpypi
+      - name: Upload tested packages using TestPyPI Trusted Publishing
+        if: steps.pending.outputs.needed == 'true'
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: bundle/pending-testpypi/
+      - name: Confirm complete rehearsal upload
+        run: python .github/scripts/release.py pypi --index testpypi --complete
+
+  rehearsal:
+    name: Install packages downloaded from TestPyPI
+    needs: testpypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        id: helper-python
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.10'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: bofhound-release
+          path: bundle
+      - name: Download both uploaded packages and verify actual bytes
+        env:
+          HELPER_PYTHON: ${{ steps.helper-python.outputs.python-path }}
+        run: '"$HELPER_PYTHON" .github/scripts/release.py download --index testpypi'
+      - name: Install downloaded wheel with dependencies from production PyPI
+        run: |
+          python -m venv "$RUNNER_TEMP/testpypi-smoke"
+          "$RUNNER_TEMP/testpypi-smoke/bin/python" -m pip install --index-url https://pypi.org/simple/ bundle/downloaded-testpypi/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/testpypi-smoke/bin/python" -m pip check
+          "$RUNNER_TEMP/testpypi-smoke/bin/python" -c 'import importlib.metadata, os; assert importlib.metadata.version("bofhound") == os.environ["RELEASE_VERSION"]'
+          "$RUNNER_TEMP/testpypi-smoke/bin/bofhound" --help
+      - name: Summarize successful rehearsal for production approval
+        run: |
+          {
+            echo '### TestPyPI rehearsal passed'
+            echo "Version: $RELEASE_VERSION"
+            echo "Source commit: $RELEASE_COMMIT"
+            echo 'Both uploaded files match the saved build hashes.'
+            echo 'The downloaded wheel installs and its CLI runs in a clean environment.'
+            echo 'Approve the pypi deployment to create the production tag and publish these same packages.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Approve and publish production release
+    needs: rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/bofhound/
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: bofhound-release
+          path: bundle
+      - name: Recheck rehearsal artifact hashes before production changes
+        run: python .github/scripts/release.py pypi --index testpypi --complete
+      - name: Tag exact commit and stage GitHub-generated release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/release.py stage
+      - name: Check PyPI checksums and prepare only missing files
+        id: pending
+        run: python .github/scripts/release.py pypi
+      - name: Publish the rehearsed packages using PyPI Trusted Publishing
+        if: steps.pending.outputs.needed == 'true'
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: bundle/pending-pypi/
+      - name: Verify PyPI and GitHub assets, then publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/release.py finish

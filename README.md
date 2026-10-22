@@ -243,6 +243,8 @@ poetry install
 poetry run bofhound --help
 ```
 
+Release maintainers: see [the release guide](docs/RELEASING.md) for the manual GitHub Actions publishing process.
+
 # References and Credits
 - [@_dirkjan](https://twitter.com/_dirkjan) (and other contributors) for [BloodHound.py](https://github.com/fox-it/BloodHound.py)
 - TrustedSec for [CS-Situational-Awareness-BOF](https://github.com/trustedsec/CS-Situational-Awareness-BOF)
