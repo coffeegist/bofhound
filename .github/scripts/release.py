@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.request
 
@@ -18,6 +19,39 @@ except ModuleNotFoundError:  # Project regression tests also run on Python 3.10.
 
 
 ARTIFACT = 'bofhound-release'
+VISIBILITY_ATTEMPTS = 13
+VISIBILITY_DELAY = 10
+
+
+class NotVisibleYet(RuntimeError):
+    """A successful write has not propagated to a read endpoint yet."""
+
+
+class GitHubError(RuntimeError):
+    def __init__(self, message):
+        super().__init__(message)
+        match = re.search(r'HTTP (\d{3})', message)
+        self.status = int(match[1]) if match else None
+
+
+def wait_for_visibility(description, read):
+    """Retry reads only; integrity and permission errors must not be retried."""
+    for attempt in range(1, VISIBILITY_ATTEMPTS + 1):
+        try:
+            return read()
+        except (NotVisibleYet, urllib.error.URLError, TimeoutError, GitHubError) as error:
+            if isinstance(error, urllib.error.HTTPError) and error.code not in (429, 500, 502, 503, 504):
+                raise
+            if isinstance(error, GitHubError) and error.status not in (429, 500, 502, 503, 504):
+                raise
+            if attempt == VISIBILITY_ATTEMPTS:
+                raise RuntimeError(
+                    f'{description} could not be verified after {attempt} attempts: {error}. '
+                    'Re-run failed jobs in this original run; do not rebuild the version.'
+                ) from error
+            print(f'{description}: {error}; retry {attempt}/{VISIBILITY_ATTEMPTS - 1} '
+                  f'in {VISIBILITY_DELAY}s', flush=True)
+            time.sleep(VISIBILITY_DELAY)
 
 
 def run(*args):
@@ -34,7 +68,7 @@ def github(path, **fields):
     if result.returncode:
         if not fields and 'HTTP 404' in result.stderr:
             return None
-        raise RuntimeError(result.stderr)
+        raise GitHubError(result.stderr)
     return json.loads(result.stdout)
 
 
@@ -55,7 +89,7 @@ def identity(version, commit):
 def pypi_files(version, index='pypi'):
     host = {'pypi': 'pypi.org', 'testpypi': 'test.pypi.org'}[index]
     try:
-        with urllib.request.urlopen(f'https://{host}/pypi/bofhound/{version}/json', timeout=30) as response:
+        with urllib.request.urlopen(f'https://{host}/pypi/bofhound/{version}/json', timeout=10) as response:
             return {item['filename']: item for item in json.load(response)['urls']}
     except urllib.error.HTTPError as error:
         if error.code == 404:
@@ -130,15 +164,21 @@ def check_pypi(args):
     document = verify(args)
     index = args.index
     label = 'TestPyPI' if index == 'testpypi' else 'PyPI'
-    remote = pypi_files(args.version, index)
-    if not remote.keys() <= document['files'].keys():
-        raise ValueError(f'{label} has unexpected files for this version.')
-    for name, item in remote.items():
-        if item['digests']['sha256'] != document['files'][name]:
-            raise ValueError(f'{label} file differs from the tested artifact: {name}')
+
+    def read():
+        remote = pypi_files(args.version, index)
+        if not remote.keys() <= document['files'].keys():
+            raise ValueError(f'{label} has unexpected files for this version.')
+        for name, item in remote.items():
+            if item['digests']['sha256'] != document['files'][name]:
+                raise ValueError(f'{label} file differs from the tested artifact: {name}')
+        missing = document['files'].keys() - remote.keys()
+        if args.complete and missing:
+            raise NotVisibleYet(f'{label} upload incomplete: {sorted(missing)}')
+        return remote
+
+    remote = wait_for_visibility(f'{label} uploaded files', read) if args.complete else read()
     missing = document['files'].keys() - remote.keys()
-    if args.complete and missing:
-        raise ValueError(f'{label} upload incomplete: {sorted(missing)}')
     if not args.complete:
         pending = Path(args.bundle) / f'pending-{index}'
         pending.mkdir(exist_ok=True)
@@ -184,7 +224,7 @@ def find_release(repo, tag):
         page += 1
 
 
-def stage(args):
+def stage(args, *, complete=False):
     verify(args)
     repo = os.environ['GITHUB_REPOSITORY']
     tag = f'v{args.version}'
@@ -194,9 +234,18 @@ def stage(args):
     if existing_tag:
         if github(f'repos/{repo}/commits/{tag}')['sha'] != args.commit:
             raise ValueError('Refusing to move an existing release tag.')
+    elif complete:
+        raise NotVisibleYet('Release tag is not visible yet.')
     else:
         github(f'repos/{repo}/git/refs', ref=f'refs/tags/{tag}', sha=args.commit)
-    release = find_release(repo, tag)
+
+    def read_release():
+        release = find_release(repo, tag)
+        if release is None:
+            raise NotVisibleYet('GitHub draft release is not visible yet.')
+        return release
+
+    release = read_release() if complete else find_release(repo, tag)
     if release is None:
         generated = github(f'repos/{repo}/releases/generate-notes',
                            tag_name=tag, target_commitish=args.commit)
@@ -204,15 +253,16 @@ def stage(args):
         notes.write_text(generated['body'].rstrip() + '\n\n' + marker + '\n')
         run('gh', 'release', 'create', tag, '--repo', repo, '--draft', '--verify-tag',
             '--title', tag, '--notes-file', str(notes))
-        release = find_release(repo, tag)
-        if release is None:
-            raise RuntimeError('Created draft is not visible yet; rerun failed jobs to recover it.')
+        release = wait_for_visibility('Created GitHub draft', read_release)
     if marker not in (release['body'] or ''):
         raise ValueError('Existing release belongs to another run; resume that original run.')
     expected = [Path(args.bundle) / 'release-manifest.json', *sorted((Path(args.bundle) / 'dist').iterdir())]
     assets = {asset['name']: asset for asset in release['assets']}
     if not assets.keys() <= {path.name for path in expected}:
         raise ValueError('Release contains unexpected assets.')
+    missing = {path.name for path in expected} - assets.keys()
+    if complete and missing:
+        raise NotVisibleYet(f'GitHub release assets not visible yet: {sorted(missing)}')
     for path in expected:
         if path.name in assets:
             with tempfile.TemporaryDirectory() as directory:
@@ -227,7 +277,7 @@ def stage(args):
 
 def finish(args):
     # Revalidate all assets/tag and confirm PyPI before making the release public.
-    stage(args)
+    wait_for_visibility('GitHub release assets', lambda: stage(args, complete=True))
     args.complete = True
     args.index = 'pypi'
     check_pypi(args)
