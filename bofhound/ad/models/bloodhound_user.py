@@ -115,7 +115,7 @@ class BloodHoundUser(BloodHoundObject):
                 self.Properties["userpassword"] = ADUtils.ensure_string(object.get('userpassword'))
 
             if 'sidhistory' in object.keys():
-                self.Properties["sidhistory"] = [LDAP_SID(bsid).formatCanonical() for bsid in object.get('sIDHistory', [])]
+                self.Properties["sidhistory"] = [LDAP_SID(bsid).formatCanonical() for bsid in object.get('sidhistory', [])]
 
             if 'msds-allowedtodelegateto' in object.keys():
                 if len(object.get('msds-allowedtodelegateto', [])) > 0:

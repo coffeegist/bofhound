@@ -1,7 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- Parse raw OpenLDAP ldapsearch output with `--parser ldif`, including binary SID/GUID values and cached SID history (#70).
 ### Fixed
+- Preserve BRC4 records across output interruptions and files, keep date interpretation consistent, and resolve reverse group memberships without quadratic scans (#70).
+- Retain user SID history in exported properties and prevent stale cached memberOf links from restoring explicitly removed group members (#70).
+- Run the PyTest workflow on supported Python 3.10 with a pinned Poetry version.
 - Wait for uploaded packages and newly created GitHub drafts to become visible before verification; keep final release verification read-only until publishing.
 
 ## [0.5.0] - 2026-10-22

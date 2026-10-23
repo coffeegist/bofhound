@@ -37,6 +37,12 @@ class Brc4LdapSentinelParser(BoundaryBasedParser):
     ATTRIBUTE_LINE = re.compile(r'^\[\+\]\s+(?P<key>[^:]+?)\s*:\s?(?P<value>.*)$')
     # BRc4 frames console output with '+---+'; LDAP Sentinel separates objects with a run of dashes
     BOUNDARY_LINE = re.compile(r'^\+?-{10,}\+?$')
+    # These markers may interrupt a value between output chunks; retain the record.
+    TRANSPORT_LINE = re.compile(
+        r'^(?:$|\[\*\] Task-\d+ \[Thread: \d+\]$'
+        r'|\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} [A-Z]{2,5} '
+        r'\[(?:input|sent \d+ bytes)\])'
+    )
     # C2 console other output of other commands, not part of an object
     NOISE_LINE = re.compile(
         r'^(?:$'                                                # blank
@@ -65,14 +71,22 @@ class Brc4LdapSentinelParser(BoundaryBasedParser):
     def produces_object_type(self) -> ObjectType:
         return ObjectType.LDAP_OBJECT
 
+    @property
+    def has_pending_input(self):
+        return bool(self._current_record_lines)
+
     @override
     def process_line(self, line: str) -> None:
         """
         An LDAP object is a list of consecutive '[+] attribute : value' lines,
-        started by objectClass and ended by a separator, a console line or the
-        output of any other command.
+        started by objectClass and ended by a separator or other command output.
+        Transport markers between chunks do not end the object. Parsing stays
+        serial because both records and inferred date order can span files.
         """
         line = line.strip()
+
+        if Brc4LdapSentinelParser.TRANSPORT_LINE.match(line):
+            return
 
         attribute = Brc4LdapSentinelParser.ATTRIBUTE_LINE.match(line)
         if attribute:

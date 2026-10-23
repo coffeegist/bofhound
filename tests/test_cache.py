@@ -410,3 +410,59 @@ def test_fresh_group_member_removal_overrides_cached_memberof(tmp_path, retain_o
         adds.import_objects(cache.merge_ldap_objects([]))
         adds.resolve_group_members()
         assert adds.groups[0].Members == expected
+
+
+@pytest.mark.parametrize('member_value', [None, 'example'], ids=['not-collected', 'brc4-account-name'])
+def test_incomplete_group_members_do_not_erase_cached_memberof(tmp_path, member_value):
+    """Only a new DN list can disprove an older memberOf observation."""
+    from bofhound.ad import ADDS
+
+    group_dn = 'CN=Group,DC=example,DC=test'
+    user = {**RAW_USER, 'samaccounttype': '805306368', 'memberof': group_dn}
+    group = {
+        'objectsid': 'S-1-5-21-111-222-333-2000',
+        'samaccounttype': '268435456',
+        'samaccountname': 'group',
+        'distinguishedname': group_dn,
+    }
+    incoming = {'objectsid': group['objectsid'], 'distinguishedname': group_dn}
+    if member_value is not None:
+        incoming['member'] = member_value
+
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(user)
+        cache.store_object(group)
+        adds = ADDS()
+        adds.import_objects(cache.merge_ldap_objects([incoming]))
+        adds.resolve_group_members()
+        assert adds.groups[0].Members == [{
+            'ObjectIdentifier': user['objectsid'], 'ObjectType': 'User',
+        }]
+
+
+def test_fresh_memberof_survives_an_older_empty_group_member_list(tmp_path):
+    """A cached forward list must not override a newly observed reverse link."""
+    from bofhound.ad import ADDS
+
+    group_dn = 'CN=Group,DC=example,DC=test'
+    user = {**RAW_USER, 'samaccounttype': '805306368'}
+    group = {
+        'objectsid': 'S-1-5-21-111-222-333-2000',
+        'samaccounttype': '268435456',
+        'samaccountname': 'group',
+        'distinguishedname': group_dn,
+        'member': '',
+    }
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        cache.store_object(user)
+        cache.store_object(group)
+        adds = ADDS()
+        adds.import_objects(cache.merge_ldap_objects([{
+            'objectsid': user['objectsid'],
+            'distinguishedname': user['distinguishedname'],
+            'memberof': group_dn,
+        }]))
+        adds.resolve_group_members()
+        assert adds.groups[0].Members == [{
+            'ObjectIdentifier': user['objectsid'], 'ObjectType': 'User',
+        }]
