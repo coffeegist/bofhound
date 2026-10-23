@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.5.1] - 2026-10-23
 ### Added
 - Parse raw OpenLDAP ldapsearch output with `--parser ldif`, including binary SID/GUID values and cached SID history (#70).
 ### Fixed
