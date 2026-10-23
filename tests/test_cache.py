@@ -22,6 +22,18 @@ def test_cache_stores_data_only(tmp_path):
         assert cache.get_cached_object(sid=obj.ObjectIdentifier)['data'] == cache._normalize_object(RAW_USER)
         assert cache.get_all_cached_objects() == [cache._normalize_object(RAW_USER)]
 
+def test_cache_round_trips_binary_ldap_values(tmp_path):
+    binary_sid = b'\x01\x05\x00\x00\x00\x00\x00\x05'
+    raw = {
+        **RAW_USER,
+        'sIDHistory': [binary_sid],
+    }
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        merged = cache.merge_ldap_objects([raw])
+        assert merged[0]['sidhistory'] == [binary_sid]
+
+        cache.store_object(merged[0])
+        assert cache.get_all_cached_objects()[0]['sidhistory'] == [binary_sid]
 
 def test_old_cache_is_rejected_without_migration(tmp_path):
     path = tmp_path / 'old.db'

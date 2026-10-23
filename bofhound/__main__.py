@@ -232,6 +232,10 @@ def main(
                     input_files = "/opt/bruteratel/logs"
                 data_source = FileDataSource(str(input_files), "b-*.log")
 
+            case ParserType.LDIF:
+                logger.debug("Using LDIF parser")
+                data_source = FileDataSource(str(input_files), LDIF_PATTERNS)
+
             case ParserType.HAVOC:
                 logger.debug("Using Havoc parser")
                 if input_files == "/opt/cobaltstrike/logs":

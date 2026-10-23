@@ -9,6 +9,29 @@ from bofhound import __main__ as cli
 ARGS = ['--quiet', '--no-cache', '--bh-token-id', 'id', '--bh-token-key', 'key']
 
 
+def test_ldif_parser_uses_ldif_file_patterns(tmp_path, monkeypatch):
+    class StopAfterDispatch(Exception):
+        pass
+
+    data_source = Mock()
+    source_factory = Mock(return_value=data_source)
+    pipeline = Mock()
+    pipeline.process_data_source.side_effect = StopAfterDispatch
+    pipeline_factory = Mock(return_value=pipeline)
+    monkeypatch.setattr(cli, 'FileDataSource', source_factory)
+    monkeypatch.setattr(cli.ParsingPipelineFactory, 'create_pipeline', pipeline_factory)
+
+    result = CliRunner().invoke(cli.app, [
+        '--quiet', '--no-cache', '--parser', 'ldif',
+        '--input', str(tmp_path), '--output', str(tmp_path),
+    ])
+
+    assert isinstance(result.exception, StopAfterDispatch)
+    source_factory.assert_called_once_with(str(tmp_path), cli.LDIF_PATTERNS)
+    pipeline_factory.assert_called_once_with(parser_type=cli.ParserType.LDIF)
+    pipeline.process_data_source.assert_called_once()
+
+
 @pytest.fixture
 def uploader(monkeypatch):
     instance = Mock()
