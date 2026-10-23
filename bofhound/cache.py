@@ -4,15 +4,35 @@ Object cache system for incremental BOFHound processing.
 Stores raw LDAP snapshots and resolution mappings for incremental collections.
 """
 
-import sqlite3
-import json
+import base64
 import hashlib
+import json
+import sqlite3
 import time
 from typing import Dict, List, Optional, Any, Set
 from pathlib import Path
 from bofhound.logger import logger
 from bofhound.ad.models.bloodhound_object import BloodHoundObject
 
+_JSON_BYTES_KEY = "__bofhound_bytes_b64__"
+
+def _json_default(value):
+    """Encode binary LDAP values without making the cache executable."""
+    if isinstance(value, bytes):
+        return {_JSON_BYTES_KEY: base64.b64encode(value).decode('ascii')}
+    raise TypeError(f'Object of type {value.__class__.__name__} is not JSON serializable')
+
+def _json_object_hook(value):
+    """Restore binary LDAP values encoded by :func:`_json_default`."""
+    if set(value) != {_JSON_BYTES_KEY}:
+        return value
+    encoded = value[_JSON_BYTES_KEY]
+    if not isinstance(encoded, str):
+        raise ValueError("Invalid cache object: malformed binary value")
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Invalid cache object: malformed binary value") from exc
 
 class ObjectCache:
     """SQLite cache of data-only LDAP snapshots and resolution mappings."""
@@ -158,7 +178,7 @@ class ObjectCache:
             raise ValueError("Cache objects must be LDAP attribute dictionaries")
         value = {key.lower(): item for key, item in obj.items()}
         # Validate and detach from the caller. Never discard output-relevant attributes.
-        return json.loads(json.dumps(value, sort_keys=True, allow_nan=False))
+        return json.loads(json.dumps(value, sort_keys=True, allow_nan=False, default=_json_default),object_hook=_json_object_hook,)
 
     @staticmethod
     def _identity(obj):
@@ -170,8 +190,7 @@ class ObjectCache:
         normalized = self._normalize_object(obj)
         if normalized.get('distinguishedname'):
             normalized['distinguishedname'] = normalized['distinguishedname'].upper()
-        data = json.dumps(normalized, sort_keys=True,
-                          separators=(',', ':'), allow_nan=False)
+        data = json.dumps(normalized, sort_keys=True, separators=(',', ':'),allow_nan=False, default=_json_default)
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
     def merge_ldap_objects(self, incoming):
@@ -334,7 +353,8 @@ class ObjectCache:
             'INSERT OR REPLACE INTO objects '
             '(sid, dn, guid, object_type, data, attr_hash, timestamp, source_file) '
             'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (sid, dn, guid, obj.get('objectclass', ''), json.dumps(obj, sort_keys=True),
+            (sid, dn, guid, obj.get('objectclass', ''),
+             json.dumps(obj, sort_keys=True, allow_nan=False, default=_json_default),
              self._hash_object(obj), time.time(), source_file)
         )
 
@@ -384,7 +404,7 @@ class ObjectCache:
     @staticmethod
     def _decode_object(data):
         """Read data only; cache content can never select a Python constructor."""
-        value = json.loads(data)
+        value = json.loads(data, object_hook=_json_object_hook)
         if not isinstance(value, dict):
             raise ValueError("Invalid cache object: expected a JSON object")
         return value
