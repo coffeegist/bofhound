@@ -4,12 +4,12 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    container: python:3.9
+    container: python:3.10
     steps:
       - uses: actions/checkout@v3
 
       - name: Install poetry dependencies
-        run: pip install poetry
+        run: pip install poetry==2.2.1
 
       - name: Install project
         run: poetry install

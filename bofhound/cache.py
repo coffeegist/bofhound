@@ -294,6 +294,32 @@ class ObjectCache:
                     resolved.append(reference if new_dn == reference.upper()
                                     else target['distinguishedname'])
                 record[field] = ', '.join(resolved)
+
+        # A freshly collected DN member list supersedes old memberOf backlinks.
+        # BRc4 may render account names instead of DNs; those lists cannot disprove
+        # a backlink. Missing member attributes likewise provide no new evidence.
+        fresh_group_members = {}
+        for key, record in objects.items():
+            value = record.get('member')
+            if not fresh_memberships[key] & 1 or not isinstance(value, str):
+                continue
+            members = {dn.upper() for dn in value.split(', ') if dn}
+            if any(dn.partition('=')[0] not in {'CN', 'OU', 'DC'} for dn in members):
+                continue
+            group_dn = record.get('distinguishedname', '').upper()
+            if group_dn:
+                fresh_group_members[group_dn] = members
+
+        for key, record in objects.items():
+            value = record.get('memberof')
+            if fresh_memberships[key] & 2 or not isinstance(value, str):
+                continue
+            member_dn = record.get('distinguishedname', '').upper()
+            record['memberof'] = ', '.join(
+                group_dn for group_dn in value.split(', ')
+                if (group_dn.upper() not in fresh_group_members
+                    or member_dn in fresh_group_members[group_dn.upper()])
+            )
         return [objects[key] for key in sorted(objects)]
 
     def clear_context(self):

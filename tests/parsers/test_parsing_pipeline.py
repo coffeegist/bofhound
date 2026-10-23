@@ -214,3 +214,71 @@ def test_custom_boundary_parser_keeps_its_cross_file_state(tmp_path):
     result = pipeline.process_data_source(FileDataSource(str(tmp_path)), num_workers=2)
     assert len(result.get_ldap_objects()) == 2
     assert parser.line_count == 6
+
+
+def test_brc4_split_record_matches_sequential_parsing(tmp_path):
+    """Rotated log files must not turn one complete object into two fragments."""
+    import os
+    from bofhound.parsers import ParsingPipelineFactory, ParserType
+
+    first = tmp_path / 'b-first.log'
+    second = tmp_path / 'b-second.log'
+    first.write_text(
+        '[+] objectClass : top; person; organizationalPerson; user\n'
+        '[+] distinguishedName : CN=Alice,CN=Users,DC=example,DC=test\n',
+        encoding='utf-8',
+    )
+    second.write_text(
+        '[+] objectSid : S-1-5-21-111-222-333-1001\n'
+        '[+] sAMAccountName : Alice\n'
+        '[+] sAMAccountType : 805306368\n'
+        '+-------------------------------------------------------------------+\n',
+        encoding='utf-8',
+    )
+    os.utime(first, (1, 1))
+    os.utime(second, (2, 2))
+    expected = [{
+        'objectclass': 'top, person, organizationalPerson, user',
+        'distinguishedname': 'CN=Alice,CN=Users,DC=example,DC=test',
+        'objectsid': 'S-1-5-21-111-222-333-1001',
+        'samaccountname': 'Alice',
+        'samaccounttype': '805306368',
+    }]
+
+    for workers in (1, 2):
+        pipeline = ParsingPipelineFactory.create_pipeline(ParserType.BRC4)
+        objects = pipeline.process_data_source(
+            FileDataSource(str(tmp_path), 'b-*.log'), num_workers=workers,
+        ).get_ldap_objects()
+        assert objects == expected, f'Incorrect BRC4 results with {workers} workers'
+
+
+def test_brc4_date_order_survives_complete_file_boundaries(tmp_path):
+    """Parallel workers must retain the date interpretation established earlier."""
+    import os
+    from bofhound.parsers import ParsingPipelineFactory, ParserType
+
+    for index, (name, timestamp) in enumerate([
+        ('Alice', '17/10/2026 19:32:50'),
+        ('Bob', '04/05/2026 19:32:50'),
+    ], start=1):
+        path = tmp_path / f'b-{index}.log'
+        path.write_text(
+            '[+] objectClass : top; person; organizationalPerson; user\n'
+            f'[+] sAMAccountName : {name}\n'
+            f'[+] whenCreated : {timestamp}\n'
+            '+-------------------------------------------------------------------+\n',
+            encoding='utf-8',
+        )
+        os.utime(path, (index, index))
+
+    expected = [
+        ('Alice', '20261017193250.0Z'),
+        ('Bob', '20260504193250.0Z'),
+    ]
+    for workers in (1, 2):
+        pipeline = ParsingPipelineFactory.create_pipeline(ParserType.BRC4)
+        objects = pipeline.process_data_source(
+            FileDataSource(str(tmp_path), 'b-*.log'), num_workers=workers,
+        ).get_ldap_objects()
+        assert [(obj['samaccountname'], obj['whencreated']) for obj in objects] == expected

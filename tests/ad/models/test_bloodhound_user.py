@@ -1,6 +1,26 @@
 import pytest
 from bofhound.ad.models import BloodHoundObject, BloodHoundUser
 
+
+def test_user_exports_lowercase_binary_sid_history():
+    """The normalized key used by parsers and the cache must reach user JSON."""
+    from bofhound.ad.helpers import PropertiesLevel
+
+    historical_sid = bytes.fromhex(
+        '0105000000000005150000006f000000de0000004d0100005c110000'
+    )
+    user = BloodHoundUser({
+        'distinguishedname': 'CN=Alice,DC=example,DC=test',
+        'objectsid': 'S-1-5-21-444-555-666-1001',
+        'samaccountname': 'alice',
+        'sidhistory': [historical_sid],
+    })
+
+    exported = user.to_json(PropertiesLevel.Standard)
+
+    assert exported['Properties']['sidhistory'] == ['S-1-5-21-111-222-333-4444']
+
+
 @pytest.fixture
 def parsed_full_user():
     yield {

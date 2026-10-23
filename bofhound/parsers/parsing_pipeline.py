@@ -13,7 +13,7 @@ from . import (
 # across independent, complete files. Custom stateful implementations stay serial.
 _PARALLEL_PARSER_TYPES = {
     NetLocalGroupBofParser, NetLoggedOnBofParser, NetSessionBofParser,
-    RegSessionBofParser, LdapSearchBofParser, Brc4LdapSentinelParser,
+    RegSessionBofParser, LdapSearchBofParser,
 }
 
 class ParsingResult:

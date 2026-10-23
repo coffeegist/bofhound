@@ -893,6 +893,10 @@ class ADDS():
             for group in self.groups
             if ADDS.AT_DISTINGUISHEDNAME in group.Properties
         }
+        member_ids = {
+            group: {member["ObjectIdentifier"] for member in group.Members}
+            for group in self.groups
+        }
 
         for object_type, members in (
             ("User", self.users), ("Computer", self.computers), ("Group", self.groups)
@@ -902,10 +906,10 @@ class ADDS():
                     group = dn_to_group.get(group_dn)
                     if group is None or group is member:
                         continue
-                    if any(existing["ObjectIdentifier"] == member.ObjectIdentifier
-                           for existing in group.Members):
+                    if member.ObjectIdentifier in member_ids[group]:
                         continue
                     group.add_group_member(member, object_type)
+                    member_ids[group].add(member.ObjectIdentifier)
                     logger.debug(
                         "Resolved %s[/] as member of %s%s[/] via memberOf",
                         member.Properties['name'],
