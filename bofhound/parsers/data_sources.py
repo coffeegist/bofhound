@@ -43,10 +43,12 @@ class DataStream(ABC):
 class FileDataSource(DataSource):
     """Data source that reads from local files."""
 
-    def __init__(self, input_path: str, filename_pattern: str = "*.log",
-                 stream_type=None):
+    def __init__(self, input_path: str, filename_pattern="*.log",stream_type=None):
         self.input_path = input_path
-        self.filename_pattern = filename_pattern
+        # a single pattern or several, e.g. ("*.ldif", "*.txt")
+        if isinstance(filename_pattern, str):
+            filename_pattern = (filename_pattern,)
+        self.filename_pattern = tuple(filename_pattern)
         self.stream_type = stream_type or FileDataStream
 
     def get_data_streams(self) -> Iterator['FileDataStream']:
@@ -54,9 +56,10 @@ class FileDataSource(DataSource):
         if os.path.isfile(self.input_path):
             yield self.stream_type(self.input_path)
         elif os.path.isdir(self.input_path):
-            pattern = f"{self.input_path}/**/{self.filename_pattern}"
-            files = glob.glob(pattern, recursive=True)
-            files.sort(key=os.path.getmtime)
+            files = []
+            for pattern in self.filename_pattern:
+                files.extend(glob.glob(f"{self.input_path}/**/{pattern}", recursive=True))
+            files = sorted(set(files), key=os.path.getmtime)
 
             for file_path in files:
                 yield self.stream_type(file_path)

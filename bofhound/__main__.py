@@ -14,6 +14,9 @@ from bofhound.ad.helpers import PropertiesLevel
 from bofhound.logger import logger
 from bofhound.cache import ObjectCache
 
+# extensions the ldapsearch client's output tends to be saved under
+LDIF_PATTERNS = ("*.ldif", "*.ldif.txt", "*.txt", "*.log")
+
 app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
@@ -38,7 +41,8 @@ def main(
     parser_type: ParserType = typer.Option(
         ParserType.LdapsearchBof.value, "--parser", case_sensitive=False,
         help=("Parser to use for log files. ldapsearch parser (default) supports ldapsearch BOF "
-              "logs from Cobalt Strike and pyldapsearch logs")
+              "logs from Cobalt Strike and pyldapsearch logs. ldif parser supports raw LDIF "
+              "written by the ldapsearch client")
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
     zip_files: bool = typer.Option(

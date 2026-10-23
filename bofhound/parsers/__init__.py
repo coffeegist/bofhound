@@ -5,6 +5,7 @@ from .netsession_bof import NetSessionBofParser
 from .netlocalgroup_bof import NetLocalGroupBofParser
 from .regsession_bof import RegSessionBofParser
 from .brc4_ldap_sentinel import Brc4LdapSentinelParser
+from .ldif import LdifParser
 from .parsertype import ParserType
 from .parsing_pipeline import ParsingPipeline, ParsingResult, ParsingPipelineFactory
 from .types import ObjectType, ToolParser, BoundaryDetector, BoundaryResult, ParsingState

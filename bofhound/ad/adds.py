@@ -887,6 +887,32 @@ class ADDS():
                         extra=OBJ_EXTRA_FMT
                     )
 
+        # BRc4 does not use DNs in a group's member attribute, so the relationship has to be resolved from the other side as well
+        dn_to_group: Dict[str, BloodHoundGroup] = {
+            group.Properties[ADDS.AT_DISTINGUISHEDNAME]: group
+            for group in self.groups
+            if ADDS.AT_DISTINGUISHEDNAME in group.Properties
+        }
+
+        for object_type, members in (
+            ("User", self.users), ("Computer", self.computers), ("Group", self.groups)
+        ):
+            for member in members:
+                for group_dn in getattr(member, "MemberOfDNs", []):
+                    group = dn_to_group.get(group_dn)
+                    if group is None or group is member:
+                        continue
+                    if any(existing["ObjectIdentifier"] == member.ObjectIdentifier
+                           for existing in group.Members):
+                        continue
+                    group.add_group_member(member, object_type)
+                    logger.debug(
+                        "Resolved %s[/] as member of %s%s[/] via memberOf",
+                        member.Properties['name'],
+                        ColorScheme.group, group.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
+
     # TODO: Algorithm can be optimized
     def resolve_ou_members(self):
         """Resolve OU memberships for users, groups, computers, and nested OUs"""

@@ -6,7 +6,7 @@ from .types import ObjectType, ToolParser
 from .data_sources import DataSource, FileDataSource, FileDataStream
 from . import (
     NetLocalGroupBofParser, NetLoggedOnBofParser, NetSessionBofParser, RegSessionBofParser,
-    LdapSearchBofParser, ParserType, Brc4LdapSentinelParser
+    LdapSearchBofParser, ParserType, Brc4LdapSentinelParser, LdifParser
 )
 
 # Only these parsers have the standard record/state model that can be combined
@@ -250,6 +250,8 @@ class ParsingPipelineFactory:
         pipeline.register_parser(RegSessionBofParser())
         if parser_type == ParserType.BRC4:
             pipeline.register_parser(Brc4LdapSentinelParser())
+        elif parser_type == ParserType.LDIF:
+            pipeline.register_parser(LdifParser())
         else:
             pipeline.register_parser(LdapSearchBofParser())
 
