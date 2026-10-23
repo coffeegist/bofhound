@@ -281,3 +281,53 @@ def test_ca_host_resolves_from_external_cache_without_exporting_context(tmp_path
     adds.resolve_hosting_computer(ca)
     assert ca.HostingComputer == (current_sid if current_host else prior_sid)
     assert len(adds.computers) == int(current_host)
+
+
+@pytest.mark.parametrize('size', [64, 128])
+@pytest.mark.parametrize('forward_members_present', [False, True], ids=['reverse-only', 'both-directions'])
+def test_group_membership_deduplication_has_linear_comparison_budget(size, forward_members_present):
+    """Bound identifier comparisons, without relying on machine speed or timing."""
+    comparisons = 0
+
+    class CountingSid(str):
+        __hash__ = str.__hash__
+
+        def __eq__(self, other):
+            nonlocal comparisons
+            comparisons += 1
+            return str.__eq__(self, other)
+
+    group_dn = 'CN=Group,DC=example,DC=test'
+    users = [{
+        'objectsid': f'S-1-5-21-111-222-333-{1000 + index}',
+        'samaccounttype': '805306368',
+        'samaccountname': f'user{index}',
+        'distinguishedname': f'CN=User{index},DC=example,DC=test',
+        'memberof': group_dn,
+    } for index in range(size)]
+    group = {
+        'objectsid': 'S-1-5-21-111-222-333-2000',
+        'samaccounttype': '268435456',
+        'samaccountname': 'group',
+        'distinguishedname': group_dn,
+    }
+    if forward_members_present:
+        group['member'] = ', '.join(user['distinguishedname'] for user in users)
+    adds = ADDS()
+    adds.import_objects([*users, group])
+    for user in adds.users:
+        user.ObjectIdentifier = CountingSid(user.ObjectIdentifier)
+
+    adds.resolve_group_members()
+    resolution_comparisons = comparisons
+
+    members = adds.groups[0].Members
+    assert len(members) == size
+    assert {str(member['ObjectIdentifier']) for member in members} == {
+        user['objectsid'] for user in users
+    }
+    assert all(member['ObjectType'] == 'User' for member in members)
+    # Generous linear allowance: current list scans require roughly size**2 / 2.
+    assert resolution_comparisons <= 8 * size, (
+        f'{resolution_comparisons} SID comparisons for {size} group members'
+    )

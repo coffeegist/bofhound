@@ -1,10 +1,44 @@
 """Tests for BRC4 LDAP Sentinel parser."""
+import pytest
+
 from bofhound.ad.models.bloodhound_computer import BloodHoundComputer
 from bofhound.ad.adds import ADDS
 from bofhound.parsers import Brc4LdapSentinelParser
 from tests.test_data import (
     brc4ldapsentinel_standard_file_1030
 )
+
+
+@pytest.mark.parametrize('noise', [
+    '',
+    '[*] Task-00 [Thread: 1732]',
+    '2026/10/23 10:13:15 EDT [input] admin => sleep 2',
+    '2026/10/23 10:13:15 EDT [sent 8 bytes]',
+], ids=['blank', 'task', 'input', 'sent'])
+def test_brc4_console_noise_preserves_split_attribute_value(noise):
+    """Transport markers within a value must not truncate the LDAP object."""
+    lines = [
+        '+-------------------------------------------------------------------+',
+        '[+] objectClass : top; person; organizationalPerson; user',
+        '[+] distinguishedName : CN=Alice,CN=Users,DC=example,DC=test',
+        '[+] objectSid : S-1-5-21-111-222-',
+        noise,
+        '333-1001',
+        '[+] sAMAccountName : Alice',
+        '[+] sAMAccountType : 805306368',
+        '+-------------------------------------------------------------------+',
+    ]
+    parser = Brc4LdapSentinelParser()
+    for line in lines:
+        parser.process_line(line)
+
+    assert parser.get_results() == [{
+        'objectclass': 'top, person, organizationalPerson, user',
+        'distinguishedname': 'CN=Alice,CN=Users,DC=example,DC=test',
+        'objectsid': 'S-1-5-21-111-222-333-1001',
+        'samaccountname': 'Alice',
+        'samaccounttype': '805306368',
+    }]
 
 
 def test_parse_sentinel_standard_file(brc4ldapsentinel_standard_file_1030):

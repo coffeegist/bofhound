@@ -360,3 +360,53 @@ def test_cached_membership_follows_same_identity_rename(tmp_path):
         adds.import_objects(merged)
         adds.resolve_group_members()
         assert adds.groups[0].Members == [{'ObjectIdentifier': user['objectsid'], 'ObjectType': 'User'}]
+
+
+@pytest.mark.parametrize('retain_other_member', [False, True], ids=['empty-group', 'nonempty-group'])
+def test_fresh_group_member_removal_overrides_cached_memberof(tmp_path, retain_other_member):
+    """An old reverse link cannot restore membership removed by a fresh group."""
+    from bofhound.ad import ADDS
+
+    group_dn = 'CN=Group,DC=example,DC=test'
+    alice = {**RAW_USER, 'samaccounttype': '805306368', 'memberof': group_dn}
+    bob = {
+        **alice,
+        'objectsid': 'S-1-5-21-111-222-333-1002',
+        'samaccountname': 'bob',
+        'distinguishedname': 'CN=Bob,DC=example,DC=test',
+    }
+    group = {
+        'objectsid': 'S-1-5-21-111-222-333-2000',
+        'samaccounttype': '268435456',
+        'samaccountname': 'group',
+        'distinguishedname': group_dn,
+        'member': ', '.join([alice['distinguishedname'], bob['distinguishedname']]),
+    }
+    expected = ([{'ObjectIdentifier': bob['objectsid'], 'ObjectType': 'User'}]
+                if retain_other_member else [])
+
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        for raw in (alice, bob, group):
+            cache.store_object(raw)
+
+        # Neither user is recollected; the group supplies the newer membership list.
+        merged = cache.merge_ldap_objects([{
+            'objectsid': group['objectsid'],
+            'distinguishedname': group_dn,
+            'member': bob['distinguishedname'] if retain_other_member else '',
+        }])
+        adds = ADDS()
+        adds.import_objects(merged)
+        adds.resolve_group_members()
+        assert adds.groups[0].Members == expected
+
+        # The removal must also survive persistence and a collection with no updates.
+        for raw in merged:
+            cache.store_object(raw)
+        cache.commit()
+
+    with ObjectCache(str(tmp_path / 'cache.db')) as cache:
+        adds = ADDS()
+        adds.import_objects(cache.merge_ldap_objects([]))
+        adds.resolve_group_members()
+        assert adds.groups[0].Members == expected
