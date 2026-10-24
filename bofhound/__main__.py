@@ -20,9 +20,9 @@ LDIF_PATTERNS = ("*.ldif", "*.ldif.txt", "*.txt", "*.log")
 
 
 def get_version() -> str:
-    """Read the installed distribution version, including editable installs."""
+    """Format the installed distribution version for display, including editable installs."""
     try:
-        return metadata.version('bofhound')
+        return f"v{metadata.version('bofhound')}"
     except metadata.PackageNotFoundError:
         return 'unknown'
 
@@ -30,7 +30,7 @@ def get_version() -> str:
 def version_callback(value: bool) -> None:
     """Print the version before validating inputs or starting normal processing."""
     if value:
-        typer.echo(f'bofhound {get_version()}')
+        typer.echo(get_version())
         raise typer.Exit()
 
 
