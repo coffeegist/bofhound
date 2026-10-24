@@ -1,6 +1,10 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- Display the installed package version with `--version` / `-V` and in the startup banner.
+### Changed
+- Refresh the README with current parsers, CLI options, cache behavior, and development instructions.
 
 ## [0.5.1] - 2026-10-23
 ### Added

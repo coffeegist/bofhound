@@ -1,12 +1,84 @@
 """CLI upload lifecycle regressions; network calls are mocked."""
+from importlib import metadata
 from unittest.mock import Mock
 
+from click import unstyle
 import pytest
 from typer.testing import CliRunner
 
 from bofhound import __main__ as cli
 
 ARGS = ['--quiet', '--no-cache', '--bh-token-id', 'id', '--bh-token-key', 'key']
+
+
+@pytest.mark.parametrize('flag', ['--version', '-V'])
+@pytest.mark.parametrize('flag_first', [False, True], ids=['last', 'first'])
+def test_version_exits_before_validating_or_processing_input(tmp_path, monkeypatch, flag, flag_first):
+    lookup = Mock(return_value='9.8.7')
+    monkeypatch.setattr(metadata, 'version', lookup)
+    blocked = Mock(side_effect=AssertionError('Version must exit before processing'))
+    for name in ('ObjectCache', 'FileDataSource', 'BloodHoundUploader', 'banner'):
+        monkeypatch.setattr(cli, name, blocked)
+    output = tmp_path / 'must-not-be-created'
+    args = [
+        '--quiet', '--input', str(tmp_path / 'does-not-exist'),
+        '--output', str(output), '--parser', 'invalid-parser',
+        '--bh-token-id', 'id', '--bh-token-key', 'key',
+    ]
+    args = [flag, *args] if flag_first else [*args, flag]
+
+    result = CliRunner().invoke(cli.app, args)
+
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert result.output == 'v9.8.7\n'
+    lookup.assert_called_once_with('bofhound')
+    blocked.assert_not_called()
+    assert not output.exists()
+
+
+def test_version_without_installed_package_metadata(monkeypatch):
+    monkeypatch.setattr(metadata, 'version', Mock(side_effect=metadata.PackageNotFoundError('bofhound')))
+
+    result = CliRunner().invoke(cli.app, ['--version'])
+
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert result.output == 'unknown\n'
+
+
+@pytest.mark.parametrize('quiet', [False, True], ids=['banner', 'quiet'])
+def test_banner_reports_installed_version_unless_quiet(tmp_path, monkeypatch, quiet):
+    class StopAfterDispatch(Exception):
+        pass
+
+    lookup = Mock(return_value='9.8.7')
+    monkeypatch.setattr(metadata, 'version', lookup)
+    pipeline = Mock()
+    pipeline.process_data_source.side_effect = StopAfterDispatch
+    monkeypatch.setattr(cli.ParsingPipelineFactory, 'create_pipeline', Mock(return_value=pipeline))
+    args = ['--no-cache', '--input', str(tmp_path), '--output', str(tmp_path)]
+    if quiet:
+        args.append('--quiet')
+
+    result = CliRunner().invoke(cli.app, args)
+
+    assert isinstance(result.exception, StopAfterDispatch)
+    if quiet:
+        assert 'bofhound v9.8.7' not in result.output
+        assert '@coffeegist' not in result.output
+        lookup.assert_not_called()
+    else:
+        assert 'bofhound v9.8.7' in result.output
+        assert '<< @coffeegist | @Tw1sm >>' in result.output
+        lookup.assert_called_once_with('bofhound')
+
+
+def test_help_lists_version_option():
+    result = CliRunner().invoke(cli.app, ['--help'])
+
+    assert result.exit_code == 0, result.output
+    output = unstyle(result.output)
+    assert '--version' in output
+    assert '-V' in output
 
 
 def test_ldif_parser_uses_ldif_file_patterns(tmp_path, monkeypatch):

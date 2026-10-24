@@ -1,6 +1,7 @@
 """Entry point for bofhound CLI application."""
 import sys
 import logging
+from importlib import metadata
 from pathlib import Path
 import typer
 from bofhound.parsers import ParserType, ParsingPipelineFactory
@@ -17,6 +18,22 @@ from bofhound.cache import ObjectCache
 # extensions the ldapsearch client's output tends to be saved under
 LDIF_PATTERNS = ("*.ldif", "*.ldif.txt", "*.txt", "*.log")
 
+
+def get_version() -> str:
+    """Format the installed distribution version for display, including editable installs."""
+    try:
+        return f"v{metadata.version('bofhound')}"
+    except metadata.PackageNotFoundError:
+        return 'unknown'
+
+
+def version_callback(value: bool) -> None:
+    """Print the version before validating inputs or starting normal processing."""
+    if value:
+        typer.echo(get_version())
+        raise typer.Exit()
+
+
 app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
@@ -25,6 +42,10 @@ app = typer.Typer(
 
 @app.command()
 def main(
+    version: bool = typer.Option(
+        False, "--version", "-V", callback=version_callback, is_eager=True,
+        help="Show the installed version and exit."
+    ),
     input_files: str = typer.Option(
         "/opt/cobaltstrike/logs", "--input", "-i",
         help="Directory or file containing logs of ldapsearch results"
@@ -444,7 +465,7 @@ def upload_files(server, token_id, token_key, files, uploader=None):
 
 def banner():
     """Display the bofhound banner."""
-    print('''
+    print(f'''
  _____________________________ __    __    ______    __    __   __   __   _______
 |   _   /  /  __   / |   ____/|  |  |  |  /  __  \\  |  |  |  | |  \\ |  | |       \\
 |  |_)  | |  |  |  | |  |__   |  |__|  | |  |  |  | |  |  |  | |   \\|  | |  .--.  |
@@ -453,6 +474,7 @@ def banner():
 |______/   \\______/  |__|     |__|  |___\\_\\________\\_\\________\\|__| \\___\\|_________\\
 
                             << @coffeegist | @Tw1sm >>
+                            bofhound {get_version()}
     ''')
 
 
