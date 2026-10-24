@@ -2,6 +2,7 @@
 from importlib import metadata
 from unittest.mock import Mock
 
+from click import unstyle
 import pytest
 from typer.testing import CliRunner
 
@@ -75,8 +76,9 @@ def test_help_lists_version_option():
     result = CliRunner().invoke(cli.app, ['--help'])
 
     assert result.exit_code == 0, result.output
-    assert '--version' in result.output
-    assert '-V' in result.output
+    output = unstyle(result.output)
+    assert '--version' in output
+    assert '-V' in output
 
 
 def test_ldif_parser_uses_ldif_file_patterns(tmp_path, monkeypatch):
