@@ -30,7 +30,7 @@ def test_version_exits_before_validating_or_processing_input(tmp_path, monkeypat
     result = CliRunner().invoke(cli.app, args)
 
     assert result.exit_code == 0, (result.output, result.exception)
-    assert result.output == 'bofhound 9.8.7\n'
+    assert result.output == 'v9.8.7\n'
     lookup.assert_called_once_with('bofhound')
     blocked.assert_not_called()
     assert not output.exists()
@@ -42,7 +42,7 @@ def test_version_without_installed_package_metadata(monkeypatch):
     result = CliRunner().invoke(cli.app, ['--version'])
 
     assert result.exit_code == 0, (result.output, result.exception)
-    assert result.output == 'bofhound unknown\n'
+    assert result.output == 'unknown\n'
 
 
 @pytest.mark.parametrize('quiet', [False, True], ids=['banner', 'quiet'])
@@ -63,11 +63,11 @@ def test_banner_reports_installed_version_unless_quiet(tmp_path, monkeypatch, qu
 
     assert isinstance(result.exception, StopAfterDispatch)
     if quiet:
-        assert 'bofhound 9.8.7' not in result.output
+        assert 'bofhound v9.8.7' not in result.output
         assert '@coffeegist' not in result.output
         lookup.assert_not_called()
     else:
-        assert 'bofhound 9.8.7' in result.output
+        assert 'bofhound v9.8.7' in result.output
         assert '<< @coffeegist | @Tw1sm >>' in result.output
         lookup.assert_called_once_with('bofhound')
 
