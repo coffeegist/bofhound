@@ -42,6 +42,9 @@ Presentations:
 BOFHound can be installed with `pip3 install bofhound` or by cloning this repository and running `pip3 install .`
 
 # Usage
+Print the installed version with `bofhound --version` or `bofhound -V`. The startup
+banner also displays the version unless suppressed with `--quiet`.
+
 ```
  Usage: bofhound [OPTIONS]
 
@@ -73,6 +76,7 @@ BOFHound can be installed with `pip3 install bofhound` or by cloning this reposi
 │ --zip               -z                                       Compress the JSON output files   │
 │                                                              into a zip archive               │
 │ --quiet             -q                                       Suppress banner                  │
+│ --version           -V                                       Show installed version and exit  │
 │ --help              -h                                       Show this message and exit.      │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Mythic Options ──────────────────────────────────────────────────────────────────────────────╮
